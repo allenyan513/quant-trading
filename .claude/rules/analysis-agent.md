@@ -7,13 +7,15 @@ paths:
 
 analysis 是系统里**唯一**真正的 LLM agent。完整设计见 [docs/architecture.md](../../docs/architecture.md) §5 / §6，这里是写代码时的硬约束。
 
-## 两阶段事务（不可破坏）
+## 异步 ACK + 两阶段（不可破坏）
 
-`POST /events` 处理 event 时严格分三步（见 `src/pipeline.ts`）：
+`POST /events` 是**异步 ACK**：先 `await intakeEvent`（快），立即回 202，再后台跑 `processEvent`（慢）。这样生产者（ingestion）的投递不会被 LLM 阻塞超时。见 `src/pipeline.ts`。
 
-1. **Tx1（快）**：按 `(source, external_id)` 去重 + 标记 event `processing`；**noise 事件在调 LLM 之前短路**，绝不进 agent。
-2. **慢阶段（不持有事务）**：算/读 reference valuation + trading valuation，跑 agent loop。耗时操作不要包在事务里。
-3. **Tx2（快）**：持久化 `trading_signals`，标记 event `done`，写 evaluation 的 outbox 行。
+1. **intake（快，ACK 前 await）**：`findOrInsertEvent` 按 `(source, external_id)` 去重；已有信号→`duplicate`；**noise 在调 LLM 前短路**（绝不进 agent）；否则标 `processing` 返回 `accepted`。纯 DB 操作，秒回。
+2. **process（慢，后台）**：reference valuation + agent loop + 持久化 `trading_signals` + 标 `done` + 投递 evaluation。不持有事务跨网络。
+3. **恢复**：后台 process 若崩溃（实例被杀），event 卡在 `processing`，由 `reprocessStuck`（`POST /internal/reprocess`，cron 触发）按年龄阈值捞回重跑——这是异步 ACK 下补回 at-least-once 的安全网，**不要删**。
+
+> Cloud Run 注意：响应返回后 CPU 可能被限流，后台 process 不保证跑完——`/internal/reprocess` 正是兜底。v2 应换成 Pub/Sub / Cloud Tasks 真正解耦。
 
 ## 估值分层
 
