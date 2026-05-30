@@ -8,7 +8,7 @@ import { fmpGet, type EventPayload } from "@qt/shared";
 import { log } from "../log.js";
 import { latestPerSymbol } from "./_latest.js";
 
-interface FmpInsider {
+export interface FmpInsider {
   symbol?: string;
   transactionType?: string; // "P-Purchase" | "S-Sale" | "G-Gift" | "A-Award" | "M-Exempt" | ...
   acquisitionOrDisposition?: string; // A | D
@@ -29,35 +29,15 @@ function directionHint(t: FmpInsider): EventPayload["direction_hint"] {
   return null;
 }
 
-export async function pullInsider(opts: {
-  from: string;
-  to: string;
-  symbols: string[];
-  limit?: number;
-}): Promise<EventPayload[]> {
-  const perSymbol = await Promise.all(
-    opts.symbols.map(async (symbol) => {
-      try {
-        const rows = await fmpGet<FmpInsider[]>(
-          "insider-trading/search",
-          { symbol, page: 0, limit: opts.limit ?? 50 },
-          { softFail402: true },
-        );
-        return rows ?? [];
-      } catch (err) {
-        log.warn("pull.insider.symbol_failed", {
-          symbol,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [] as FmpInsider[];
-      }
-    }),
-  );
-
+/** Pure: insider rows (grouped by queried symbol) -> events. Keeps only P/S in window; latest per symbol. */
+export function mapInsider(
+  grouped: Array<{ symbol: string; rows: FmpInsider[] }>,
+  opts: { from: string; to: string },
+): EventPayload[] {
   const out: EventPayload[] = [];
-  for (let i = 0; i < opts.symbols.length; i++) {
-    const sym = opts.symbols[i]!.toUpperCase();
-    for (const t of perSymbol[i]!) {
+  for (const { symbol, rows } of grouped) {
+    const sym = symbol.toUpperCase();
+    for (const t of rows) {
       const code = (t.transactionType ?? "").toUpperCase();
       // Only open-market buys/sells carry signal; drop gifts/awards/exercises/tax.
       if (!code.startsWith("P-") && !code.startsWith("S-")) continue;
@@ -78,4 +58,31 @@ export async function pullInsider(opts: {
     }
   }
   return latestPerSymbol(out);
+}
+
+export async function pullInsider(opts: {
+  from: string;
+  to: string;
+  symbols: string[];
+  limit?: number;
+}): Promise<EventPayload[]> {
+  const grouped = await Promise.all(
+    opts.symbols.map(async (symbol) => {
+      try {
+        const rows = await fmpGet<FmpInsider[]>(
+          "insider-trading/search",
+          { symbol, page: 0, limit: opts.limit ?? 50 },
+          { softFail402: true },
+        );
+        return { symbol, rows: rows ?? [] };
+      } catch (err) {
+        log.warn("pull.insider.symbol_failed", {
+          symbol,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return { symbol, rows: [] as FmpInsider[] };
+      }
+    }),
+  );
+  return mapInsider(grouped, opts);
 }

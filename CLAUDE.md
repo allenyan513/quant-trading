@@ -25,6 +25,7 @@ pnpm dev:analysis             # 单起 → :8082
 pnpm dev:evaluation           # 单起 → :8083
 
 pnpm typecheck                # 全仓 tsc --noEmit；提交前必跑
+pnpm test                     # 全仓 vitest（纯函数单测，不碰 FMP/DB）；CI 也跑
 pnpm build                    # 全仓 tsc 构建
 
 pnpm up                       # docker-compose 全栈（host 8081/8082/8083）

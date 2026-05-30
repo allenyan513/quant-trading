@@ -11,7 +11,7 @@
 import { fmpGet, type EventPayload } from "@qt/shared";
 import { latestPerSymbol } from "./_latest.js";
 
-interface FmpMna {
+export interface FmpMna {
   symbol?: string; // acquirer
   companyName?: string;
   targetedSymbol?: string;
@@ -21,20 +21,12 @@ interface FmpMna {
   link?: string;
 }
 
-export async function pullMna(opts: {
-  from: string;
-  to: string;
-  symbols: string[]; // the watchlist
-  limit?: number;
-}): Promise<EventPayload[]> {
+/** Pure: market-wide M&A rows -> events for watchlist sides only; latest per symbol. */
+export function mapMna(
+  rows: FmpMna[],
+  opts: { from: string; to: string; symbols: string[] },
+): EventPayload[] {
   const watch = new Set(opts.symbols.map((s) => s.toUpperCase()));
-  const rows =
-    (await fmpGet<FmpMna[]>(
-      "mergers-acquisitions-latest",
-      { page: 0, limit: opts.limit ?? 100 },
-      { softFail402: true },
-    )) ?? [];
-
   const out: EventPayload[] = [];
   for (const m of rows) {
     const when = m.acceptedDate ?? m.transactionDate;
@@ -65,4 +57,19 @@ export async function pullMna(opts: {
     }
   }
   return latestPerSymbol(out);
+}
+
+export async function pullMna(opts: {
+  from: string;
+  to: string;
+  symbols: string[]; // the watchlist
+  limit?: number;
+}): Promise<EventPayload[]> {
+  const rows =
+    (await fmpGet<FmpMna[]>(
+      "mergers-acquisitions-latest",
+      { page: 0, limit: opts.limit ?? 100 },
+      { softFail402: true },
+    )) ?? [];
+  return mapMna(rows, opts);
 }

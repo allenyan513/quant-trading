@@ -24,7 +24,7 @@ interface FmpNews {
  * ISO via a two-pass Intl offset computation (DST-aware: EST -05:00 / EDT
  * -04:00). Returns null if unparseable.
  */
-function easternToUtcIso(naive: string): string | null {
+export function easternToUtcIso(naive: string): string | null {
   const m = naive.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (!m) return null;
   const [, y, mo, d, h, mi, s] = m;
