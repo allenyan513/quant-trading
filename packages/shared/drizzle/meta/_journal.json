@@ -22,6 +22,13 @@
       "when": 1780168088681,
       "tag": "0002_right_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780172389956,
+      "tag": "0003_red_gamora",
+      "breakpoints": true
     }
   ]
 }

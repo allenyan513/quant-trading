@@ -19,7 +19,7 @@ export type EventType = (typeof ACTIONABLE_EVENT_TYPES)[number];
 
 export type DirectionHint = "bullish" | "bearish" | null;
 
-/** The payload ingestion POSTs to analysis `/events`. */
+/** A single raw event. Persisted by ingestion (dedup on source+external_id). */
 export interface EventPayload {
   /** Origin system, e.g. "fmp". Part of the dedup key. */
   source: string;
@@ -33,6 +33,34 @@ export interface EventPayload {
   observed_at?: string | null;
   /** Full raw payload, preserved for replay. */
   raw: Record<string, unknown>;
+}
+
+/** One bundled event inside a notification (a compact view of an EventPayload). */
+export interface EventRef {
+  external_id: string;
+  direction_hint?: DirectionHint;
+  headline?: string | null;
+  observed_at?: string | null;
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * The payload ingestion POSTs to analysis `/notifications`: one aggregated
+ * notification per (symbol, event_type) batch, bundling that group's events.
+ * Analysis dedups on (source, batch_key), unpacks `events`, and reprices the
+ * whole bundle into ONE signal.
+ */
+export interface NotificationPayload {
+  /** Origin system, e.g. "fmp". Part of the dedup key. */
+  source: string;
+  /** Stable id for this batch (hash of member external_ids). Dedup key. */
+  batch_key: string;
+  symbol: string;
+  event_type: EventType | string;
+  /** Human headline, e.g. "NVDA: 3 grade changes". */
+  summary?: string | null;
+  /** The bundled events (>= 1), newest-first. */
+  events: EventRef[];
 }
 
 // ---- Trading signals (analysis -> evaluation) ----
@@ -59,6 +87,9 @@ export interface SignalDraft {
 /** The payload analysis POSTs to evaluation `/signals`. */
 export interface TradingSignalDTO {
   id: string;
+  /** The aggregated notification this signal was repriced from. */
+  notification_id: string | null;
+  /** Legacy pre-aggregation 1:1 event link; null for notification-sourced signals. */
   event_id: string | null;
   symbol: string;
   direction: Direction;

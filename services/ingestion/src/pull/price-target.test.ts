@@ -35,7 +35,7 @@ describe("mapPriceTargets", () => {
     expect(out).toEqual([]);
   });
 
-  it("keeps observed_at as the ISO-Z timestamp and the latest per symbol", () => {
+  it("keeps every in-window target with observed_at as the ISO-Z timestamp", () => {
     const out = mapPriceTargets(
       grp("AAPL", [
         p({ publishedDate: "2026-05-05T10:00:00.000Z", priceTarget: 180 }),
@@ -43,7 +43,10 @@ describe("mapPriceTargets", () => {
       ]),
       W,
     );
-    expect(out).toHaveLength(1);
-    expect(out[0]!.observed_at).toBe("2026-05-20T10:00:00.000Z");
+    expect(out).toHaveLength(2);
+    expect(out.map((e) => e.observed_at)).toEqual([
+      "2026-05-05T10:00:00.000Z",
+      "2026-05-20T10:00:00.000Z",
+    ]);
   });
 });

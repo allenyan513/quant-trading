@@ -3,13 +3,12 @@
  * Endpoint `mergers-acquisitions-latest` is MARKET-WIDE (not symbol-scoped), so
  * we pull a recent page and keep only deals touching the watchlist — as either
  * acquirer or target. Being acquired is bullish (takeover premium); acquiring is
- * left neutral. Reduced to the latest deal per (watchlist) symbol.
+ * left neutral. All in-window deals touching the watchlist are emitted.
  *
  * NOTE: M&A is rare, so a single page often yields zero watchlist hits — that's
  * expected. If coverage matters, paginate further (future).
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { latestPerSymbol } from "./_latest.js";
 
 export interface FmpMna {
   symbol?: string; // acquirer
@@ -21,7 +20,7 @@ export interface FmpMna {
   link?: string;
 }
 
-/** Pure: market-wide M&A rows -> events for watchlist sides only; latest per symbol. */
+/** Pure: market-wide M&A rows -> events for watchlist sides only; all kept. */
 export function mapMna(
   rows: FmpMna[],
   opts: { from: string; to: string; symbols: string[] },
@@ -56,7 +55,7 @@ export function mapMna(
       });
     }
   }
-  return latestPerSymbol(out);
+  return out;
 }
 
 export async function pullMna(opts: {

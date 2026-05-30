@@ -62,6 +62,7 @@ export async function redeliverPendingSignals(limit = 100): Promise<{ tried: num
 export function rowToDto(s: typeof tradingSignals.$inferSelect): TradingSignalDTO {
   return {
     id: s.id,
+    notification_id: s.notificationId,
     event_id: s.eventId,
     symbol: s.symbol,
     direction: s.direction as TradingSignalDTO["direction"],

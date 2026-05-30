@@ -160,12 +160,52 @@ export const events = pgTable(
   ],
 );
 
+// ---- Notifications (ingestion -> analysis) + outbox ----
+
+// One aggregated notification per (symbol, event_type) batch: it bundles that
+// group's not-yet-delivered raw `events` into a single delivery to analysis.
+// Carries BOTH the producer outbox status (delivery_status, set by ingestion)
+// and the consumer pipeline status (status, set by analysis) — same dual-status
+// shape as `events`. Idempotency: batch_key = hash of the sorted member
+// external_ids, so a crash-retry that regroups the same set hits the unique
+// (source, batch_key) and re-delivers the existing row instead of duplicating.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    source: text("source").notNull(),
+    batchKey: text("batch_key").notNull(),
+    symbol: text("symbol").notNull(),
+    eventType: text("event_type").notNull(),
+    eventIds: jsonb("event_ids").notNull(), // string[] of events.id bundled here
+    count: integer("count").notNull(),
+    summary: text("summary"), // human headline, e.g. "NVDA: 3 grade changes"
+    observedAt: timestamp("observed_at", { withTimezone: true }), // latest member observed_at
+    ingestedAt: timestamp("ingested_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    // pipeline status (consumer side, set by analysis): pending|processing|done|noise
+    status: text("status").default("pending").notNull(),
+    // outbox delivery status (producer side, set by ingestion): pending|delivered|failed
+    deliveryStatus: text("delivery_status").default("pending").notNull(),
+    deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
+    lastError: text("last_error"),
+  },
+  (t) => [
+    uniqueIndex("uq_notifications_source_batch").on(t.source, t.batchKey),
+    index("idx_notifications_delivery").on(t.deliveryStatus),
+    index("idx_notifications_status").on(t.status),
+  ],
+);
+
 // ---- Trading signals (analysis output) ----
 
 export const tradingSignals = pgTable(
   "trading_signals",
   {
     id: text("id").primaryKey(),
+    // The aggregated notification this signal was repriced from (one signal per
+    // notification). `eventId` is legacy (pre-aggregation 1:1 link) and stays
+    // null for notification-sourced signals.
+    notificationId: text("notification_id"),
     eventId: text("event_id"),
     symbol: text("symbol").notNull(),
     direction: text("direction").notNull(), // buy|sell|hold
@@ -185,8 +225,9 @@ export const tradingSignals = pgTable(
   },
   (t) => [
     index("idx_signals_symbol").on(t.symbol),
-    // One signal per event (NULLs are distinct, so algo signals w/o eventId are unaffected).
-    uniqueIndex("uq_signals_event").on(t.eventId),
+    // One signal per notification (NULLs are distinct, so algo signals w/o a
+    // notification are unaffected).
+    uniqueIndex("uq_signals_notification").on(t.notificationId),
     index("idx_signals_status").on(t.status),
   ],
 );

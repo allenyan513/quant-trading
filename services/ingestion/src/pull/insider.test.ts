@@ -35,7 +35,7 @@ describe("mapInsider", () => {
     expect(out).toEqual([]);
   });
 
-  it("keeps only the latest insider trade per symbol", () => {
+  it("keeps every in-window open-market trade for a symbol (analysis bundles them)", () => {
     const out = mapInsider(
       grp("AAPL", [
         t({ transactionType: "P-Purchase", filingDate: "2026-05-05", securitiesTransacted: 1 }),
@@ -43,8 +43,8 @@ describe("mapInsider", () => {
       ]),
       W,
     );
-    expect(out).toHaveLength(1);
-    expect(out[0]!.observed_at).toBe("2026-05-25");
-    expect(out[0]!.direction_hint).toBe("bearish");
+    expect(out).toHaveLength(2);
+    expect(new Set(out.map((e) => e.external_id)).size).toBe(2);
+    expect(out.map((e) => e.direction_hint)).toEqual(["bullish", "bearish"]);
   });
 });

@@ -28,6 +28,7 @@ app.post("/signals", async (c) => {
       .insert(tradingSignals)
       .values({
         id: s.id,
+        notificationId: s.notification_id,
         eventId: s.event_id,
         symbol: s.symbol,
         direction: s.direction,

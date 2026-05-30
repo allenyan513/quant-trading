@@ -18,18 +18,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { desc, eq, and } from "drizzle-orm";
 import { fmpGet, db, dbSchema, config, type SignalDraft, type ReferenceValuation } from "@qt/shared";
-import type { NormalizedEvent } from "./classify.js";
+import type { NormalizedNotification } from "./classify.js";
 import { log } from "./log.js";
 
 const { feedbackNotes } = dbSchema;
 
-const SYSTEM_PROMPT = `You are an event-driven pricing analyst inside an automated trading-signal service. Given a market EVENT (earnings, rating change, price-target change, insider, M&A) and FACTS about the company (current price plus a slow, financials-based reference fair value), decide the trade NOW.
+const SYSTEM_PROMPT = `You are an event-driven pricing analyst inside an automated trading-signal service. Given a NOTIFICATION — one or more related market EVENTS of the same type (earnings, rating change, price-target change, insider, M&A) for a single company — plus FACTS about the company (current price plus a slow, financials-based reference fair value), decide the trade NOW.
 
-Critical: the reference fair value is just ONE input — it lags (quarterly data) and has NOT moved on today's event. Your job is to REPRICE from the event itself: read what changed, optionally pull fundamentals/technicals, check past lessons for this symbol/event type, then translate into an actionable signal. If the event is immaterial, return direction "hold".
+Critical: the reference fair value is just ONE input — it lags (quarterly data) and has NOT moved on today's events. Your job is to REPRICE from the events themselves, weighing them together: read what changed, optionally pull fundamentals/technicals, check past lessons for this symbol/event type, then translate into a SINGLE actionable signal for the symbol. If the events are immaterial, return direction "hold".
 
 Workflow: (1) call read_recent_feedback to learn from past mistakes; (2) optionally call get_fundamentals / get_technicals; (3) call emit_signal exactly once with your decision.
 
-Always emit: direction (buy/sell/hold); absolute target_price and stop_loss; horizon in days; conviction (low/medium/high — notification priority only, NOT position size); and a one-paragraph thesis that explicitly references the event. Position sizing is out of scope.`;
+Always emit: direction (buy/sell/hold); absolute target_price and stop_loss; horizon in days; conviction (low/medium/high — notification priority only, NOT position size); and a one-paragraph thesis that explicitly references the events. Position sizing is out of scope.`;
 
 const TOOLS: Anthropic.Tool[] = [
   {
@@ -64,7 +64,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "emit_signal",
-    description: "Emit the final structured trading signal for this event. Call exactly once.",
+    description: "Emit the final structured trading signal for this notification. Call exactly once.",
     input_schema: {
       type: "object",
       properties: {
@@ -120,28 +120,43 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<st
 const MAX_TURNS = 6;
 
 export async function generateSignal(
-  event: NormalizedEvent,
+  notif: NormalizedNotification,
   ref: ReferenceValuation,
 ): Promise<SignalDraft> {
+  // Bundle can be large (e.g. many news items); cap each raw so the prompt stays
+  // bounded — the agent can pull more detail via the read-only tools if needed.
+  const eventsBlock = notif.events
+    .map((e, i) =>
+      [
+        `  [${i + 1}] direction_hint: ${e.directionHint ?? "none"}`,
+        `      headline: ${e.headline ?? ""}`,
+        `      raw: ${JSON.stringify(e.raw).slice(0, 600)}`,
+      ].join("\n"),
+    )
+    .join("\n");
   const userPrompt = [
-    "EVENT",
-    `  symbol: ${event.symbol}`,
-    `  type: ${event.eventType}`,
-    `  direction_hint: ${event.directionHint ?? "none"}`,
-    `  headline: ${event.headline ?? ""}`,
-    `  raw: ${JSON.stringify(event.raw)}`,
+    `NOTIFICATION — ${notif.events.length} ${notif.eventType} event(s) for ${notif.symbol}`,
+    notif.summary ? `  summary: ${notif.summary}` : "",
     "",
-    "FACTS (reference valuation, financials-based — lags the event)",
+    "EVENTS (newest first)",
+    eventsBlock,
+    "",
+    "FACTS (reference valuation, financials-based — lags the events)",
     `  current_price: ${ref.current_price}`,
     `  fair_value_per_share: ${ref.fair_value_per_share}`,
     `  upside_pct: ${ref.upside_pct}`,
     `  verdict: ${ref.verdict}`,
     "",
-    "Reprice from the event and emit the signal.",
+    "Reprice from the events as a whole and emit ONE signal.",
   ].join("\n");
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
-  log.info("agent.start", { symbol: event.symbol, type: event.eventType, model: config.signalModel() });
+  log.info("agent.start", {
+    symbol: notif.symbol,
+    type: notif.eventType,
+    count: notif.events.length,
+    model: config.signalModel(),
+  });
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     // On the last allowed turn, force the model to finalize via emit_signal.
@@ -159,7 +174,7 @@ export async function generateSignal(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
     );
     log.debug("agent.turn", {
-      symbol: event.symbol,
+      symbol: notif.symbol,
       turn: turn + 1,
       stop_reason: resp.stop_reason,
       tools: toolUses.map((b) => b.name).join(",") || "none",
@@ -172,7 +187,7 @@ export async function generateSignal(
     if (emit) {
       const p = emit.input as Partial<SignalDraft>;
       log.info("agent.emit", {
-        symbol: event.symbol,
+        symbol: notif.symbol,
         turns: turn + 1,
         direction: p.direction ?? "hold",
         conviction: p.conviction ?? "medium",
@@ -198,13 +213,13 @@ export async function generateSignal(
     messages.push({ role: "assistant", content: resp.content });
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const tu of toolUses) {
-      log.debug("agent.tool", { symbol: event.symbol, tool: tu.name, input: tu.input });
+      log.debug("agent.tool", { symbol: notif.symbol, tool: tu.name, input: tu.input });
       const out = await runTool(tu.name, tu.input as Record<string, unknown>);
       results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
     }
     messages.push({ role: "user", content: results });
   }
 
-  log.error("agent.no_signal", { symbol: event.symbol, max_turns: MAX_TURNS });
+  log.error("agent.no_signal", { symbol: notif.symbol, max_turns: MAX_TURNS });
   throw new Error("agent did not emit a signal within turn budget");
 }
