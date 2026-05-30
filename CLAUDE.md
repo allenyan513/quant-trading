@@ -25,6 +25,7 @@ pnpm dev:analysis             # 单起 → :8082
 pnpm dev:evaluation           # 单起 → :8083
 
 pnpm typecheck                # 全仓 tsc --noEmit；提交前必跑
+pnpm test                     # 全仓 vitest（纯函数单测，不碰 FMP/DB）；CI 也跑
 pnpm build                    # 全仓 tsc 构建
 
 pnpm up                       # docker-compose 全栈（host 8081/8082/8083）
@@ -48,6 +49,20 @@ pnpm down
 - **服务间通信**：`deliverJson` + DB outbox（at-least-once）。生产者在同一事务里写业务数据 + outbox 行（`pending`），提交后再投递；消费端按 `(source, external_id)` 幂等去重。
 - **PIT 正确性**：金融数据落库时 `known_at = FMP acceptedDate`，绝不用 `now()`。
 - **金额存原始数字**，展示层再格式化；可重放性靠 `code_version` + 不可变快照。
+
+## Git / 分支工作流（铁律）
+
+> 踩过两次坑：① 基于**陈旧的本地 `main`** 切分支（落后 origin 8 个提交）；② 在 PR **已合并**的分支上继续提交，导致修复搁浅、进不了 main。以下规则用来杜绝。
+
+- **切分支前必 `git fetch`，且基于 `origin/main` 而非本地 `main`**：
+  `git fetch origin && git checkout -b <type>/<topic> origin/main`。
+  绝不假设本地 `main` 是最新的。
+- **往已有分支追加提交前，先确认它的 PR 没合并**：
+  `gh pr view <branch> --json state,mergedAt`（或 `gh pr list --head <branch>`）。
+  若 `state=MERGED`/`CLOSED` → **不要再提交**，从最新 `origin/main` 另开新分支做后续工作。
+- **PR 合并 = 该分支生命周期结束**。任何后续改动（评审修复、补丁、follow-up）都走**新分支 + 新 PR**，不复用旧分支。
+- **救已搁浅在死分支上的提交**：从 `origin/main` 切新分支 → `git cherry-pick <那些 commit>` → push → 开新 PR。
+- 分支命名：`feat/*`（新功能）、`fix/*`（修复）；提交信息按现有中文 conventional commit 风格。
 
 ## 按目录加载的细则
 
