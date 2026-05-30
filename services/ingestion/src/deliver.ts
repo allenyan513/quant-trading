@@ -244,9 +244,16 @@ export async function ingestAndNotifyAll(payloads: EventPayload[], batchSize = 1
     g.push(item);
   }
 
+  // Deliver notifications with the same bounded concurrency as the persist step,
+  // so a watchlist with many symbols doesn't serialize into a Scheduler timeout.
   let delivered = 0;
-  for (const items of groups.values()) {
-    if (await buildAndDeliverNotification(items)) delivered += items.length;
+  const groupItems = [...groups.values()];
+  for (let i = 0; i < groupItems.length; i += batchSize) {
+    const batch = groupItems.slice(i, i + batchSize);
+    const results = await Promise.all(batch.map((items) => buildAndDeliverNotification(items)));
+    results.forEach((ok, j) => {
+      if (ok) delivered += batch[j]!.length;
+    });
   }
   return { delivered, skipped, notifications: groups.size };
 }

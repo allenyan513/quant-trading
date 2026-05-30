@@ -50,7 +50,7 @@ async function findOrInsertNotification(p: NotificationPayload): Promise<string>
         .where(and(eq(events.source, p.source), inArray(events.externalId, externalIds)))
     : [];
   const id = randomUUID();
-  await db()
+  const ins = await db()
     .insert(notifications)
     .values({
       id,
@@ -63,7 +63,11 @@ async function findOrInsertNotification(p: NotificationPayload): Promise<string>
       summary: p.summary ?? null,
       deliveryStatus: "delivered", // arrived via HTTP
     })
-    .onConflictDoNothing({ target: [notifications.source, notifications.batchKey] });
+    .onConflictDoNothing({ target: [notifications.source, notifications.batchKey] })
+    .returning({ id: notifications.id });
+  if (ins[0]) return ins[0].id;
+
+  // Lost the insert race: another arrival created it. Read the winner's id.
   const after = await db()
     .select({ id: notifications.id })
     .from(notifications)
@@ -202,13 +206,19 @@ async function rowToNormalized(
   const rows = eventIds.length
     ? await db().select().from(events).where(inArray(events.id, eventIds))
     : [];
-  const refs = rows.map((r) => ({
-    external_id: r.externalId,
-    direction_hint: (r.directionHint as NormalizedEvent["directionHint"]) ?? null,
-    headline: r.headline,
-    observed_at: r.observedAt ? r.observedAt.toISOString() : null,
-    raw: (r.raw as Record<string, unknown>) ?? {},
-  }));
+  // `inArray` doesn't preserve order; re-key by eventIds so the bundle keeps its
+  // original newest-first ordering (matches the initial processing run).
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const refs = eventIds
+    .map((id) => byId.get(id))
+    .filter((r): r is (typeof rows)[number] => !!r)
+    .map((r) => ({
+      external_id: r.externalId,
+      direction_hint: (r.directionHint as NormalizedEvent["directionHint"]) ?? null,
+      headline: r.headline,
+      observed_at: r.observedAt ? r.observedAt.toISOString() : null,
+      raw: (r.raw as Record<string, unknown>) ?? {},
+    }));
   return classifyNotification({
     source: n.source,
     batch_key: n.batchKey,
