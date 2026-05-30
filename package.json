@@ -10,6 +10,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
+    "dev": "pnpm -r --parallel dev",
     "dev:ingestion": "pnpm --filter @qt/ingestion dev",
     "dev:analysis": "pnpm --filter @qt/analysis dev",
     "dev:evaluation": "pnpm --filter @qt/evaluation dev",

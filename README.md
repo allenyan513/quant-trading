@@ -24,8 +24,10 @@
 pnpm install
 cp .env.example .env   # 填入 DATABASE_URL / ANTHROPIC_API_KEY / FMP_API_KEY
 pnpm db:generate && pnpm db:migrate
-# 单服务热重载
-pnpm dev:ingestion   # :8080
+# 一键起全部（本地 tsx 热重载）
+pnpm dev             # ingestion:8081 analysis:8082 evaluation:8083
+# 或单服务热重载
+pnpm dev:ingestion   # :8081
 # 或全栈容器
 pnpm up              # ingestion:8081 analysis:8082 evaluation:8083
 ```
