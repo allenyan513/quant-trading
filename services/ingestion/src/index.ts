@@ -9,6 +9,8 @@ import { ok, fail, config } from "@qt/shared";
 import { ingestAndDeliver, redeliverPending } from "./deliver.js";
 import { pullEarnings } from "./pull/earnings.js";
 import { pullRatings } from "./pull/ratings.js";
+import { pullNews } from "./pull/news.js";
+import { getWatchlistSymbols } from "./watchlist.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -24,10 +26,12 @@ function defaultWindow(): { from: string; to: string } {
 app.post("/pull/earnings", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    // Default the earnings-calendar filter to the watchlist when none given.
+    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
     const win = {
       from: (body.from as string) ?? defaultWindow().from,
       to: (body.to as string) ?? defaultWindow().to,
-      symbols: body.symbols as string[] | undefined,
+      symbols: symbols.length > 0 ? symbols : undefined,
     };
     log.info("pull.earnings.start", { from: win.from, to: win.to, symbols: win.symbols?.length ?? "all" });
     const payloads = await pullEarnings(win);
@@ -46,9 +50,10 @@ app.post("/pull/earnings", async (c) => {
 app.post("/pull/ratings", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const symbols = (body.symbols as string[] | undefined) ?? [];
+    // Default to the watchlist when the caller doesn't pin specific symbols.
+    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
     if (symbols.length === 0) {
-      return c.json(fail("missing_symbols", "ratings pull requires { symbols: [...] }"), 400);
+      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
     }
     log.info("pull.ratings.start", { symbols: symbols.length });
     const payloads = await pullRatings(symbols);
@@ -61,6 +66,33 @@ app.post("/pull/ratings", async (c) => {
   } catch (err) {
     log.error("pull.ratings.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("pull_ratings_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+app.post("/pull/news", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
+    if (symbols.length === 0) {
+      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
+    }
+    const win = {
+      from: (body.from as string) ?? defaultWindow().from,
+      to: (body.to as string) ?? defaultWindow().to,
+      symbols,
+      limit: body.limit as number | undefined,
+    };
+    log.info("pull.news.start", { from: win.from, to: win.to, symbols: symbols.length });
+    const payloads = await pullNews(win);
+    log.info("pull.news.fetched", { events: payloads.length });
+    const results = [];
+    for (const p of payloads) results.push(await ingestAndDeliver(p));
+    const delivered = results.filter((r) => r.delivered).length;
+    log.info("pull.news.done", { pulled: payloads.length, delivered });
+    return c.json(ok({ pulled: payloads.length, delivered }));
+  } catch (err) {
+    log.error("pull.news.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("pull_news_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
