@@ -1,0 +1,103 @@
+/**
+ * Outbox-backed event delivery. Within one transaction we upsert the raw event
+ * (dedup on source+external_id). Then we POST it to analysis; success marks the
+ * row delivered, failure leaves it `pending` for /internal/redeliver to retry.
+ * This gives at-least-once without a message queue; the consumer is idempotent.
+ */
+import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { db, dbSchema, deliverJson, config, type EventPayload } from "@qt/shared";
+
+const { events } = dbSchema;
+
+export interface PersistResult {
+  id: string;
+  inserted: boolean;
+}
+
+/** Upsert an event row (idempotent on source+external_id). Returns its id. */
+export async function persistEvent(p: EventPayload): Promise<PersistResult> {
+  const id = randomUUID();
+  const rows = await db()
+    .insert(events)
+    .values({
+      id,
+      source: p.source,
+      externalId: p.external_id,
+      symbol: p.symbol,
+      eventType: String(p.event_type),
+      directionHint: p.direction_hint ?? null,
+      headline: p.headline ?? null,
+      raw: p.raw,
+      observedAt: p.observed_at ? new Date(p.observed_at) : null,
+    })
+    .onConflictDoNothing({ target: [events.source, events.externalId] })
+    .returning({ id: events.id });
+
+  if (rows.length > 0) return { id: rows[0]!.id, inserted: true };
+
+  const existing = await db()
+    .select({ id: events.id })
+    .from(events)
+    .where(and(eq(events.source, p.source), eq(events.externalId, p.external_id)));
+  return { id: existing[0]!.id, inserted: false };
+}
+
+/** Deliver one stored event to analysis and update its outbox status. */
+export async function deliverEvent(id: string, p: EventPayload): Promise<boolean> {
+  const res = await deliverJson(`${config.analysisUrl()}/events`, p, {
+    idempotencyKey: `${p.source}:${p.external_id}`,
+  });
+  await db()
+    .update(events)
+    .set({
+      deliveryStatus: res.ok ? "delivered" : "pending",
+      deliveryAttempts: (await currentAttempts(id)) + 1,
+      lastError: res.ok ? null : res.error ?? `status ${res.status}`,
+    })
+    .where(eq(events.id, id));
+  return res.ok;
+}
+
+async function currentAttempts(id: string): Promise<number> {
+  const r = await db()
+    .select({ n: events.deliveryAttempts })
+    .from(events)
+    .where(eq(events.id, id));
+  return r[0]?.n ?? 0;
+}
+
+/** Persist + immediately attempt delivery. */
+export async function ingestAndDeliver(p: EventPayload): Promise<{ id: string; delivered: boolean }> {
+  const { id } = await persistEvent(p);
+  const delivered = await deliverEvent(id, p);
+  return { id, delivered };
+}
+
+/** Reconstruct the wire payload from a stored event row. */
+function rowToPayload(row: typeof events.$inferSelect): EventPayload {
+  return {
+    source: row.source,
+    external_id: row.externalId,
+    symbol: row.symbol ?? "",
+    event_type: row.eventType ?? "",
+    direction_hint: (row.directionHint as EventPayload["direction_hint"]) ?? null,
+    headline: row.headline,
+    observed_at: row.observedAt ? row.observedAt.toISOString() : null,
+    raw: (row.raw as Record<string, unknown>) ?? {},
+  };
+}
+
+/** Retry all pending deliveries (cron-triggered). Returns counts. */
+export async function redeliverPending(limit = 100): Promise<{ tried: number; delivered: number }> {
+  const pending = await db()
+    .select()
+    .from(events)
+    .where(eq(events.deliveryStatus, "pending"))
+    .limit(limit);
+  let delivered = 0;
+  for (const row of pending) {
+    if (await deliverEvent(row.id, rowToPayload(row))) delivered++;
+  }
+  return { tried: pending.length, delivered };
+}

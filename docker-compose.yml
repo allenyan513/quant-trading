@@ -1,0 +1,46 @@
+# Local distributed run. Each service is an independent container,
+# mirroring the Cloud Run deployment (one image per service).
+services:
+  ingestion:
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
+    environment:
+      - PORT=8080
+      - DATABASE_URL=${DATABASE_URL}
+      - FMP_API_KEY=${FMP_API_KEY}
+      - FMP_BASE_URL=${FMP_BASE_URL:-https://financialmodelingprep.com/stable}
+      - ANALYSIS_URL=http://analysis:8080
+    ports:
+      - "8081:8080"
+    depends_on:
+      - analysis
+
+  analysis:
+    build:
+      context: .
+      dockerfile: services/analysis/Dockerfile
+    environment:
+      - PORT=8080
+      - DATABASE_URL=${DATABASE_URL}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SIGNAL_MODEL=${SIGNAL_MODEL:-claude-opus-4-8}
+      - FMP_API_KEY=${FMP_API_KEY}
+      - FMP_BASE_URL=${FMP_BASE_URL:-https://financialmodelingprep.com/stable}
+      - EVALUATION_URL=http://evaluation:8080
+    ports:
+      - "8082:8080"
+    depends_on:
+      - evaluation
+
+  evaluation:
+    build:
+      context: .
+      dockerfile: services/evaluation/Dockerfile
+    environment:
+      - PORT=8080
+      - DATABASE_URL=${DATABASE_URL}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CRITIQUE_MODEL=${CRITIQUE_MODEL:-claude-sonnet-4-6}
+    ports:
+      - "8083:8080"
