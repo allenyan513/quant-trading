@@ -49,6 +49,20 @@ pnpm down
 - **PIT 正确性**：金融数据落库时 `known_at = FMP acceptedDate`，绝不用 `now()`。
 - **金额存原始数字**，展示层再格式化；可重放性靠 `code_version` + 不可变快照。
 
+## Git / 分支工作流（铁律）
+
+> 踩过两次坑：① 基于**陈旧的本地 `main`** 切分支（落后 origin 8 个提交）；② 在 PR **已合并**的分支上继续提交，导致修复搁浅、进不了 main。以下规则用来杜绝。
+
+- **切分支前必 `git fetch`，且基于 `origin/main` 而非本地 `main`**：
+  `git fetch origin && git checkout -b <type>/<topic> origin/main`。
+  绝不假设本地 `main` 是最新的。
+- **往已有分支追加提交前，先确认它的 PR 没合并**：
+  `gh pr view <branch> --json state,mergedAt`（或 `gh pr list --head <branch>`）。
+  若 `state=MERGED`/`CLOSED` → **不要再提交**，从最新 `origin/main` 另开新分支做后续工作。
+- **PR 合并 = 该分支生命周期结束**。任何后续改动（评审修复、补丁、follow-up）都走**新分支 + 新 PR**，不复用旧分支。
+- **救已搁浅在死分支上的提交**：从 `origin/main` 切新分支 → `git cherry-pick <那些 commit>` → push → 开新 PR。
+- 分支命名：`feat/*`（新功能）、`fix/*`（修复）；提交信息按现有中文 conventional commit 风格。
+
 ## 按目录加载的细则
 
 编辑对应区域时 Claude 会自动载入：

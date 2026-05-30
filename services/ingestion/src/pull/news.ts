@@ -6,6 +6,7 @@
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
 import { log } from "../log.js";
+import { latestPerSymbol } from "./_latest.js";
 
 interface FmpNews {
   symbol?: string;
@@ -93,5 +94,5 @@ export async function pullNews(opts: {
       });
     }
   }
-  return out;
+  return latestPerSymbol(out);
 }
