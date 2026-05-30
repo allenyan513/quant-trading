@@ -5,8 +5,8 @@
  * judging materiality / sentiment of news is analysis's job, not ingestion's.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { log } from "../log.js";
 import { latestPerSymbol } from "./_latest.js";
+import { fetchPerSymbol } from "./_fetch.js";
 
 interface FmpNews {
   symbol?: string;
@@ -56,25 +56,15 @@ export async function pullNews(opts: {
   symbols: string[];
   limit?: number;
 }): Promise<EventPayload[]> {
-  // Fetch symbols concurrently; isolate per-symbol failures so one bad request
-  // doesn't drop the rest. fmpGet already throttles + retries internally.
-  const perSymbol = await Promise.all(
-    opts.symbols.map(async (symbol) => {
-      try {
-        const rows = await fmpGet<FmpNews[]>(
-          "news/stock",
-          { symbols: symbol, from: opts.from, to: opts.to, limit: opts.limit ?? 20 },
-          { softFail402: true },
-        );
-        return { symbol, rows: rows ?? [] };
-      } catch (err) {
-        log.warn("pull.news.symbol_failed", {
-          symbol,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return { symbol, rows: [] as FmpNews[] };
-      }
-    }),
+  const perSymbol = await fetchPerSymbol(
+    opts.symbols,
+    (symbol) =>
+      fmpGet<FmpNews[]>(
+        "news/stock",
+        { symbols: symbol, from: opts.from, to: opts.to, limit: opts.limit ?? 20 },
+        { softFail402: true },
+      ),
+    { label: "pull.news" },
   );
 
   const out: EventPayload[] = [];

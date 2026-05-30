@@ -5,8 +5,8 @@
  * current price = bullish). Reduced to the latest target per symbol.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { log } from "../log.js";
 import { latestPerSymbol } from "./_latest.js";
+import { fetchPerSymbol } from "./_fetch.js";
 
 export interface FmpPriceTarget {
   symbol?: string;
@@ -59,23 +59,11 @@ export async function pullPriceTargets(opts: {
   symbols: string[];
   limit?: number;
 }): Promise<EventPayload[]> {
-  const grouped = await Promise.all(
-    opts.symbols.map(async (symbol) => {
-      try {
-        const rows = await fmpGet<FmpPriceTarget[]>(
-          "price-target-news",
-          { symbol, limit: opts.limit ?? 20 },
-          { softFail402: true },
-        );
-        return { symbol, rows: rows ?? [] };
-      } catch (err) {
-        log.warn("pull.price_targets.symbol_failed", {
-          symbol,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return { symbol, rows: [] as FmpPriceTarget[] };
-      }
-    }),
+  const grouped = await fetchPerSymbol(
+    opts.symbols,
+    (symbol) =>
+      fmpGet<FmpPriceTarget[]>("price-target-news", { symbol, limit: opts.limit ?? 20 }, { softFail402: true }),
+    { label: "pull.price_targets" },
   );
   return mapPriceTargets(grouped, opts);
 }

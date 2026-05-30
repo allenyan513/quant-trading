@@ -5,8 +5,8 @@
  * exercises, tax withholding). Reduced to the latest insider trade per symbol.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { log } from "../log.js";
 import { latestPerSymbol } from "./_latest.js";
+import { fetchPerSymbol } from "./_fetch.js";
 
 export interface FmpInsider {
   symbol?: string;
@@ -66,23 +66,15 @@ export async function pullInsider(opts: {
   symbols: string[];
   limit?: number;
 }): Promise<EventPayload[]> {
-  const grouped = await Promise.all(
-    opts.symbols.map(async (symbol) => {
-      try {
-        const rows = await fmpGet<FmpInsider[]>(
-          "insider-trading/search",
-          { symbol, page: 0, limit: opts.limit ?? 50 },
-          { softFail402: true },
-        );
-        return { symbol, rows: rows ?? [] };
-      } catch (err) {
-        log.warn("pull.insider.symbol_failed", {
-          symbol,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return { symbol, rows: [] as FmpInsider[] };
-      }
-    }),
+  const grouped = await fetchPerSymbol(
+    opts.symbols,
+    (symbol) =>
+      fmpGet<FmpInsider[]>(
+        "insider-trading/search",
+        { symbol, page: 0, limit: opts.limit ?? 50 },
+        { softFail402: true },
+      ),
+    { label: "pull.insider" },
   );
   return mapInsider(grouped, opts);
 }

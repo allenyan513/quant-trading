@@ -17,6 +17,7 @@
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
 import { latestPerSymbol } from "./_latest.js";
+import { fetchPerSymbol } from "./_fetch.js";
 
 export interface FmpGrade {
   symbol: string;
@@ -63,11 +64,10 @@ export async function pullRatings(opts: {
   from: string;
   to: string;
 }): Promise<EventPayload[]> {
-  const all: FmpGrade[] = [];
-  for (const symbol of opts.symbols) {
-    const rows =
-      (await fmpGet<FmpGrade[]>("grades", { symbol }, { softFail402: true })) ?? [];
-    all.push(...rows);
-  }
-  return mapGrades(all, opts);
+  const grouped = await fetchPerSymbol(
+    opts.symbols,
+    (symbol) => fmpGet<FmpGrade[]>("grades", { symbol }, { softFail402: true }),
+    { label: "pull.ratings" },
+  );
+  return mapGrades(grouped.flatMap((g) => g.rows), opts);
 }
