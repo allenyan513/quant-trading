@@ -14,6 +14,8 @@ const { events } = dbSchema;
 export interface PersistResult {
   id: string;
   inserted: boolean;
+  /** Existing row's outbox status when this was a dup; "pending" for fresh inserts. */
+  deliveryStatus: string;
 }
 
 /** Upsert an event row (idempotent on source+external_id). Returns its id. */
@@ -35,13 +37,13 @@ export async function persistEvent(p: EventPayload): Promise<PersistResult> {
     .onConflictDoNothing({ target: [events.source, events.externalId] })
     .returning({ id: events.id });
 
-  if (rows.length > 0) return { id: rows[0]!.id, inserted: true };
+  if (rows.length > 0) return { id: rows[0]!.id, inserted: true, deliveryStatus: "pending" };
 
   const existing = await db()
-    .select({ id: events.id })
+    .select({ id: events.id, deliveryStatus: events.deliveryStatus })
     .from(events)
     .where(and(eq(events.source, p.source), eq(events.externalId, p.external_id)));
-  return { id: existing[0]!.id, inserted: false };
+  return { id: existing[0]!.id, inserted: false, deliveryStatus: existing[0]!.deliveryStatus };
 }
 
 /** Deliver one stored event to analysis and update its outbox status. */
@@ -82,7 +84,20 @@ async function currentAttempts(id: string): Promise<number> {
 
 /** Persist + immediately attempt delivery. */
 export async function ingestAndDeliver(p: EventPayload): Promise<{ id: string; delivered: boolean }> {
-  const { id, inserted } = await persistEvent(p);
+  const { id, inserted, deliveryStatus } = await persistEvent(p);
+  // Already-delivered dup: skip re-delivery. Re-sending it every poll just makes
+  // analysis re-do intake (and races its in-flight processing). Fresh inserts and
+  // rows still `pending` from a failed prior attempt DO (re)deliver.
+  if (!inserted && deliveryStatus === "delivered") {
+    log.info("ingest.event.dup", {
+      event_id: id,
+      external_id: p.external_id,
+      symbol: p.symbol,
+      type: p.event_type,
+      skipped: true,
+    });
+    return { id, delivered: true };
+  }
   log.info(inserted ? "ingest.event.new" : "ingest.event.dup", {
     event_id: id,
     external_id: p.external_id,

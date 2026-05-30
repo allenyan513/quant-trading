@@ -185,7 +185,8 @@ export const tradingSignals = pgTable(
   },
   (t) => [
     index("idx_signals_symbol").on(t.symbol),
-    index("idx_signals_event").on(t.eventId),
+    // One signal per event (NULLs are distinct, so algo signals w/o eventId are unaffected).
+    uniqueIndex("uq_signals_event").on(t.eventId),
     index("idx_signals_status").on(t.status),
   ],
 );
