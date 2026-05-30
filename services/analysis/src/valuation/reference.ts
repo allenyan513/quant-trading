@@ -6,6 +6,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { fmpGet, db, dbSchema, codeVersion, type ReferenceValuation, type Verdict } from "@qt/shared";
+import { log } from "../log.js";
 
 const { valuationSnapshots } = dbSchema;
 
@@ -28,6 +29,15 @@ export async function computeReferenceValuation(symbol: string): Promise<Referen
   const fairValue = dcfArr?.[0]?.dcf ?? null;
   const upsidePct =
     fairValue != null && currentPrice ? (fairValue / currentPrice - 1) * 100 : null;
+
+  if (currentPrice == null || fairValue == null) {
+    log.warn("reference.partial", {
+      symbol,
+      price: currentPrice,
+      fair_value: fairValue,
+      hint: "FMP returned no price/DCF (premium-gated or unknown symbol)",
+    });
+  }
 
   const snapshotId = randomUUID();
   const asOf = new Date().toISOString().slice(0, 10);

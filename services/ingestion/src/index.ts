@@ -9,6 +9,7 @@ import { ok, fail, config } from "@qt/shared";
 import { ingestAndDeliver, redeliverPending } from "./deliver.js";
 import { pullEarnings } from "./pull/earnings.js";
 import { pullRatings } from "./pull/ratings.js";
+import { log } from "./log.js";
 
 const app = new Hono();
 
@@ -28,11 +29,16 @@ app.post("/pull/earnings", async (c) => {
       to: (body.to as string) ?? defaultWindow().to,
       symbols: body.symbols as string[] | undefined,
     };
+    log.info("pull.earnings.start", { from: win.from, to: win.to, symbols: win.symbols?.length ?? "all" });
     const payloads = await pullEarnings(win);
+    log.info("pull.earnings.fetched", { events: payloads.length });
     const results = [];
     for (const p of payloads) results.push(await ingestAndDeliver(p));
-    return c.json(ok({ pulled: payloads.length, delivered: results.filter((r) => r.delivered).length }));
+    const delivered = results.filter((r) => r.delivered).length;
+    log.info("pull.earnings.done", { pulled: payloads.length, delivered });
+    return c.json(ok({ pulled: payloads.length, delivered }));
   } catch (err) {
+    log.error("pull.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("pull_earnings_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
@@ -44,11 +50,16 @@ app.post("/pull/ratings", async (c) => {
     if (symbols.length === 0) {
       return c.json(fail("missing_symbols", "ratings pull requires { symbols: [...] }"), 400);
     }
+    log.info("pull.ratings.start", { symbols: symbols.length });
     const payloads = await pullRatings(symbols);
+    log.info("pull.ratings.fetched", { events: payloads.length });
     const results = [];
     for (const p of payloads) results.push(await ingestAndDeliver(p));
-    return c.json(ok({ pulled: payloads.length, delivered: results.filter((r) => r.delivered).length }));
+    const delivered = results.filter((r) => r.delivered).length;
+    log.info("pull.ratings.done", { pulled: payloads.length, delivered });
+    return c.json(ok({ pulled: payloads.length, delivered }));
   } catch (err) {
+    log.error("pull.ratings.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("pull_ratings_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
@@ -56,12 +67,14 @@ app.post("/pull/ratings", async (c) => {
 app.post("/internal/redeliver", async (c) => {
   try {
     const res = await redeliverPending();
+    log.info("redeliver.done", { tried: res.tried, delivered: res.delivered });
     return c.json(ok(res));
   } catch (err) {
+    log.error("redeliver.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("redeliver_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
-  console.log(`[ingestion] listening on :${info.port}`);
+  log.info("listening", { port: info.port });
 });

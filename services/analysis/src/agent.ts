@@ -19,6 +19,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { desc, eq, and } from "drizzle-orm";
 import { fmpGet, db, dbSchema, config, type SignalDraft, type ReferenceValuation } from "@qt/shared";
 import type { NormalizedEvent } from "./classify.js";
+import { log } from "./log.js";
 
 const { feedbackNotes } = dbSchema;
 
@@ -140,6 +141,7 @@ export async function generateSignal(
   ].join("\n");
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
+  log.info("agent.start", { symbol: event.symbol, type: event.eventType, model: config.signalModel() });
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     // On the last allowed turn, force the model to finalize via emit_signal.
@@ -156,11 +158,25 @@ export async function generateSignal(
     const toolUses = resp.content.filter(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
     );
+    log.debug("agent.turn", {
+      symbol: event.symbol,
+      turn: turn + 1,
+      stop_reason: resp.stop_reason,
+      tools: toolUses.map((b) => b.name).join(",") || "none",
+      in_tokens: resp.usage.input_tokens,
+      out_tokens: resp.usage.output_tokens,
+    });
 
     // Check for the terminal emit_signal call first.
     const emit = toolUses.find((b) => b.name === "emit_signal");
     if (emit) {
       const p = emit.input as Partial<SignalDraft>;
+      log.info("agent.emit", {
+        symbol: event.symbol,
+        turns: turn + 1,
+        direction: p.direction ?? "hold",
+        conviction: p.conviction ?? "medium",
+      });
       return {
         direction: (p.direction ?? "hold") as SignalDraft["direction"],
         target_price: p.target_price ?? null,
@@ -182,11 +198,13 @@ export async function generateSignal(
     messages.push({ role: "assistant", content: resp.content });
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const tu of toolUses) {
+      log.debug("agent.tool", { symbol: event.symbol, tool: tu.name, input: tu.input });
       const out = await runTool(tu.name, tu.input as Record<string, unknown>);
       results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
     }
     messages.push({ role: "user", content: results });
   }
 
+  log.error("agent.no_signal", { symbol: event.symbol, max_turns: MAX_TURNS });
   throw new Error("agent did not emit a signal within turn budget");
 }

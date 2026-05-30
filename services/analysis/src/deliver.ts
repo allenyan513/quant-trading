@@ -5,6 +5,7 @@
  */
 import { eq } from "drizzle-orm";
 import { db, dbSchema, deliverJson, config, type TradingSignalDTO } from "@qt/shared";
+import { log } from "./log.js";
 
 const { signalDeliveries, tradingSignals } = dbSchema;
 
@@ -14,7 +15,8 @@ export async function deliverSignal(signal: TradingSignalDTO): Promise<boolean> 
     .values({ signalId: signal.id })
     .onConflictDoNothing({ target: signalDeliveries.signalId });
 
-  const res = await deliverJson(`${config.evaluationUrl()}/signals`, signal, {
+  const url = `${config.evaluationUrl()}/signals`;
+  const res = await deliverJson(url, signal, {
     idempotencyKey: signal.id,
   });
 
@@ -25,6 +27,17 @@ export async function deliverSignal(signal: TradingSignalDTO): Promise<boolean> 
       lastError: res.ok ? null : res.error ?? `status ${res.status}`,
     })
     .where(eq(signalDeliveries.signalId, signal.id));
+  if (res.ok) {
+    log.info("deliver.signal.ok", { signal: signal.id, symbol: signal.symbol, to: url, status: res.status });
+  } else {
+    log.warn("deliver.signal.pending", {
+      signal: signal.id,
+      symbol: signal.symbol,
+      to: url,
+      status: res.status,
+      error: res.error,
+    });
+  }
   return res.ok;
 }
 

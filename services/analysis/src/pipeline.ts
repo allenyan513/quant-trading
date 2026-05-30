@@ -13,6 +13,7 @@ import { classify } from "./classify.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { generateSignal } from "./agent.js";
 import { deliverSignal, rowToDto } from "./deliver.js";
+import { log } from "./log.js";
 
 const { events, tradingSignals } = dbSchema;
 
@@ -53,20 +54,36 @@ export async function runEvent(p: EventPayload): Promise<RunResult> {
   // Idempotency: if a signal already exists for this event, return it.
   const prior = await db().select().from(tradingSignals).where(eq(tradingSignals.eventId, eventId));
   if (prior[0]) {
+    log.info("pipeline.duplicate", { event_id: eventId, external_id: p.external_id, signal: prior[0].id });
     return { status: "duplicate", event_id: eventId, signal: rowToDto(prior[0]) };
   }
 
   const norm = classify(p);
   if (!norm) {
     await db().update(events).set({ status: "noise" }).where(eq(events.id, eventId));
+    log.info("pipeline.noise", { event_id: eventId, external_id: p.external_id, type: p.event_type });
     return { status: "noise", event_id: eventId };
   }
 
   await db().update(events).set({ status: "processing" }).where(eq(events.id, eventId));
+  log.info("pipeline.processing", { event_id: eventId, symbol: norm.symbol, type: norm.eventType });
 
   // Slow phase — no open transaction.
   const ref = await computeReferenceValuation(norm.symbol);
+  log.info("pipeline.reference", {
+    symbol: norm.symbol,
+    snapshot: ref.snapshot_id,
+    price: ref.current_price,
+    fair_value: ref.fair_value_per_share,
+    verdict: ref.verdict,
+  });
   const draft = await generateSignal(norm, ref);
+  log.info("pipeline.drafted", {
+    symbol: norm.symbol,
+    direction: draft.direction,
+    conviction: draft.conviction,
+    target: draft.target_price,
+  });
 
   const entryPrice = ref.current_price;
   const fairValueBase = ref.fair_value_per_share;
@@ -102,6 +119,13 @@ export async function runEvent(p: EventPayload): Promise<RunResult> {
     .returning();
 
   await db().update(events).set({ status: "done" }).where(eq(events.id, eventId));
+  log.info("pipeline.signal", {
+    event_id: eventId,
+    signal: id,
+    symbol: norm.symbol,
+    direction: draft.direction,
+    conviction: draft.conviction,
+  });
 
   const dto = rowToDto(row!);
   await deliverSignal(dto);
