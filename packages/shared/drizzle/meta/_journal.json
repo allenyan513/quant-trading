@@ -15,6 +15,13 @@
       "when": 1780149795381,
       "tag": "0001_rename_universe_watchlist",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780168088681,
+      "tag": "0002_right_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

@@ -140,7 +140,19 @@ export async function processEvent(eventId: string, norm: NormalizedEvent): Prom
       createdAt,
       expiresAt,
     })
+    .onConflictDoNothing({ target: tradingSignals.eventId })
     .returning();
+
+  // Lost a race: a concurrent processEvent already created the signal for this
+  // event (one-signal-per-event). Return the winner's row; it handles delivery.
+  if (!row) {
+    const [existing] = await db()
+      .select()
+      .from(tradingSignals)
+      .where(eq(tradingSignals.eventId, eventId));
+    log.info("pipeline.signal.dup", { event_id: eventId, signal: existing?.id });
+    return rowToDto(existing!);
+  }
 
   await db().update(events).set({ status: "done" }).where(eq(events.id, eventId));
   log.info("pipeline.signal", {
