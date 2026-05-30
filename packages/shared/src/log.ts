@@ -28,6 +28,11 @@ export interface Logger {
 
 function fmtValue(v: unknown): string {
   if (v === null) return "null";
+  // Error/Date are objects but JSON.stringify mangles them (Error -> "{}" since
+  // message/stack are non-enumerable; Date -> a quoted string). Handle first.
+  // Use message (not stack) to keep the one-line-per-event invariant.
+  if (v instanceof Error) return v.message;
+  if (v instanceof Date) return v.toISOString();
   if (typeof v === "string") return /[\s="]/.test(v) ? JSON.stringify(v) : v;
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
@@ -49,7 +54,10 @@ export function createLogger(service: string): Logger {
     const ts = new Date().toISOString();
     const sink = level === "error" || level === "warn" ? console.error : console.log;
     if (asJson) {
-      sink(JSON.stringify({ ts, level, service, event, ...fields }));
+      // Normalize Error fields so they don't serialize to "{}".
+      const safe: LogFields = {};
+      if (fields) for (const [k, v] of Object.entries(fields)) safe[k] = v instanceof Error ? v.message : v;
+      sink(JSON.stringify({ ts, level, service, event, ...safe }));
       return;
     }
     sink(`${ts.slice(11, 23)} [${service}] ${level.toUpperCase().padEnd(5)} ${event}${fmtFields(fields)}`);
