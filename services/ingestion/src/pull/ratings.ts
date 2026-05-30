@@ -17,8 +17,9 @@
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
 import { latestPerSymbol } from "./_latest.js";
+import { fetchPerSymbol } from "./_fetch.js";
 
-interface FmpGrade {
+export interface FmpGrade {
   symbol: string;
   date: string;
   gradingCompany?: string;
@@ -34,33 +35,39 @@ function directionHint(g: FmpGrade): EventPayload["direction_hint"] {
   return null;
 }
 
+/** Pure: grade rows -> events. Drops out-of-window + no-op maintains; latest per symbol. */
+export function mapGrades(rows: FmpGrade[], opts: { from: string; to: string }): EventPayload[] {
+  const out: EventPayload[] = [];
+  for (const g of rows) {
+    // grades returns full history; keep only the recent window (date is YYYY-MM-DD).
+    if (!g.date || g.date < opts.from || g.date > opts.to) continue;
+    // Drop no-op reiterations: same grade and not an explicit up/down/initiate.
+    const a = (g.action ?? "").toLowerCase();
+    const gradeChanged = (g.previousGrade ?? "") !== (g.newGrade ?? "");
+    if (!gradeChanged && a !== "upgrade" && a !== "downgrade" && a !== "initiate") continue;
+    out.push({
+      source: "fmp",
+      external_id: `grade:${g.symbol}:${g.date}:${g.gradingCompany ?? "?"}`,
+      symbol: g.symbol.toUpperCase(),
+      event_type: "grade_change",
+      direction_hint: directionHint(g),
+      headline: `${g.gradingCompany ?? "Analyst"} ${g.action ?? "rated"} ${g.symbol}: ${g.previousGrade ?? "?"} -> ${g.newGrade ?? "?"}`,
+      observed_at: g.date,
+      raw: g as unknown as Record<string, unknown>,
+    });
+  }
+  return latestPerSymbol(out);
+}
+
 export async function pullRatings(opts: {
   symbols: string[];
   from: string;
   to: string;
 }): Promise<EventPayload[]> {
-  const out: EventPayload[] = [];
-  for (const symbol of opts.symbols) {
-    const rows =
-      (await fmpGet<FmpGrade[]>("grades", { symbol }, { softFail402: true })) ?? [];
-    for (const g of rows) {
-      // grades returns full history; keep only the recent window (date is YYYY-MM-DD).
-      if (!g.date || g.date < opts.from || g.date > opts.to) continue;
-      // Drop no-op reiterations: same grade and not an explicit up/down/initiate.
-      const a = (g.action ?? "").toLowerCase();
-      const gradeChanged = (g.previousGrade ?? "") !== (g.newGrade ?? "");
-      if (!gradeChanged && a !== "upgrade" && a !== "downgrade" && a !== "initiate") continue;
-      out.push({
-        source: "fmp",
-        external_id: `grade:${g.symbol}:${g.date}:${g.gradingCompany ?? "?"}`,
-        symbol: g.symbol.toUpperCase(),
-        event_type: "grade_change",
-        direction_hint: directionHint(g),
-        headline: `${g.gradingCompany ?? "Analyst"} ${g.action ?? "rated"} ${g.symbol}: ${g.previousGrade ?? "?"} -> ${g.newGrade ?? "?"}`,
-        observed_at: g.date,
-        raw: g as unknown as Record<string, unknown>,
-      });
-    }
-  }
-  return latestPerSymbol(out);
+  const grouped = await fetchPerSymbol(
+    opts.symbols,
+    (symbol) => fmpGet<FmpGrade[]>("grades", { symbol }, { softFail402: true }),
+    { label: "pull.ratings" },
+  );
+  return mapGrades(grouped.flatMap((g) => g.rows), opts);
 }

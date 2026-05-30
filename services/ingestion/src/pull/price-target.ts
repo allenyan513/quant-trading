@@ -5,10 +5,10 @@
  * current price = bullish). Reduced to the latest target per symbol.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { log } from "../log.js";
 import { latestPerSymbol } from "./_latest.js";
+import { fetchPerSymbol } from "./_fetch.js";
 
-interface FmpPriceTarget {
+export interface FmpPriceTarget {
   symbol?: string;
   publishedDate?: string; // ISO-8601 with Z (already UTC)
   priceTarget?: number;
@@ -26,35 +26,15 @@ function directionHint(p: FmpPriceTarget): EventPayload["direction_hint"] {
   return null;
 }
 
-export async function pullPriceTargets(opts: {
-  from: string;
-  to: string;
-  symbols: string[];
-  limit?: number;
-}): Promise<EventPayload[]> {
-  const perSymbol = await Promise.all(
-    opts.symbols.map(async (symbol) => {
-      try {
-        const rows = await fmpGet<FmpPriceTarget[]>(
-          "price-target-news",
-          { symbol, limit: opts.limit ?? 20 },
-          { softFail402: true },
-        );
-        return rows ?? [];
-      } catch (err) {
-        log.warn("pull.price_targets.symbol_failed", {
-          symbol,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [] as FmpPriceTarget[];
-      }
-    }),
-  );
-
+/** Pure: price-target rows (grouped by queried symbol) -> events. Window-filtered; latest per symbol. */
+export function mapPriceTargets(
+  grouped: Array<{ symbol: string; rows: FmpPriceTarget[] }>,
+  opts: { from: string; to: string },
+): EventPayload[] {
   const out: EventPayload[] = [];
-  for (let i = 0; i < opts.symbols.length; i++) {
-    const sym = opts.symbols[i]!.toUpperCase();
-    for (const p of perSymbol[i]!) {
+  for (const { symbol, rows } of grouped) {
+    const sym = symbol.toUpperCase();
+    for (const p of rows) {
       if (p.priceTarget == null || !p.publishedDate) continue; // need a target + a timestamp
       const day = p.publishedDate.slice(0, 10);
       if (day < opts.from || day > opts.to) continue; // recent window only
@@ -71,4 +51,19 @@ export async function pullPriceTargets(opts: {
     }
   }
   return latestPerSymbol(out);
+}
+
+export async function pullPriceTargets(opts: {
+  from: string;
+  to: string;
+  symbols: string[];
+  limit?: number;
+}): Promise<EventPayload[]> {
+  const grouped = await fetchPerSymbol(
+    opts.symbols,
+    (symbol) =>
+      fmpGet<FmpPriceTarget[]>("price-target-news", { symbol, limit: opts.limit ?? 20 }, { softFail402: true }),
+    { label: "pull.price_targets" },
+  );
+  return mapPriceTargets(grouped, opts);
 }
