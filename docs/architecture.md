@@ -40,9 +40,11 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
 - 外部信息的**唯一接收者**。
 - v1 只做 **pull**：被 Cloud Scheduler / cron 触发 HTTP 端点 → 用限流 FMP 客户端拉数据 → **原始落库**（PIT：`known_at = FMP acceptedDate`）→ 写 `events` 表（outbox）→ HTTP 投递给 analysis。
 - **本身不分析**。LLM 在 ingestion 里只会作为 v2 push 通道的**分类工具**出现（合并同类/去重），v1 不涉及。
+- `/pull/*` 默认从 `watchlist` 表取 symbol（body 不传 `symbols` 时）；watchlist 由 `pnpm seed:watchlist` 手动 seed。
 - 端点（v1）：
-  - `POST /pull/earnings` —— 拉取近期财报事件
-  - `POST /pull/ratings` —— 拉取评级/目标价调整
+  - `POST /pull/earnings` —— 拉取近期财报事件（默认 watchlist 过滤）
+  - `POST /pull/ratings` —— 拉取评级/目标价调整（默认 watchlist）
+  - `POST /pull/news` —— 拉取近期公司新闻（默认 watchlist；`direction_hint` 交给 analysis 判）
   - `POST /internal/redeliver` —— 重投 `pending` 的 events（兜底）
   - `GET /healthz`
 
@@ -129,8 +131,8 @@ TradingSignal {
 
 复用 legacy 表结构。核心表：
 
-- `securities` / `universe` —— 标的与 watchlist
-- `profiles`（symbol PK）—— sector/industry/beta/archetype
+- `universe`（symbol PK）—— 全部已知标的目录 + 元数据（name/sector/industry/beta/archetype）
+- `watchlist`（symbol PK）—— 主动观察的活跃子集，驱动 `/pull/*`
 - `daily_prices`（symbol, trade_date）—— OHLCV + adj_close
 - `income_statement` / `balance_sheet` / `cash_flow`（symbol, period, fiscal_date；**known_at = acceptedDate** 用于 PIT）
 - `financial_ratios` / `analyst_estimates`

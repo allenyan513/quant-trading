@@ -21,18 +21,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-// ---- Universe ----
+// ---- Universe (catalog) & watchlist (active subset) ----
 
-export const securities = pgTable("securities", {
-  symbol: text("symbol").primaryKey(),
-});
-
+/**
+ * `universe` — every stock the system knows about, plus its profile metadata.
+ * The catalog. `watchlist` is the active subset we actually pull/track for.
+ */
 export const universe = pgTable("universe", {
-  symbol: text("symbol").primaryKey(),
-  addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
-});
-
-export const profiles = pgTable("profiles", {
   symbol: text("symbol").primaryKey(),
   name: text("name"),
   sector: text("sector"),
@@ -41,6 +36,12 @@ export const profiles = pgTable("profiles", {
   archetype: text("archetype"), // high_growth | mature_stable | ...
   reportingCurrency: text("reporting_currency").default("USD"),
   knownAt: timestamp("known_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+/** `watchlist` — the symbols we actively observe (drives the /pull/* endpoints). */
+export const watchlist = pgTable("watchlist", {
+  symbol: text("symbol").primaryKey(),
+  addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
 
 // ---- Prices ----

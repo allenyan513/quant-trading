@@ -11,6 +11,7 @@ export const ACTIONABLE_EVENT_TYPES = [
   "earnings",
   "grade_change",
   "price_target_change",
+  "news",
   "insider",
   "m&a",
 ] as const;
