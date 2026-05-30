@@ -93,6 +93,26 @@ export async function ingestAndDeliver(p: EventPayload): Promise<{ id: string; d
   return { id, delivered };
 }
 
+/**
+ * Persist + deliver many events with bounded concurrency. News pulls can be
+ * 100s of events; doing them fully serially risks Cloud Run / Scheduler
+ * timeouts, while unbounded concurrency would swamp the DB pool (max 5) and
+ * analysis. Batches of `batchSize` balance throughput against both. Returns the
+ * delivered count.
+ */
+export async function ingestAndDeliverAll(
+  payloads: EventPayload[],
+  batchSize = 10,
+): Promise<number> {
+  let delivered = 0;
+  for (let i = 0; i < payloads.length; i += batchSize) {
+    const batch = payloads.slice(i, i + batchSize);
+    const res = await Promise.all(batch.map((p) => ingestAndDeliver(p)));
+    delivered += res.filter((r) => r.delivered).length;
+  }
+  return delivered;
+}
+
 /** Reconstruct the wire payload from a stored event row. */
 function rowToPayload(row: typeof events.$inferSelect): EventPayload {
   return {

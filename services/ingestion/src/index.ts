@@ -6,7 +6,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { ok, fail, config } from "@qt/shared";
-import { ingestAndDeliver, redeliverPending } from "./deliver.js";
+import { ingestAndDeliverAll, redeliverPending } from "./deliver.js";
 import { pullEarnings } from "./pull/earnings.js";
 import { pullRatings } from "./pull/ratings.js";
 import { pullNews } from "./pull/news.js";
@@ -36,9 +36,7 @@ app.post("/pull/earnings", async (c) => {
     log.info("pull.earnings.start", { from: win.from, to: win.to, symbols: win.symbols?.length ?? "all" });
     const payloads = await pullEarnings(win);
     log.info("pull.earnings.fetched", { events: payloads.length });
-    const results = [];
-    for (const p of payloads) results.push(await ingestAndDeliver(p));
-    const delivered = results.filter((r) => r.delivered).length;
+    const delivered = await ingestAndDeliverAll(payloads);
     log.info("pull.earnings.done", { pulled: payloads.length, delivered });
     return c.json(ok({ pulled: payloads.length, delivered }));
   } catch (err) {
@@ -58,9 +56,7 @@ app.post("/pull/ratings", async (c) => {
     log.info("pull.ratings.start", { symbols: symbols.length });
     const payloads = await pullRatings(symbols);
     log.info("pull.ratings.fetched", { events: payloads.length });
-    const results = [];
-    for (const p of payloads) results.push(await ingestAndDeliver(p));
-    const delivered = results.filter((r) => r.delivered).length;
+    const delivered = await ingestAndDeliverAll(payloads);
     log.info("pull.ratings.done", { pulled: payloads.length, delivered });
     return c.json(ok({ pulled: payloads.length, delivered }));
   } catch (err) {
@@ -85,9 +81,7 @@ app.post("/pull/news", async (c) => {
     log.info("pull.news.start", { from: win.from, to: win.to, symbols: symbols.length });
     const payloads = await pullNews(win);
     log.info("pull.news.fetched", { events: payloads.length });
-    const results = [];
-    for (const p of payloads) results.push(await ingestAndDeliver(p));
-    const delivered = results.filter((r) => r.delivered).length;
+    const delivered = await ingestAndDeliverAll(payloads);
     log.info("pull.news.done", { pulled: payloads.length, delivered });
     return c.json(ok({ pulled: payloads.length, delivered }));
   } catch (err) {

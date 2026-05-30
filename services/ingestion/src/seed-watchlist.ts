@@ -10,9 +10,9 @@ const { watchlist } = dbSchema;
 const DEFAULTS = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA"];
 
 async function main() {
-  const symbols = (process.argv.slice(2).length ? process.argv.slice(2) : DEFAULTS).map((s) =>
-    s.toUpperCase(),
-  );
+  const raw = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULTS;
+  // Dedupe in-memory so a repeated arg doesn't issue redundant insert rows.
+  const symbols = [...new Set(raw.map((s) => s.toUpperCase()))];
   const inserted = await db()
     .insert(watchlist)
     .values(symbols.map((symbol) => ({ symbol })))
