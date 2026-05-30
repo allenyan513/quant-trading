@@ -4,6 +4,7 @@
  * is a separate concern (M1 widening); here we only emit the *event*.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
+import { latestPerSymbol } from "./_latest.js";
 
 interface FmpEarning {
   symbol: string;
@@ -31,10 +32,10 @@ export async function pullEarnings(opts: {
 
   const filter = opts.symbols ? new Set(opts.symbols.map((s) => s.toUpperCase())) : null;
 
-  return rows
+  const out = rows
     .filter((e) => e.epsActual != null) // only reported earnings are actionable events
     .filter((e) => !filter || filter.has(e.symbol.toUpperCase()))
-    .map((e) => ({
+    .map((e): EventPayload => ({
       source: "fmp",
       external_id: `earnings:${e.symbol}:${e.date}`,
       symbol: e.symbol.toUpperCase(),
@@ -44,4 +45,5 @@ export async function pullEarnings(opts: {
       observed_at: e.date,
       raw: e as unknown as Record<string, unknown>,
     }));
+  return latestPerSymbol(out);
 }

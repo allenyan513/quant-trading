@@ -16,6 +16,7 @@
  * (`price-target-news` -> a future `price_target_change` event), not here.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
+import { latestPerSymbol } from "./_latest.js";
 
 interface FmpGrade {
   symbol: string;
@@ -61,5 +62,5 @@ export async function pullRatings(opts: {
       });
     }
   }
-  return out;
+  return latestPerSymbol(out);
 }
