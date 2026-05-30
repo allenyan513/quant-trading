@@ -2,10 +2,9 @@
  * Pull insider (Form 4) trades from FMP into EventPayloads.
  * Endpoint `insider-trading/search?symbol=X`. We keep ONLY open-market buys/
  * sells (transactionType P-* / S-*) and drop the noise (gifts, awards, option
- * exercises, tax withholding). Reduced to the latest insider trade per symbol.
+ * exercises, tax withholding). All in-window open-market trades are emitted.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { latestPerSymbol } from "./_latest.js";
 import { fetchPerSymbol } from "./_fetch.js";
 
 export interface FmpInsider {
@@ -29,7 +28,7 @@ function directionHint(t: FmpInsider): EventPayload["direction_hint"] {
   return null;
 }
 
-/** Pure: insider rows (grouped by queried symbol) -> events. Keeps only P/S in window; latest per symbol. */
+/** Pure: insider rows (grouped by queried symbol) -> events. Keeps only P/S in window; all kept. */
 export function mapInsider(
   grouped: Array<{ symbol: string; rows: FmpInsider[] }>,
   opts: { from: string; to: string },
@@ -57,7 +56,7 @@ export function mapInsider(
       });
     }
   }
-  return latestPerSymbol(out);
+  return out;
 }
 
 export async function pullInsider(opts: {

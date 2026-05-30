@@ -5,7 +5,6 @@
  * judging materiality / sentiment of news is analysis's job, not ingestion's.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { latestPerSymbol } from "./_latest.js";
 import { fetchPerSymbol } from "./_fetch.js";
 
 interface FmpNews {
@@ -84,5 +83,5 @@ export async function pullNews(opts: {
       });
     }
   }
-  return latestPerSymbol(out);
+  return out;
 }

@@ -41,7 +41,8 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
 - v1 只做 **pull**：被 Cloud Scheduler / cron 触发 HTTP 端点 → 用限流 FMP 客户端拉数据 → **原始落库**（PIT：`known_at = FMP acceptedDate`）→ 写 `events` 表（outbox）→ HTTP 投递给 analysis。
 - **本身不分析**。LLM 在 ingestion 里只会作为 v2 push 通道的**分类工具**出现（合并同类/去重），v1 不涉及。
 - `/pull/*` 默认从 `watchlist` 表取 symbol（body 不传 `symbols` 时）；watchlist 由 `pnpm seed:watchlist` 手动 seed。
-- **每个 puller 的过滤原则**：拉取 → 过滤掉无用消息 → **每 symbol 每 event_type 只产出窗口内最新 1 条**（`pull/_latest.ts` 的 `latestPerSymbol`）。跨 event_type 不合并，故同一 symbol 一轮可有多条（各类型 1 条），全部投递 + 落库；历史靠 `events` 表跨多次 pull 累积，供 analysis 回看。
+- **每个 puller 的过滤原则**：拉取 → 过滤掉无用消息 → **保留窗口内全部合格事件**（不再塌缩成每 symbol 1 条）。所有原始事件落 `events` 表（`(source, external_id)` 去重）。
+- **聚合投递**：投递时按 `(symbol, event_type)` 把**尚未投递过的**事件聚合成**一条 `notification`**（如「NVDA: 3 grade changes」）发给 analysis，让其把整组事件整体重定价成 **1 个信号**，而不是被 N 个近乎同时的事件各产一个互相打架的信号。事件级 `delivery_status` 充当「是否已通知过」——通知投递成功后才把成员事件回标 `delivered`；`batch_key = hash(成员 external_id 集合)` 保证崩溃重试不重复建通知。
 - 端点（v1）：
   - `POST /pull/earnings` —— 财报（EPS 实际 vs 预期）
   - `POST /pull/ratings` —— 分析师升降级（`grades`，过滤 no-op maintain）
@@ -49,17 +50,18 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
   - `POST /pull/news` —— 公司新闻
   - `POST /pull/insider` —— 内部人 Form4 买卖（只留 P-Purchase/S-Sale）
   - `POST /pull/mna` —— 并购（市场级 `mergers-acquisitions-latest`，按 watchlist 过滤）
-  - `POST /internal/redeliver` —— 重投 `pending` 的 events（兜底）
+  - `POST /internal/redeliver` —— 重投 `pending` 的 notifications（兜底）
   - `GET /healthz`
 
 ### 3.2 analysis service（核心，LLM agent）
-- 接收 `POST /events`，按事件类型处理。
-- **两阶段事务**（复用 quant-researcher 模式）：
-  1. Tx1：按 `(source, external_id)` 去重 + 标记 event `processing`；noise 在调 LLM 前短路。
-  2. 慢阶段（不持有事务）：计算/读取 reference valuation + trading valuation，跑 agent loop 生成信号。
-  3. Tx2：持久化 `trading_signals`，标记 event `done`。
+- 接收 `POST /notifications`（一条聚合通知 = 某 symbol 同类型的一批事件），整批重定价。
+- **两阶段 + 异步 ACK**（复用 quant-researcher 模式）：
+  1. intake（快，ACK 前）：按 `(source, batch_key)` 定位 notification + 去重（已有信号→duplicate）；拆开 bundle classify，noise 在调 LLM 前短路；标 `processing`。
+  2. 慢阶段（后台，不持有事务跨网络）：计算/读取 reference valuation + trading valuation，把整组事件跑一次 agent loop 生成 **1 个信号**；agent 可按需回查 `events` 表或 FMP 补数据。
+  3. 持久化 `trading_signals`（挂 `notification_id`），标记 notification `done`。
+- 崩溃恢复：后台慢阶段若死，notification 卡在 `processing`，由 `reprocessStuck`（`POST /internal/reprocess`，cron）按年龄阈值捞回重跑。
 - 产出 **trading signal** → HTTP 投递给 evaluation（同样 outbox 兜底）。
-- 端点：`POST /events`、`GET /healthz`。
+- 端点：`POST /notifications`、`POST /internal/redeliver`、`POST /internal/reprocess`、`GET /healthz`。
 
 ### 3.3 evaluation service（结算 + 复盘，混合）
 - `POST /signals`：登记新信号，纳入跟踪。
@@ -71,11 +73,11 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
 
 直接 HTTP 调用的风险是"下游挂了就丢消息"。用 **DB outbox 兜底**解决：
 
-1. 生产者在**同一事务**里写业务数据 + 写 `events`/`signal_deliveries`（status=`pending`）。
+1. 生产者写业务数据 + 写 outbox 行（status=`pending`）：ingestion 写 `events` + `notifications`，analysis 写 `signal_deliveries`。
 2. 事务提交后立即 HTTP POST 给下游。
    - 成功（2xx）→ 标记 `delivered`。
    - 失败 → 留 `pending`，由 `POST /internal/redeliver`（cron 周期触发）重投。
-3. 消费者**幂等**：按 `(source, external_id)` 去重（唯一约束）。重复投递不会产生重复信号。
+3. 消费者**幂等**：ingestion→analysis 按 `(source, batch_key)` 去重（notification 唯一约束 + `uq_signals_notification` 保证一通知一信号）；analysis→evaluation 按 `signal_id` 去重。重复投递不会产生重复信号。
 
 这样在不引入 Pub/Sub 的前提下拿到 at-least-once + 幂等。未来要分布式扩展时，把"POST + outbox"替换成 Pub/Sub 即可，消费端契约不变。
 
@@ -87,7 +89,7 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
 
 ```ts
 TradingSignal {
-  id, event_id, symbol,
+  id, notification_id, symbol,        // 一通知一信号；event_id 为 legacy（聚合前的 1:1 链接，现为 null）
   direction: 'buy'|'sell'|'hold',
   target_price, stop_loss, horizon_days,
   conviction: 'low'|'medium'|'high',   // 仅通知优先级，不是仓位
@@ -141,8 +143,9 @@ TradingSignal {
 - `income_statement` / `balance_sheet` / `cash_flow`（symbol, period, fiscal_date；**known_at = acceptedDate** 用于 PIT）
 - `financial_ratios` / `analyst_estimates`
 - `valuation_snapshots`（snapshot_id PK）—— reference valuation，JSON 存 assumptions/result，带 code_version
-- `events`（id PK，唯一 `(source, external_id)`）—— 原始事件 + outbox：`status pending|processing|done`、`delivery_status`
-- `trading_signals`（见 §5）
+- `events`（id PK，唯一 `(source, external_id)`）—— 原始事件 + 生产者 outbox（`delivery_status`：是否已被某条通知投递过）
+- `notifications`（id PK，唯一 `(source, batch_key)`）—— 聚合通知 + 双状态 outbox：消费者 `status pending|processing|done|noise`、生产者 `delivery_status`；`event_ids` JSONB 关联其打包的 events
+- `trading_signals`（见 §5）—— 加 `notification_id`（唯一约束 `uq_signals_notification`，一通知一信号）；`event_id` 退为 legacy
 - `signal_deliveries` —— analysis→evaluation 的 outbox
 - `signal_outcomes`（signal_id, horizon）—— 结算结果 + alpha
 - `feedback_notes`（id PK）—— 经验/教训库，带 symbol/event_type 标签、embedding 可选

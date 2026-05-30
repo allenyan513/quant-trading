@@ -32,7 +32,7 @@ describe("mapGrades", () => {
     expect(out).toEqual([]);
   });
 
-  it("keeps only the latest grade per symbol", () => {
+  it("keeps every in-window grade for a symbol (analysis bundles them)", () => {
     const out = mapGrades(
       [
         g({ date: "2026-05-10", action: "upgrade", previousGrade: "Hold", newGrade: "Buy", gradingCompany: "A" }),
@@ -40,8 +40,9 @@ describe("mapGrades", () => {
       ],
       W,
     );
-    expect(out).toHaveLength(1);
-    expect(out[0]!.observed_at).toBe("2026-05-20");
-    expect(out[0]!.direction_hint).toBe("bearish");
+    expect(out).toHaveLength(2);
+    // Distinct external_ids so they survive dedup and bundle together downstream.
+    expect(new Set(out.map((e) => e.external_id)).size).toBe(2);
+    expect(out.map((e) => e.direction_hint)).toEqual(["bullish", "bearish"]);
   });
 });

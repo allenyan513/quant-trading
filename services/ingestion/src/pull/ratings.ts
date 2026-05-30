@@ -16,7 +16,6 @@
  * (`price-target-news` -> a future `price_target_change` event), not here.
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { latestPerSymbol } from "./_latest.js";
 import { fetchPerSymbol } from "./_fetch.js";
 
 export interface FmpGrade {
@@ -35,7 +34,7 @@ function directionHint(g: FmpGrade): EventPayload["direction_hint"] {
   return null;
 }
 
-/** Pure: grade rows -> events. Drops out-of-window + no-op maintains; latest per symbol. */
+/** Pure: grade rows -> events. Drops out-of-window + no-op maintains; all others kept. */
 export function mapGrades(rows: FmpGrade[], opts: { from: string; to: string }): EventPayload[] {
   const out: EventPayload[] = [];
   for (const g of rows) {
@@ -56,7 +55,7 @@ export function mapGrades(rows: FmpGrade[], opts: { from: string; to: string }):
       raw: g as unknown as Record<string, unknown>,
     });
   }
-  return latestPerSymbol(out);
+  return out;
 }
 
 export async function pullRatings(opts: {

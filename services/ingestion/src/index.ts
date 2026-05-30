@@ -4,9 +4,9 @@
  * event, persisted (dedup) and delivered to analysis with outbox fallback.
  */
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { ok, fail, config } from "@qt/shared";
-import { ingestAndDeliverAll, redeliverPending } from "./deliver.js";
+import { Hono, type Context } from "hono";
+import { ok, fail, config, type EventPayload } from "@qt/shared";
+import { ingestAndNotifyAll, redeliverPending } from "./deliver.js";
 import { pullEarnings } from "./pull/earnings.js";
 import { pullRatings } from "./pull/ratings.js";
 import { pullNews } from "./pull/news.js";
@@ -26,151 +26,58 @@ function defaultWindow(): { from: string; to: string } {
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 
-app.post("/pull/earnings", async (c) => {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    // Default the earnings-calendar filter to the watchlist when none given.
-    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
-    const win = {
-      from: (body.from as string) ?? defaultWindow().from,
-      to: (body.to as string) ?? defaultWindow().to,
-      symbols: symbols.length > 0 ? symbols : undefined,
-    };
-    log.info("pull.earnings.start", { from: win.from, to: win.to, symbols: win.symbols?.length ?? "all" });
-    const payloads = await pullEarnings(win);
-    log.info("pull.earnings.fetched", { events: payloads.length });
-    const delivered = await ingestAndDeliverAll(payloads);
-    log.info("pull.earnings.done", { pulled: payloads.length, delivered });
-    return c.json(ok({ pulled: payloads.length, delivered }));
-  } catch (err) {
-    log.error("pull.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("pull_earnings_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+interface PullArgs {
+  from: string;
+  to: string;
+  symbols: string[];
+  limit?: number;
+}
+type Puller = (args: PullArgs) => Promise<EventPayload[]>;
 
-app.post("/pull/ratings", async (c) => {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    // Default to the watchlist when the caller doesn't pin specific symbols.
-    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
-    if (symbols.length === 0) {
-      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
+/**
+ * Build a /pull/* handler. All six pulls share the same shape: parse body →
+ * default `symbols` to the watchlist (fail-fast on empty, so we never pull
+ * market-wide by accident) → resolve the window → run the puller → persist +
+ * deliver aggregated notifications → return counts. Only the puller and the
+ * log/error `name` (snake_case id, e.g. "price_targets") differ, so behavior
+ * changes (skipped counting, ET day boundaries, …) happen in ONE place.
+ */
+function makePullRoute(name: string, puller: Puller) {
+  return async (c: Context) => {
+    try {
+      const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+      const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
+      if (symbols.length === 0) {
+        return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
+      }
+      const win = defaultWindow();
+      const args: PullArgs = {
+        from: (body.from as string) ?? win.from,
+        to: (body.to as string) ?? win.to,
+        symbols,
+        limit: body.limit as number | undefined,
+      };
+      log.info(`pull.${name}.start`, { from: args.from, to: args.to, symbols: symbols.length });
+      const payloads = await puller(args);
+      log.info(`pull.${name}.fetched`, { events: payloads.length });
+      const res = await ingestAndNotifyAll(payloads);
+      log.info(`pull.${name}.done`, { pulled: payloads.length, ...res });
+      return c.json(ok({ pulled: payloads.length, ...res }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error(`pull.${name}.failed`, { error: msg });
+      return c.json(fail(`pull_${name}_failed`, msg), 500);
     }
-    const win = {
-      from: (body.from as string) ?? defaultWindow().from,
-      to: (body.to as string) ?? defaultWindow().to,
-    };
-    log.info("pull.ratings.start", { symbols: symbols.length, from: win.from, to: win.to });
-    const payloads = await pullRatings({ symbols, from: win.from, to: win.to });
-    log.info("pull.ratings.fetched", { events: payloads.length });
-    const delivered = await ingestAndDeliverAll(payloads);
-    log.info("pull.ratings.done", { pulled: payloads.length, delivered });
-    return c.json(ok({ pulled: payloads.length, delivered }));
-  } catch (err) {
-    log.error("pull.ratings.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("pull_ratings_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+  };
+}
 
-app.post("/pull/news", async (c) => {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
-    if (symbols.length === 0) {
-      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
-    }
-    const win = {
-      from: (body.from as string) ?? defaultWindow().from,
-      to: (body.to as string) ?? defaultWindow().to,
-      symbols,
-      limit: body.limit as number | undefined,
-    };
-    log.info("pull.news.start", { from: win.from, to: win.to, symbols: symbols.length });
-    const payloads = await pullNews(win);
-    log.info("pull.news.fetched", { events: payloads.length });
-    const delivered = await ingestAndDeliverAll(payloads);
-    log.info("pull.news.done", { pulled: payloads.length, delivered });
-    return c.json(ok({ pulled: payloads.length, delivered }));
-  } catch (err) {
-    log.error("pull.news.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("pull_news_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
-
-app.post("/pull/price-targets", async (c) => {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
-    if (symbols.length === 0) {
-      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
-    }
-    const win = {
-      from: (body.from as string) ?? defaultWindow().from,
-      to: (body.to as string) ?? defaultWindow().to,
-      symbols,
-      limit: body.limit as number | undefined,
-    };
-    log.info("pull.price_targets.start", { from: win.from, to: win.to, symbols: symbols.length });
-    const payloads = await pullPriceTargets(win);
-    log.info("pull.price_targets.fetched", { events: payloads.length });
-    const delivered = await ingestAndDeliverAll(payloads);
-    log.info("pull.price_targets.done", { pulled: payloads.length, delivered });
-    return c.json(ok({ pulled: payloads.length, delivered }));
-  } catch (err) {
-    log.error("pull.price_targets.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("pull_price_targets_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
-
-app.post("/pull/insider", async (c) => {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
-    if (symbols.length === 0) {
-      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
-    }
-    const win = {
-      from: (body.from as string) ?? defaultWindow().from,
-      to: (body.to as string) ?? defaultWindow().to,
-      symbols,
-      limit: body.limit as number | undefined,
-    };
-    log.info("pull.insider.start", { from: win.from, to: win.to, symbols: symbols.length });
-    const payloads = await pullInsider(win);
-    log.info("pull.insider.fetched", { events: payloads.length });
-    const delivered = await ingestAndDeliverAll(payloads);
-    log.info("pull.insider.done", { pulled: payloads.length, delivered });
-    return c.json(ok({ pulled: payloads.length, delivered }));
-  } catch (err) {
-    log.error("pull.insider.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("pull_insider_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
-
-app.post("/pull/mna", async (c) => {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
-    if (symbols.length === 0) {
-      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
-    }
-    const win = {
-      from: (body.from as string) ?? defaultWindow().from,
-      to: (body.to as string) ?? defaultWindow().to,
-      symbols, // the watchlist to match deals against (market-wide endpoint)
-      limit: body.limit as number | undefined,
-    };
-    log.info("pull.mna.start", { from: win.from, to: win.to, symbols: symbols.length });
-    const payloads = await pullMna(win);
-    log.info("pull.mna.fetched", { events: payloads.length });
-    const delivered = await ingestAndDeliverAll(payloads);
-    log.info("pull.mna.done", { pulled: payloads.length, delivered });
-    return c.json(ok({ pulled: payloads.length, delivered }));
-  } catch (err) {
-    log.error("pull.mna.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("pull_mna_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+app.post("/pull/earnings", makePullRoute("earnings", pullEarnings));
+app.post("/pull/ratings", makePullRoute("ratings", pullRatings));
+app.post("/pull/news", makePullRoute("news", pullNews));
+app.post("/pull/price-targets", makePullRoute("price_targets", pullPriceTargets));
+app.post("/pull/insider", makePullRoute("insider", pullInsider));
+// mna's endpoint is market-wide; `symbols` is the watchlist to match deals against.
+app.post("/pull/mna", makePullRoute("mna", pullMna));
 
 app.post("/internal/redeliver", async (c) => {
   try {

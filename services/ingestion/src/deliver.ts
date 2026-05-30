@@ -1,15 +1,32 @@
 /**
- * Outbox-backed event delivery. Within one transaction we upsert the raw event
- * (dedup on source+external_id). Then we POST it to analysis; success marks the
- * row delivered, failure leaves it `pending` for /internal/redeliver to retry.
- * This gives at-least-once without a message queue; the consumer is idempotent.
+ * Outbox-backed event ingestion + aggregated notification delivery.
+ *
+ * A pull persists EVERY qualified event (dedup on source+external_id) — nothing
+ * is collapsed away. The not-yet-delivered events are then grouped by
+ * (symbol, event_type) and each group is delivered to analysis as ONE
+ * `notification` (e.g. "NVDA: 3 grade changes"), so analysis reprices the whole
+ * bundle into a single signal instead of fighting N near-simultaneous events.
+ *
+ * Two outbox layers, both at-least-once:
+ *   - events.delivery_status: "have we told analysis about this raw event yet".
+ *     Flipped to `delivered` only when the notification carrying it succeeds.
+ *   - notifications.delivery_status: the POST itself; `pending` ones are retried
+ *     by /internal/redeliver. The consumer (analysis) dedups on (source, batch_key).
  */
-import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
-import { db, dbSchema, deliverJson, config, type EventPayload } from "@qt/shared";
+import { createHash, randomUUID } from "node:crypto";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  db,
+  dbSchema,
+  deliverJson,
+  config,
+  type EventPayload,
+  type EventRef,
+  type NotificationPayload,
+} from "@qt/shared";
 import { log } from "./log.js";
 
-const { events } = dbSchema;
+const { events, notifications } = dbSchema;
 
 export interface PersistResult {
   id: string;
@@ -18,7 +35,7 @@ export interface PersistResult {
   deliveryStatus: string;
 }
 
-/** Upsert an event row (idempotent on source+external_id). Returns its id. */
+/** Upsert an event row (idempotent on source+external_id). Returns its id + dup status. */
 export async function persistEvent(p: EventPayload): Promise<PersistResult> {
   const id = randomUUID();
   const rows = await db()
@@ -46,26 +63,86 @@ export async function persistEvent(p: EventPayload): Promise<PersistResult> {
   return { id: existing[0]!.id, inserted: false, deliveryStatus: existing[0]!.deliveryStatus };
 }
 
-/** Deliver one stored event to analysis and update its outbox status. */
-export async function deliverEvent(id: string, p: EventPayload): Promise<boolean> {
-  const url = `${config.analysisUrl()}/events`;
-  const res = await deliverJson(url, p, {
-    idempotencyKey: `${p.source}:${p.external_id}`,
-  });
+const ts = (s?: string | null): number => {
+  const t = s ? Date.parse(s) : NaN;
+  return Number.isNaN(t) ? -Infinity : t;
+};
+
+function toEventRef(p: EventPayload): EventRef {
+  return {
+    external_id: p.external_id,
+    direction_hint: p.direction_hint ?? null,
+    headline: p.headline ?? null,
+    observed_at: p.observed_at ?? null,
+    raw: p.raw,
+  };
+}
+
+function rowToEventRef(r: typeof events.$inferSelect): EventRef {
+  return {
+    external_id: r.externalId,
+    direction_hint: (r.directionHint as EventRef["direction_hint"]) ?? null,
+    headline: r.headline,
+    observed_at: r.observedAt ? r.observedAt.toISOString() : null,
+    raw: (r.raw as Record<string, unknown>) ?? {},
+  };
+}
+
+/**
+ * Deterministic id for a batch: hash of source+symbol+type+the sorted member
+ * ids. JSON-encoded (not joined) so an external_id containing the separator
+ * char — e.g. an analyst company with a space — can't alias a different set.
+ */
+export function batchKeyOf(source: string, symbol: string, eventType: string, externalIds: string[]): string {
+  const h = createHash("sha256");
+  h.update(JSON.stringify([source, symbol, eventType, [...externalIds].sort()]));
+  return h.digest("hex").slice(0, 32);
+}
+
+async function currentAttempts(notifId: string): Promise<number> {
+  const r = await db()
+    .select({ n: notifications.deliveryAttempts })
+    .from(notifications)
+    .where(eq(notifications.id, notifId));
+  return r[0]?.n ?? 0;
+}
+
+async function markEventsDelivered(eventIds: string[]): Promise<void> {
+  if (eventIds.length === 0) return;
+  await db().update(events).set({ deliveryStatus: "delivered" }).where(inArray(events.id, eventIds));
+}
+
+/** Deliver one stored notification to analysis and update its + its events' outbox. */
+async function deliverNotification(
+  notifId: string,
+  payload: NotificationPayload,
+  eventIds: string[],
+): Promise<boolean> {
+  const url = `${config.analysisUrl()}/notifications`;
+  const res = await deliverJson(url, payload, { idempotencyKey: `${payload.source}:${payload.batch_key}` });
   await db()
-    .update(events)
+    .update(notifications)
     .set({
       deliveryStatus: res.ok ? "delivered" : "pending",
-      deliveryAttempts: (await currentAttempts(id)) + 1,
+      deliveryAttempts: (await currentAttempts(notifId)) + 1,
       lastError: res.ok ? null : res.error ?? `status ${res.status}`,
     })
-    .where(eq(events.id, id));
+    .where(eq(notifications.id, notifId));
   if (res.ok) {
-    log.info("deliver.event.ok", { external_id: p.external_id, symbol: p.symbol, to: url, status: res.status });
+    await markEventsDelivered(eventIds);
+    log.info("deliver.notification.ok", {
+      batch_key: payload.batch_key,
+      symbol: payload.symbol,
+      type: payload.event_type,
+      count: eventIds.length,
+      to: url,
+      status: res.status,
+    });
   } else {
-    log.warn("deliver.event.pending", {
-      external_id: p.external_id,
-      symbol: p.symbol,
+    log.warn("deliver.notification.pending", {
+      batch_key: payload.batch_key,
+      symbol: payload.symbol,
+      type: payload.event_type,
       to: url,
       status: res.status,
       error: res.error,
@@ -74,85 +151,129 @@ export async function deliverEvent(id: string, p: EventPayload): Promise<boolean
   return res.ok;
 }
 
-async function currentAttempts(id: string): Promise<number> {
-  const r = await db()
-    .select({ n: events.deliveryAttempts })
-    .from(events)
-    .where(eq(events.id, id));
-  return r[0]?.n ?? 0;
+/**
+ * Build (idempotently) and deliver one notification for a group of to-notify
+ * events that all share (symbol, event_type). Returns whether it was delivered.
+ */
+async function buildAndDeliverNotification(
+  items: Array<{ id: string; payload: EventPayload }>,
+): Promise<boolean> {
+  const first = items[0]!.payload;
+  const source = first.source;
+  const symbol = first.symbol;
+  const eventType = String(first.event_type);
+
+  // Newest-first so the bundle leads with the freshest change.
+  const sorted = [...items].sort((a, b) => ts(b.payload.observed_at) - ts(a.payload.observed_at));
+  const externalIds = sorted.map((i) => i.payload.external_id);
+  const eventIds = sorted.map((i) => i.id);
+  const batchKey = batchKeyOf(source, symbol, eventType, externalIds);
+  const summary = `${symbol}: ${items.length} ${eventType}${items.length > 1 ? "s" : ""}`;
+  const observedAt = sorted[0]!.payload.observed_at ? new Date(sorted[0]!.payload.observed_at!) : null;
+
+  const id = randomUUID();
+  const ins = await db()
+    .insert(notifications)
+    .values({ id, source, batchKey, symbol, eventType, eventIds, count: items.length, summary, observedAt })
+    .onConflictDoNothing({ target: [notifications.source, notifications.batchKey] })
+    .returning({ id: notifications.id });
+
+  let notifId = ins[0]?.id;
+  if (!notifId) {
+    // Same batch already exists (a prior attempt for this exact event set).
+    const existing = await db()
+      .select({ id: notifications.id, deliveryStatus: notifications.deliveryStatus })
+      .from(notifications)
+      .where(and(eq(notifications.source, source), eq(notifications.batchKey, batchKey)));
+    if (existing[0]?.deliveryStatus === "delivered") {
+      await markEventsDelivered(eventIds); // reconcile any events still flagged pending
+      log.info("notification.dup", { batch_key: batchKey, symbol, type: eventType, count: items.length, skipped: true });
+      return true;
+    }
+    notifId = existing[0]!.id;
+  }
+
+  const payload: NotificationPayload = {
+    source,
+    batch_key: batchKey,
+    symbol,
+    event_type: eventType,
+    summary,
+    events: sorted.map((i) => toEventRef(i.payload)),
+  };
+  return deliverNotification(notifId, payload, eventIds);
 }
 
-/** Persist + immediately attempt delivery. */
-export async function ingestAndDeliver(p: EventPayload): Promise<{ id: string; delivered: boolean }> {
-  const { id, inserted, deliveryStatus } = await persistEvent(p);
-  // Already-delivered dup: skip re-delivery. Re-sending it every poll just makes
-  // analysis re-do intake (and races its in-flight processing). Fresh inserts and
-  // rows still `pending` from a failed prior attempt DO (re)deliver.
-  if (!inserted && deliveryStatus === "delivered") {
-    log.info("ingest.event.dup", {
-      event_id: id,
-      external_id: p.external_id,
-      symbol: p.symbol,
-      type: p.event_type,
-      skipped: true,
-    });
-    return { id, delivered: true };
-  }
-  log.info(inserted ? "ingest.event.new" : "ingest.event.dup", {
-    event_id: id,
-    external_id: p.external_id,
-    symbol: p.symbol,
-    type: p.event_type,
-  });
-  const delivered = await deliverEvent(id, p);
-  return { id, delivered };
+export interface IngestResult {
+  /** Events newly carried to analysis (in a delivered notification). */
+  delivered: number;
+  /** Events skipped because a prior notification already delivered them. */
+  skipped: number;
+  /** Notifications sent (one per (symbol, event_type) group). */
+  notifications: number;
 }
 
 /**
- * Persist + deliver many events with bounded concurrency. News pulls can be
- * 100s of events; doing them fully serially risks Cloud Run / Scheduler
- * timeouts, while unbounded concurrency would swamp the DB pool (max 5) and
- * analysis. Batches of `batchSize` balance throughput against both. Returns the
- * delivered count.
+ * Persist all qualified events, then deliver one aggregated notification per
+ * (symbol, event_type) group of not-yet-delivered events.
+ *
+ * To-notify = freshly inserted OR existing-but-still-`pending`. Already-delivered
+ * events are skipped (their notification went out before). Re-grouping a pending
+ * event is intentional (no silent drop); the deterministic batch_key dedups the
+ * common re-pull case, and any rare overlap is absorbed by the consumer's
+ * idempotency — at-least-once, never at-most-once.
  */
-export async function ingestAndDeliverAll(
-  payloads: EventPayload[],
-  batchSize = 10,
-): Promise<number> {
-  let delivered = 0;
+export async function ingestAndNotifyAll(payloads: EventPayload[], batchSize = 10): Promise<IngestResult> {
+  const toNotify: Array<{ id: string; payload: EventPayload }> = [];
+  let skipped = 0;
   for (let i = 0; i < payloads.length; i += batchSize) {
     const batch = payloads.slice(i, i + batchSize);
-    const res = await Promise.all(batch.map((p) => ingestAndDeliver(p)));
-    delivered += res.filter((r) => r.delivered).length;
+    const results = await Promise.all(batch.map((p) => persistEvent(p).then((r) => ({ r, p }))));
+    for (const { r, p } of results) {
+      if (r.inserted || r.deliveryStatus === "pending") toNotify.push({ id: r.id, payload: p });
+      else skipped++;
+    }
   }
-  return delivered;
+
+  // Group the to-notify events by (symbol, event_type).
+  const groups = new Map<string, Array<{ id: string; payload: EventPayload }>>();
+  for (const item of toNotify) {
+    const key = `${item.payload.symbol} ${String(item.payload.event_type)}`;
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = []));
+    g.push(item);
+  }
+
+  let delivered = 0;
+  for (const items of groups.values()) {
+    if (await buildAndDeliverNotification(items)) delivered += items.length;
+  }
+  return { delivered, skipped, notifications: groups.size };
 }
 
-/** Reconstruct the wire payload from a stored event row. */
-function rowToPayload(row: typeof events.$inferSelect): EventPayload {
-  return {
-    source: row.source,
-    external_id: row.externalId,
-    symbol: row.symbol ?? "",
-    event_type: row.eventType ?? "",
-    direction_hint: (row.directionHint as EventPayload["direction_hint"]) ?? null,
-    headline: row.headline,
-    observed_at: row.observedAt ? row.observedAt.toISOString() : null,
-    raw: (row.raw as Record<string, unknown>) ?? {},
-  };
+/** Reconstruct a notification's wire payload from its stored row + member events. */
+async function rowToPayload(n: typeof notifications.$inferSelect): Promise<NotificationPayload> {
+  const eventIds = (n.eventIds as string[]) ?? [];
+  const rows = eventIds.length
+    ? await db().select().from(events).where(inArray(events.id, eventIds))
+    : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const refs = eventIds.map((id) => byId.get(id)).filter((r): r is typeof rows[number] => !!r).map(rowToEventRef);
+  return { source: n.source, batch_key: n.batchKey, symbol: n.symbol, event_type: n.eventType, summary: n.summary, events: refs };
 }
 
-/** Retry all pending deliveries (cron-triggered). Returns counts. */
+/** Retry all pending notification deliveries (cron-triggered). Returns counts. */
 export async function redeliverPending(limit = 100): Promise<{ tried: number; delivered: number }> {
   const pending = await db()
     .select()
-    .from(events)
-    .where(eq(events.deliveryStatus, "pending"))
+    .from(notifications)
+    .where(eq(notifications.deliveryStatus, "pending"))
     .limit(limit);
   if (pending.length) log.info("redeliver.start", { pending: pending.length });
   let delivered = 0;
-  for (const row of pending) {
-    if (await deliverEvent(row.id, rowToPayload(row))) delivered++;
+  for (const n of pending) {
+    const payload = await rowToPayload(n);
+    if (await deliverNotification(n.id, payload, (n.eventIds as string[]) ?? [])) delivered++;
   }
   return { tried: pending.length, delivered };
 }

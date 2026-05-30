@@ -2,10 +2,10 @@
  * Pull analyst price-target changes from FMP into EventPayloads.
  * Endpoint `price-target-news?symbol=X` — recent-first, symbol-scoped.
  * direction is inferred from the target vs the price when posted (target above
- * current price = bullish). Reduced to the latest target per symbol.
+ * current price = bullish). All in-window targets are emitted (analysis bundles
+ * a symbol's multiple changes into one notification and reprices them together).
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
-import { latestPerSymbol } from "./_latest.js";
 import { fetchPerSymbol } from "./_fetch.js";
 
 export interface FmpPriceTarget {
@@ -26,7 +26,7 @@ function directionHint(p: FmpPriceTarget): EventPayload["direction_hint"] {
   return null;
 }
 
-/** Pure: price-target rows (grouped by queried symbol) -> events. Window-filtered; latest per symbol. */
+/** Pure: price-target rows (grouped by queried symbol) -> events. Window-filtered; all kept. */
 export function mapPriceTargets(
   grouped: Array<{ symbol: string; rows: FmpPriceTarget[] }>,
   opts: { from: string; to: string },
@@ -50,7 +50,7 @@ export function mapPriceTargets(
       });
     }
   }
-  return latestPerSymbol(out);
+  return out;
 }
 
 export async function pullPriceTargets(opts: {
