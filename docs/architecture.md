@@ -41,10 +41,14 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
 - v1 只做 **pull**：被 Cloud Scheduler / cron 触发 HTTP 端点 → 用限流 FMP 客户端拉数据 → **原始落库**（PIT：`known_at = FMP acceptedDate`）→ 写 `events` 表（outbox）→ HTTP 投递给 analysis。
 - **本身不分析**。LLM 在 ingestion 里只会作为 v2 push 通道的**分类工具**出现（合并同类/去重），v1 不涉及。
 - `/pull/*` 默认从 `watchlist` 表取 symbol（body 不传 `symbols` 时）；watchlist 由 `pnpm seed:watchlist` 手动 seed。
+- **每个 puller 的过滤原则**：拉取 → 过滤掉无用消息 → **每 symbol 每 event_type 只产出窗口内最新 1 条**（`pull/_latest.ts` 的 `latestPerSymbol`）。跨 event_type 不合并，故同一 symbol 一轮可有多条（各类型 1 条），全部投递 + 落库；历史靠 `events` 表跨多次 pull 累积，供 analysis 回看。
 - 端点（v1）：
-  - `POST /pull/earnings` —— 拉取近期财报事件（默认 watchlist 过滤）
-  - `POST /pull/ratings` —— 拉取评级/目标价调整（默认 watchlist）
-  - `POST /pull/news` —— 拉取近期公司新闻（默认 watchlist；`direction_hint` 交给 analysis 判）
+  - `POST /pull/earnings` —— 财报（EPS 实际 vs 预期）
+  - `POST /pull/ratings` —— 分析师升降级（`grades`，过滤 no-op maintain）
+  - `POST /pull/price-targets` —— 分析师目标价变动（`price-target-news`）
+  - `POST /pull/news` —— 公司新闻
+  - `POST /pull/insider` —— 内部人 Form4 买卖（只留 P-Purchase/S-Sale）
+  - `POST /pull/mna` —— 并购（市场级 `mergers-acquisitions-latest`，按 watchlist 过滤）
   - `POST /internal/redeliver` —— 重投 `pending` 的 events（兜底）
   - `GET /healthz`
 

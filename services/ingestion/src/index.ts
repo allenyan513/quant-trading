@@ -10,6 +10,9 @@ import { ingestAndDeliverAll, redeliverPending } from "./deliver.js";
 import { pullEarnings } from "./pull/earnings.js";
 import { pullRatings } from "./pull/ratings.js";
 import { pullNews } from "./pull/news.js";
+import { pullPriceTargets } from "./pull/price-target.js";
+import { pullInsider } from "./pull/insider.js";
+import { pullMna } from "./pull/mna.js";
 import { getWatchlistSymbols } from "./watchlist.js";
 import { log } from "./log.js";
 
@@ -91,6 +94,81 @@ app.post("/pull/news", async (c) => {
   } catch (err) {
     log.error("pull.news.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("pull_news_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+app.post("/pull/price-targets", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
+    if (symbols.length === 0) {
+      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
+    }
+    const win = {
+      from: (body.from as string) ?? defaultWindow().from,
+      to: (body.to as string) ?? defaultWindow().to,
+      symbols,
+      limit: body.limit as number | undefined,
+    };
+    log.info("pull.price_targets.start", { from: win.from, to: win.to, symbols: symbols.length });
+    const payloads = await pullPriceTargets(win);
+    log.info("pull.price_targets.fetched", { events: payloads.length });
+    const delivered = await ingestAndDeliverAll(payloads);
+    log.info("pull.price_targets.done", { pulled: payloads.length, delivered });
+    return c.json(ok({ pulled: payloads.length, delivered }));
+  } catch (err) {
+    log.error("pull.price_targets.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("pull_price_targets_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+app.post("/pull/insider", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
+    if (symbols.length === 0) {
+      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
+    }
+    const win = {
+      from: (body.from as string) ?? defaultWindow().from,
+      to: (body.to as string) ?? defaultWindow().to,
+      symbols,
+      limit: body.limit as number | undefined,
+    };
+    log.info("pull.insider.start", { from: win.from, to: win.to, symbols: symbols.length });
+    const payloads = await pullInsider(win);
+    log.info("pull.insider.fetched", { events: payloads.length });
+    const delivered = await ingestAndDeliverAll(payloads);
+    log.info("pull.insider.done", { pulled: payloads.length, delivered });
+    return c.json(ok({ pulled: payloads.length, delivered }));
+  } catch (err) {
+    log.error("pull.insider.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("pull_insider_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+app.post("/pull/mna", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
+    if (symbols.length === 0) {
+      return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
+    }
+    const win = {
+      from: (body.from as string) ?? defaultWindow().from,
+      to: (body.to as string) ?? defaultWindow().to,
+      symbols, // the watchlist to match deals against (market-wide endpoint)
+      limit: body.limit as number | undefined,
+    };
+    log.info("pull.mna.start", { from: win.from, to: win.to, symbols: symbols.length });
+    const payloads = await pullMna(win);
+    log.info("pull.mna.fetched", { events: payloads.length });
+    const delivered = await ingestAndDeliverAll(payloads);
+    log.info("pull.mna.done", { pulled: payloads.length, delivered });
+    return c.json(ok({ pulled: payloads.length, delivered }));
+  } catch (err) {
+    log.error("pull.mna.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("pull_mna_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
