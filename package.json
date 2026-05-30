@@ -4,13 +4,13 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12.0"
   },
   "packageManager": "pnpm@9.12.0",
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "dev": "pnpm -r --parallel dev",
+    "dev": "pnpm -r --parallel --if-present dev",
     "dev:ingestion": "pnpm --filter @qt/ingestion dev",
     "dev:analysis": "pnpm --filter @qt/analysis dev",
     "dev:evaluation": "pnpm --filter @qt/evaluation dev",
