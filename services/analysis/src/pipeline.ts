@@ -76,7 +76,14 @@ export async function intakeEvent(p: EventPayload): Promise<IntakeResult> {
     return { status: "noise", event_id: eventId };
   }
 
-  await db().update(events).set({ status: "processing" }).where(eq(events.id, eventId));
+  // Refresh ingestedAt when entering processing: it doubles as the "processing
+  // since" clock for reprocessStuck. Without this, a re-delivered event (whose
+  // ingestedAt is the original, possibly >cutoff) would be grabbed by reprocess
+  // the instant intake marks it processing — racing the background processEvent.
+  await db()
+    .update(events)
+    .set({ status: "processing", ingestedAt: new Date() })
+    .where(eq(events.id, eventId));
   log.info("pipeline.processing", { event_id: eventId, symbol: norm.symbol, type: norm.eventType });
   return { status: "accepted", event_id: eventId, norm };
 }
@@ -168,21 +175,42 @@ function rowToPayload(row: typeof events.$inferSelect): EventPayload {
  * signal). Cron-triggered. The age cutoff keeps in-flight events untouched, so
  * a normal ~20s LLM run is never double-processed. Mirrors ingestion's
  * redelivery: the analysis-side safety net that makes async ACK at-least-once.
+ *
+ * `limit` is deliberately small and processing is sequential: each processEvent
+ * runs the slow LLM loop (~15-20s), so a large batch would blow the cron HTTP
+ * timeout, and sequential keeps us under the FMP/Anthropic rate limits. A
+ * backlog larger than `limit` simply drains over successive cron fires (logged).
  */
 export async function reprocessStuck(
-  limit = 20,
+  limit = 5,
   olderThanMs = 5 * 60 * 1000,
 ): Promise<{ tried: number; recovered: number }> {
   const cutoff = new Date(Date.now() - olderThanMs);
-  const stuck = await db()
+  // Fetch limit+1 to detect (and surface) a backlog without a separate count.
+  const candidates = await db()
     .select()
     .from(events)
     .where(and(eq(events.status, "processing"), lt(events.ingestedAt, cutoff)))
-    .limit(limit);
-  if (stuck.length) log.info("reprocess.start", { stuck: stuck.length });
+    .limit(limit + 1);
+  const stuck = candidates.slice(0, limit);
+  if (stuck.length) {
+    log.info("reprocess.start", { stuck: stuck.length, more: candidates.length > limit });
+  }
 
   let recovered = 0;
+  let tried = 0;
   for (const row of stuck) {
+    // Atomically claim: flip the clock only if it's still processing AND still
+    // past the cutoff. A concurrent cron run (or a fresh re-delivery that just
+    // reset ingestedAt) fails this guard and is skipped — no double-processing.
+    const claimed = await db()
+      .update(events)
+      .set({ ingestedAt: new Date() })
+      .where(and(eq(events.id, row.id), eq(events.status, "processing"), lt(events.ingestedAt, cutoff)))
+      .returning({ id: events.id });
+    if (!claimed[0]) continue;
+    tried++;
+
     // Already done in a prior run? Reconcile status and skip.
     const prior = await db()
       .select({ id: tradingSignals.id })
@@ -208,5 +236,5 @@ export async function reprocessStuck(
       });
     }
   }
-  return { tried: stuck.length, recovered };
+  return { tried, recovered };
 }
