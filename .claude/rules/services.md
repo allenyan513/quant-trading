@@ -26,6 +26,13 @@ paths:
 - 消费端必须**幂等**：按 `(source, external_id)`（或对应唯一键）去重，重复投递不得产生重复结果。
 - 新增需要被可靠传递的跨服务消息时，沿用这个 outbox 模式，不要直接 fire-and-forget。
 
+## 日志
+
+- 每个服务有 `src/log.ts` 导出 `log = createLogger("<service>")`（`@qt/shared` 的结构化 logger）。**不要直接 `console.log`**。
+- `event` 名用点分 `<area>.<step>[.<outcome>]`（如 `pipeline.signal`、`deliver.event.ok`），字段放第二个参数：`log.info("event.received", { external_id, symbol, type })`。
+- **带上可追踪键**：事件链路用 `external_id`，信号链路用 `signal`（= signal id），这样能 grep 一条记录跨三个服务端到端追踪。
+- 级别：主流程 `info`；soft-fail / outbox 留 `pending` 用 `warn`；抛错用 `error`；逐 tool/payload 等啰嗦细节用 `debug`（`LOG_LEVEL=debug` 才显示）。`LOG_FORMAT=json` 输出机器可解析行。
+
 ## 边界
 
 - ingestion 无 LLM，只做确定性拉取/落库/投递。

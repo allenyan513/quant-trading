@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { eq, inArray } from "drizzle-orm";
 import { db, dbSchema, config } from "@qt/shared";
+import { log } from "./log.js";
 
 const { tradingSignals, signalOutcomes, feedbackNotes, events } = dbSchema;
 
@@ -46,6 +47,7 @@ export async function critiqueResolved(limit = 20): Promise<{ reviewed: number }
     .where(inArray(tradingSignals.status, RESOLVED))
     .limit(limit);
   const candidates = resolved.filter((s) => !notedIds.includes(s.id));
+  if (candidates.length) log.info("critique.start", { candidates: candidates.length, model: config.critiqueModel() });
 
   let reviewed = 0;
   for (const s of candidates) {
@@ -98,6 +100,12 @@ export async function critiqueResolved(limit = 20): Promise<{ reviewed: number }
       eventType,
       lesson: input.lesson,
       scores: { quality_score: input.quality_score, thesis_quality: input.thesis_quality ?? null },
+    });
+    log.info("critique.note", {
+      signal: s.id,
+      symbol: s.symbol,
+      event_type: eventType,
+      score: input.quality_score,
     });
     reviewed++;
   }

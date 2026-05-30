@@ -9,6 +9,7 @@
  */
 import { eq, inArray } from "drizzle-orm";
 import { db, dbSchema, fmpGet } from "@qt/shared";
+import { log } from "./log.js";
 
 const { tradingSignals, signalOutcomes } = dbSchema;
 
@@ -86,6 +87,14 @@ export async function trackOutcomes(): Promise<{ scanned: number; updated: numbe
     if (!newStatus && s.expiresAt && now > s.expiresAt.getTime()) newStatus = "expired";
     if (newStatus && newStatus !== s.status) {
       await db().update(tradingSignals).set({ status: newStatus }).where(eq(tradingSignals.id, s.id));
+      log.info("track.resolved", {
+        signal: s.id,
+        symbol: s.symbol,
+        from: s.status,
+        to: newStatus,
+        price,
+        return_pct: Number(returnPct.toFixed(2)),
+      });
       updated++;
     }
   }

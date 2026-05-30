@@ -1,0 +1,63 @@
+/**
+ * Minimal structured logger for tracing the distributed flow across services.
+ * One readable line per event, e.g.:
+ *   12:34:56.789 [ingestion] INFO  pull.earnings.done pulled=3 delivered=3
+ *
+ * Conventions:
+ *  - `event` is a dotted name (`<area>.<step>[.<outcome>]`) so a flow reads top-down.
+ *  - Carry a trace key in `fields` (`external_id` for events, `signal` for signals)
+ *    so one item can be grepped end-to-end across all three services.
+ *
+ * Env: LOG_LEVEL=debug|info|warn|error (default info); LOG_FORMAT=json for
+ * machine-parseable lines (Cloud Run / log aggregators).
+ */
+type Level = "debug" | "info" | "warn" | "error";
+
+const ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
+const threshold = ORDER[(process.env.LOG_LEVEL as Level) ?? "info"] ?? ORDER.info;
+const asJson = process.env.LOG_FORMAT === "json";
+
+export type LogFields = Record<string, unknown>;
+
+export interface Logger {
+  debug(event: string, fields?: LogFields): void;
+  info(event: string, fields?: LogFields): void;
+  warn(event: string, fields?: LogFields): void;
+  error(event: string, fields?: LogFields): void;
+}
+
+function fmtValue(v: unknown): string {
+  if (v === null) return "null";
+  if (typeof v === "string") return /[\s="]/.test(v) ? JSON.stringify(v) : v;
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+function fmtFields(fields?: LogFields): string {
+  if (!fields) return "";
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined) continue;
+    parts.push(`${k}=${fmtValue(v)}`);
+  }
+  return parts.length ? " " + parts.join(" ") : "";
+}
+
+export function createLogger(service: string): Logger {
+  function emit(level: Level, event: string, fields?: LogFields): void {
+    if (ORDER[level] < threshold) return;
+    const ts = new Date().toISOString();
+    const sink = level === "error" || level === "warn" ? console.error : console.log;
+    if (asJson) {
+      sink(JSON.stringify({ ts, level, service, event, ...fields }));
+      return;
+    }
+    sink(`${ts.slice(11, 23)} [${service}] ${level.toUpperCase().padEnd(5)} ${event}${fmtFields(fields)}`);
+  }
+  return {
+    debug: (e, f) => emit("debug", e, f),
+    info: (e, f) => emit("info", e, f),
+    warn: (e, f) => emit("warn", e, f),
+    error: (e, f) => emit("error", e, f),
+  };
+}

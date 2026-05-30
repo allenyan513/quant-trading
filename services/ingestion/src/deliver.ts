@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, dbSchema, deliverJson, config, type EventPayload } from "@qt/shared";
+import { log } from "./log.js";
 
 const { events } = dbSchema;
 
@@ -45,7 +46,8 @@ export async function persistEvent(p: EventPayload): Promise<PersistResult> {
 
 /** Deliver one stored event to analysis and update its outbox status. */
 export async function deliverEvent(id: string, p: EventPayload): Promise<boolean> {
-  const res = await deliverJson(`${config.analysisUrl()}/events`, p, {
+  const url = `${config.analysisUrl()}/events`;
+  const res = await deliverJson(url, p, {
     idempotencyKey: `${p.source}:${p.external_id}`,
   });
   await db()
@@ -56,6 +58,17 @@ export async function deliverEvent(id: string, p: EventPayload): Promise<boolean
       lastError: res.ok ? null : res.error ?? `status ${res.status}`,
     })
     .where(eq(events.id, id));
+  if (res.ok) {
+    log.info("deliver.event.ok", { external_id: p.external_id, symbol: p.symbol, to: url, status: res.status });
+  } else {
+    log.warn("deliver.event.pending", {
+      external_id: p.external_id,
+      symbol: p.symbol,
+      to: url,
+      status: res.status,
+      error: res.error,
+    });
+  }
   return res.ok;
 }
 
@@ -69,7 +82,13 @@ async function currentAttempts(id: string): Promise<number> {
 
 /** Persist + immediately attempt delivery. */
 export async function ingestAndDeliver(p: EventPayload): Promise<{ id: string; delivered: boolean }> {
-  const { id } = await persistEvent(p);
+  const { id, inserted } = await persistEvent(p);
+  log.info(inserted ? "ingest.event.new" : "ingest.event.dup", {
+    event_id: id,
+    external_id: p.external_id,
+    symbol: p.symbol,
+    type: p.event_type,
+  });
   const delivered = await deliverEvent(id, p);
   return { id, delivered };
 }
@@ -95,6 +114,7 @@ export async function redeliverPending(limit = 100): Promise<{ tried: number; de
     .from(events)
     .where(eq(events.deliveryStatus, "pending"))
     .limit(limit);
+  if (pending.length) log.info("redeliver.start", { pending: pending.length });
   let delivered = 0;
   for (const row of pending) {
     if (await deliverEvent(row.id, rowToPayload(row))) delivered++;

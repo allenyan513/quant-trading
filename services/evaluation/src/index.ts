@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { ok, fail, config, db, dbSchema, type TradingSignalDTO } from "@qt/shared";
 import { trackOutcomes } from "./track.js";
 import { critiqueResolved } from "./critique.js";
+import { log } from "./log.js";
 
 const { tradingSignals } = dbSchema;
 const app = new Hono();
@@ -45,28 +46,36 @@ app.post("/signals", async (c) => {
         expiresAt: s.expires_at ? new Date(s.expires_at) : null,
       })
       .onConflictDoNothing({ target: tradingSignals.id });
+    log.info("signal.registered", { signal: s.id, symbol: s.symbol, direction: s.direction });
     return c.json(ok({ registered: s.id }));
   } catch (err) {
+    log.error("signal.register_failed", { signal: s.id, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("register_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
 app.post("/jobs/track", async (c) => {
   try {
-    return c.json(ok(await trackOutcomes()));
+    const res = await trackOutcomes();
+    log.info("track.done", { scanned: res.scanned, updated: res.updated });
+    return c.json(ok(res));
   } catch (err) {
+    log.error("track.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("track_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
 app.post("/jobs/critique", async (c) => {
   try {
-    return c.json(ok(await critiqueResolved()));
+    const res = await critiqueResolved();
+    log.info("critique.done", { reviewed: res.reviewed });
+    return c.json(ok(res));
   } catch (err) {
+    log.error("critique.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("critique_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
-  console.log(`[evaluation] listening on :${info.port}`);
+  log.info("listening", { port: info.port });
 });
