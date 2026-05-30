@@ -53,8 +53,12 @@ app.post("/pull/ratings", async (c) => {
     if (symbols.length === 0) {
       return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
     }
-    log.info("pull.ratings.start", { symbols: symbols.length });
-    const payloads = await pullRatings(symbols);
+    const win = {
+      from: (body.from as string) ?? defaultWindow().from,
+      to: (body.to as string) ?? defaultWindow().to,
+    };
+    log.info("pull.ratings.start", { symbols: symbols.length, from: win.from, to: win.to });
+    const payloads = await pullRatings({ symbols, from: win.from, to: win.to });
     log.info("pull.ratings.fetched", { events: payloads.length });
     const delivered = await ingestAndDeliverAll(payloads);
     log.info("pull.ratings.done", { pulled: payloads.length, delivered });
