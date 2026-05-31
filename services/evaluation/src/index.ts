@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { ok, fail, config, db, dbSchema, type TradingSignalDTO } from "@qt/shared";
 import { trackOutcomes } from "./track.js";
 import { critiqueResolved } from "./critique.js";
+import { sizeAndRecord, type SizingOutcome } from "./portfolio.js";
 import { log } from "./log.js";
 
 const { tradingSignals } = dbSchema;
@@ -48,7 +49,20 @@ app.post("/signals", async (c) => {
       })
       .onConflictDoNothing({ target: tradingSignals.id });
     log.info("signal.registered", { signal: s.id, symbol: s.symbol, direction: s.direction });
-    return c.json(ok({ registered: s.id }));
+
+    // Portfolio construction (T7): deterministically size + record the position.
+    // A sizing failure must not fail registration — tracking and book-building
+    // are separate concerns, and a rejected position is a normal outcome.
+    let sizing: SizingOutcome | null = null;
+    try {
+      sizing = await sizeAndRecord(s);
+    } catch (err) {
+      log.error("portfolio.size_failed", {
+        signal: s.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return c.json(ok({ registered: s.id, sizing }));
   } catch (err) {
     log.error("signal.register_failed", { signal: s.id, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("register_failed", err instanceof Error ? err.message : String(err)), 500);
