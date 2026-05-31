@@ -19,6 +19,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { desc, eq, and } from "drizzle-orm";
 import { db, dbSchema, config, marketdata, type SignalDraft, type ReferenceValuation } from "@qt/shared";
 import type { NormalizedNotification } from "./classify.js";
+import { sanitizeSignalDraft } from "./signal-draft.js";
 import { log } from "./log.js";
 
 const { feedbackNotes } = dbSchema;
@@ -46,7 +47,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_fundamentals",
-    description: "Fetch key financial ratios/metrics (TTM) for a symbol.",
+    description: "Fetch key annual financial ratios/metrics for a symbol.",
     input_schema: {
       type: "object",
       properties: { symbol: { type: "string" } },
@@ -184,21 +185,18 @@ export async function generateSignal(
     // Check for the terminal emit_signal call first.
     const emit = toolUses.find((b) => b.name === "emit_signal");
     if (emit) {
-      const p = emit.input as Partial<SignalDraft>;
+      // Deterministic guardrail: drop implausible numeric levels (never fabricate).
+      const { draft, warnings } = sanitizeSignalDraft(emit.input as Partial<SignalDraft>, ref.current_price);
+      if (warnings.length) {
+        log.warn("agent.emit.sanitized", { symbol: notif.symbol, warnings });
+      }
       log.info("agent.emit", {
         symbol: notif.symbol,
         turns: turn + 1,
-        direction: p.direction ?? "hold",
-        conviction: p.conviction ?? "medium",
+        direction: draft.direction,
+        conviction: draft.conviction,
       });
-      return {
-        direction: (p.direction ?? "hold") as SignalDraft["direction"],
-        target_price: p.target_price ?? null,
-        stop_loss: p.stop_loss ?? null,
-        horizon_days: p.horizon_days ?? null,
-        conviction: (p.conviction ?? "medium") as SignalDraft["conviction"],
-        thesis: p.thesis ?? "",
-      };
+      return draft;
     }
 
     if (toolUses.length === 0) {
