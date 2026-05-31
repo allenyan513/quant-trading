@@ -20,6 +20,7 @@ import type {
   ValuationModelType,
 } from "../types.js";
 import { projectRevenue, avg, clamp } from "./dcf-helpers.js";
+import { MIN_DISCOUNT_TERMINAL_SPREAD, TERMINAL_EXIT_MULTIPLE } from "../constants.js";
 import { round2 } from "./statistics.js";
 
 // --- Inputs ---
@@ -191,8 +192,10 @@ function calculateRevenueDCFInternal(
   // 5. Terminal value (Gordon Growth on terminal year FCFF)
   const terminalFCFF = projections[numYears - 1].fcff;
   let terminalValue = 0;
-  if (terminalFCFF > 0 && wacc > terminalGrowthRate) {
+  if (terminalFCFF > 0 && wacc - terminalGrowthRate >= MIN_DISCOUNT_TERMINAL_SPREAD) {
     terminalValue = (terminalFCFF * (1 + terminalGrowthRate)) / (wacc - terminalGrowthRate);
+  } else if (terminalFCFF > 0) {
+    terminalValue = terminalFCFF * TERMINAL_EXIT_MULTIPLE;
   }
   const terminalTiming = numYears - 0.5; // mid-year of last year
   const pvTerminalValue = terminalValue / Math.pow(1 + wacc, terminalTiming);
@@ -234,8 +237,10 @@ function calculateRevenueDCFInternal(
 
   // Low/high from sensitivity edges
   const allSensitivityPrices = sensitivityPrices.flat().filter((p) => p > 0);
-  const lowEstimate = allSensitivityPrices.length > 0 ? Math.min(...allSensitivityPrices) : fairValue * 0.7;
-  const highEstimate = allSensitivityPrices.length > 0 ? Math.max(...allSensitivityPrices) : fairValue * 1.3;
+  // Fall back to the floored fair value (not the raw, possibly-negative one) so a
+  // high-net-debt company can't produce negative low/high estimates.
+  const lowEstimate = allSensitivityPrices.length > 0 ? Math.min(...allSensitivityPrices) : effectiveFairValue * 0.7;
+  const highEstimate = allSensitivityPrices.length > 0 ? Math.max(...allSensitivityPrices) : effectiveFairValue * 1.3;
 
   return {
     model_type: modelType,
@@ -326,8 +331,11 @@ function calculateRevenueDCFCore(
   }
 
   let tvPV = 0;
-  if (lastFcff > 0 && wacc > params.terminalGrowthRate) {
+  if (lastFcff > 0 && wacc - params.terminalGrowthRate >= MIN_DISCOUNT_TERMINAL_SPREAD) {
     const tv = (lastFcff * (1 + params.terminalGrowthRate)) / (wacc - params.terminalGrowthRate);
+    tvPV = tv / Math.pow(1 + wacc, numYears - 0.5);
+  } else if (lastFcff > 0) {
+    const tv = lastFcff * TERMINAL_EXIT_MULTIPLE;
     tvPV = tv / Math.pow(1 + wacc, numYears - 0.5);
   }
 

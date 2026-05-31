@@ -143,6 +143,13 @@ export function computeFullValuation(
   // 2. Common DCF inputs
   const sharesOutstanding =
     latestFinancial.shares_outstanding || company.shares_outstanding;
+  // Centralized divide-by-zero guard: every DCF / multiples model divides equity
+  // value by shares to get a per-share fair value. A zero/invalid share count
+  // would silently produce NaN/Infinity across all of them — fail fast here so
+  // reference.ts catches it and degrades to a price-only snapshot.
+  if (!Number.isFinite(sharesOutstanding) || sharesOutstanding <= 0) {
+    throw new Error(`Invalid shares outstanding for ${company.ticker}: ${sharesOutstanding}`);
+  }
 
   // 3. Determine valuation tier
   const tier = company.valuation_tier || "full";

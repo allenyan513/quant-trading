@@ -15,6 +15,13 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { fmpGet } from "../fmp.js";
+import { mapLimit } from "../concurrency.js";
+import { createLogger } from "../log.js";
+
+const log = createLogger("marketdata");
+
+/** Max peer `ratios` requests in flight at once (caps fan-out; fmpGet still throttles globally). */
+const PEER_FETCH_CONCURRENCY = 10;
 
 export type StatementPeriod = "annual" | "quarter";
 
@@ -272,6 +279,7 @@ export async function getProfile(symbol: string): Promise<Record<string, unknown
       industry: typeof p.industry === "string" ? p.industry : null,
       beta: typeof p.beta === "number" ? p.beta : null,
       reportingCurrency: typeof p.currency === "string" ? p.currency : "USD",
+      knownAt: new Date(),
     };
     await db()
       .insert(universe)
@@ -284,7 +292,7 @@ export async function getProfile(symbol: string): Promise<Record<string, unknown
           industry: meta.industry,
           beta: meta.beta,
           reportingCurrency: meta.reportingCurrency,
-          knownAt: new Date(),
+          knownAt: meta.knownAt,
         },
       });
   }
@@ -312,23 +320,28 @@ export async function getPeers(symbol: string, max = 6): Promise<PeerMultiples[]
   if (!list?.length) return [];
   const peers = list.filter((p) => p.symbol && p.symbol.toUpperCase() !== sym).slice(0, max);
 
-  const out = await Promise.all(
-    peers.map(async (peer): Promise<PeerMultiples | null> => {
-      try {
-        const r = await getRatios(peer.symbol!, "annual", 1);
-        const d = (r[0]?.data ?? {}) as Record<string, unknown>;
-        const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-        return {
-          ticker: peer.symbol!.toUpperCase(),
-          market_cap: typeof peer.mktCap === "number" ? peer.mktCap : null,
-          trailing_pe: n(d.priceToEarningsRatio),
-          ev_ebitda: n(d.enterpriseValueMultiple),
-          ev_revenue: n(d.priceToSalesRatio), // P/S as an EV/Revenue proxy (v1)
-        };
-      } catch {
-        return null;
-      }
-    }),
-  );
+  // Bounded fan-out: at most PEER_FETCH_CONCURRENCY peer `ratios` calls in flight,
+  // and each peer's failure is isolated (logged, mapped to null) so one bad symbol
+  // never aborts the batch — callers degrade to whatever peers did resolve.
+  const out = await mapLimit(peers, PEER_FETCH_CONCURRENCY, async (peer): Promise<PeerMultiples | null> => {
+    try {
+      const r = await getRatios(peer.symbol!, "annual", 1);
+      const d = (r[0]?.data ?? {}) as Record<string, unknown>;
+      const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+      return {
+        ticker: peer.symbol!.toUpperCase(),
+        market_cap: typeof peer.mktCap === "number" ? peer.mktCap : null,
+        trailing_pe: n(d.priceToEarningsRatio),
+        ev_ebitda: n(d.enterpriseValueMultiple),
+        ev_revenue: n(d.priceToSalesRatio), // P/S as an EV/Revenue proxy (v1)
+      };
+    } catch (err) {
+      log.warn("marketdata.peers.symbol_failed", {
+        symbol: peer.symbol,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  });
   return out.filter((p): p is PeerMultiples => p !== null);
 }

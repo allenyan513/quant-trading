@@ -7,6 +7,7 @@
 
 import type { ValuationResult, DCFFCFFProjectionYear } from "../types.js";
 import { avg, projectRevenue } from "./dcf-helpers.js";
+import { MIN_DISCOUNT_TERMINAL_SPREAD, TERMINAL_EXIT_MULTIPLE } from "../constants.js";
 import {
   type DCFFCFFInputs,
   computeExpenseRatios,
@@ -52,7 +53,10 @@ export function buildFCFFSensitivityMatrix(
       for (const p of projections) {
         pvFCFF += p.fcff / Math.pow(1 + wacc, p.timing);
       }
-      const tv = wacc > g ? terminalFCFF / (wacc - g) : terminalFCFF * 20;
+      const tv =
+        wacc - g >= MIN_DISCOUNT_TERMINAL_SPREAD
+          ? terminalFCFF / (wacc - g)
+          : terminalFCFF * TERMINAL_EXIT_MULTIPLE;
       const pvTV = tv / Math.pow(1 + wacc, projectionYears);
       const ev = pvFCFF + pvTV;
       const equity = ev - netDebt;
@@ -213,9 +217,9 @@ export function calculateFCFFInternal(inputs: DCFFCFFInputs, numYears: number): 
     pv_fcff: 0,
   };
 
-  const terminalValue = wacc > g
+  const terminalValue = wacc - g >= MIN_DISCOUNT_TERMINAL_SPREAD
     ? termFCFF / (wacc - g)
-    : termFCFF * 20;
+    : termFCFF * TERMINAL_EXIT_MULTIPLE;
 
   const pvTerminalValue = terminalValue / Math.pow(1 + wacc, numYears);
   const pvFCFFTotal = projections.reduce((sum, p) => sum + p.pv_fcff, 0);

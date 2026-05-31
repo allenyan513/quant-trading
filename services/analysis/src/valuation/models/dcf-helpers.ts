@@ -11,6 +11,9 @@ import { MIN_GROWTH_RATE, MAX_GROWTH_RATE } from "../constants.js";
 
 /** Calculate CAGR between two values over n years */
 export function cagr(startValue: number, endValue: number, years: number): number {
+  // Guard NaN/Infinity first: `NaN <= 0` is false, so a bare `<= 0` check would
+  // let a non-finite input slip through and poison every downstream projection.
+  if (!Number.isFinite(startValue) || !Number.isFinite(endValue) || !Number.isFinite(years)) return 0;
   if (startValue <= 0 || endValue <= 0 || years <= 0) return 0;
   return Math.pow(endValue / startValue, 1 / years) - 1;
 }

@@ -11,6 +11,7 @@ import type {
   DCFProjectionYearFCFE,
 } from "../types.js";
 import { avg, projectRevenue } from "./dcf-helpers.js";
+import { MIN_DISCOUNT_TERMINAL_SPREAD, TERMINAL_EXIT_MULTIPLE } from "../constants.js";
 
 // --- Public Interface ---
 
@@ -150,7 +151,9 @@ export function calculateDCF(
   // Terminal value (Gordon Growth on FCFE)
   const lastFCFE = projections[projections.length - 1].fcfe;
   const terminalValue =
-    ke > g ? (lastFCFE * (1 + g)) / (ke - g) : lastFCFE * 20;
+    ke - g >= MIN_DISCOUNT_TERMINAL_SPREAD
+      ? (lastFCFE * (1 + g)) / (ke - g)
+      : lastFCFE * TERMINAL_EXIT_MULTIPLE;
 
   const pvTerminalValue =
     terminalValue / Math.pow(1 + ke, projectionYears);
@@ -246,10 +249,10 @@ export function buildFCFESensitivityMatrix(
 
       const lastFCFE = projections[n - 1].fcfe;
       let tv: number;
-      if (ke <= g) {
-        tv = lastFCFE * 20;
-      } else {
+      if (ke - g >= MIN_DISCOUNT_TERMINAL_SPREAD) {
         tv = (lastFCFE * (1 + g)) / (ke - g);
+      } else {
+        tv = lastFCFE * TERMINAL_EXIT_MULTIPLE;
       }
       const pvTV = tv / Math.pow(1 + ke, n);
       const totalPV = pvFCFESum + pvTV;

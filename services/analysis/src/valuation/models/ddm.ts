@@ -18,6 +18,7 @@
 
 import type { FinancialStatement, AnalystEstimate, ValuationResult } from "../types.js";
 import { cagr, clamp } from "./dcf-helpers.js";
+import { MIN_DISCOUNT_TERMINAL_SPREAD } from "../constants.js";
 import { formatRatio } from "../format.js";
 
 // --- Constants ---
@@ -161,9 +162,9 @@ export function calculateDDM(inputs: DDMInputs): ValuationResult {
     selectGrowthRate(dividendYears, estimates, sorted);
 
   // --- Validate Ke > g_terminal (Gordon Growth constraint) ---
-  if (costOfEquity <= terminalGrowthRate) {
+  if (costOfEquity - terminalGrowthRate < MIN_DISCOUNT_TERMINAL_SPREAD) {
     return naResult(
-      `Cost of Equity (${formatRatio(costOfEquity)}) must exceed terminal growth (${formatRatio(terminalGrowthRate)}) — Gordon Growth model diverges`
+      `Cost of Equity (${formatRatio(costOfEquity)}) must exceed terminal growth (${formatRatio(terminalGrowthRate)}) by at least 1.5% — Gordon Growth model diverges`
     );
   }
 
@@ -402,7 +403,7 @@ function buildSensitivityMatrix(
       }
 
       // Terminal: use same terminalGrowth (it's archetype-based, not varied)
-      if (keVal > terminalGrowth) {
+      if (keVal - terminalGrowth >= MIN_DISCOUNT_TERMINAL_SPREAD) {
         const tvDPS = lastDPS * (1 + terminalGrowth);
         const tv = tvDPS / (keVal - terminalGrowth);
         const pvTV = tv / Math.pow(1 + keVal, PROJECTION_YEARS);

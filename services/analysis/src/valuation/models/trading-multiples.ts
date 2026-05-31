@@ -156,12 +156,12 @@ export function calculatePEMultiplesDetailed(inputs: TradingMultiplesInputs): Tr
     };
   }
 
-  const fairValue = legs.reduce((sum, l) => sum + l.fairPrice, 0) / legs.length;
+  const fairValue = Math.max(0, legs.reduce((sum, l) => sum + l.fairPrice, 0) / legs.length);
   const upside = ((fairValue - currentPrice) / currentPrice) * 100;
 
   // Low/high from trailing p25/p75
-  const lowFairPrice = p25 * netIncome / sharesOutstanding;
-  const highFairPrice = p75 * netIncome / sharesOutstanding;
+  const lowFairPrice = Math.max(0, p25 * netIncome / sharesOutstanding);
+  const highFairPrice = Math.max(0, p75 * netIncome / sharesOutstanding);
 
   const result: ValuationResult = {
     model_type: "pe_multiples",
@@ -283,12 +283,12 @@ export function calculateEVEBITDAMultiplesDetailed(inputs: TradingMultiplesInput
     };
   }
 
-  const fairValue = legs.reduce((sum, l) => sum + l.fairPrice, 0) / legs.length;
+  const fairValue = Math.max(0, legs.reduce((sum, l) => sum + l.fairPrice, 0) / legs.length);
   const upside = ((fairValue - currentPrice) / currentPrice) * 100;
 
   // Low/high from trailing p25/p75
-  const lowFairPrice = (p25 * ebitda - netDebt) / sharesOutstanding;
-  const highFairPrice = (p75 * ebitda - netDebt) / sharesOutstanding;
+  const lowFairPrice = Math.max(0, (p25 * ebitda - netDebt) / sharesOutstanding);
+  const highFairPrice = Math.max(0, (p75 * ebitda - netDebt) / sharesOutstanding);
 
   const result: ValuationResult = {
     model_type: "ev_ebitda_multiples",
@@ -402,10 +402,10 @@ export function calculateEVRevenueMultiplesDetailed(inputs: TradingMultiplesInpu
     };
   }
 
-  const fairValue = legs.reduce((sum, l) => sum + l.fairPrice, 0) / legs.length;
+  const fairValue = Math.max(0, legs.reduce((sum, l) => sum + l.fairPrice, 0) / legs.length);
   const upside = ((fairValue - currentPrice) / currentPrice) * 100;
-  const lowFairPrice = (p25 * revenue - netDebt) / sharesOutstanding;
-  const highFairPrice = (p75 * revenue - netDebt) / sharesOutstanding;
+  const lowFairPrice = Math.max(0, (p25 * revenue - netDebt) / sharesOutstanding);
+  const highFairPrice = Math.max(0, (p75 * revenue - netDebt) / sharesOutstanding);
 
   return {
     result: {
