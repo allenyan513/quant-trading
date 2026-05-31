@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Badge, JsonView, Meta, StatusBadge } from "@/components/ui";
-import { fmtAgo, fmtMoney, fmtPct } from "@/lib/format";
+import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
+import { fmtFull, fmtMoney, fmtPct } from "@/lib/format";
 
 interface ValRow {
   snapshotId: string;
@@ -19,7 +19,7 @@ interface ValRow {
 }
 
 const columns: Column<ValRow>[] = [
-  { key: "createdAt", header: "Created", render: (r) => fmtAgo(r.createdAt), width: 90 },
+  { key: "createdAt", header: "Created", render: (r) => <TimeText ts={r.createdAt} />, width: 128 },
   { key: "symbol", header: "Symbol", render: (r) => <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link> },
   { key: "fairValuePerShare", header: "Fair value", render: (r) => fmtMoney(r.fairValuePerShare) },
   { key: "currentPrice", header: "Price", render: (r) => fmtMoney(r.currentPrice) },
@@ -55,7 +55,8 @@ export default function ValuationsPage() {
         expand={(r) => (
           <div style={{ display: "grid", gap: 10 }}>
             <Meta label="snapshot_id" value={r.snapshotId} />
-            <Meta label="as_of" value={r.asOf} />
+            <Meta label="as_of (price date)" value={r.asOf} />
+            <Meta label="created_at" value={fmtFull(r.createdAt)} />
             <div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>per-model detail</div>
               <JsonView value={r.detail} />

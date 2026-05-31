@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { fmtAgo, fmtDate, fmtFull } from "@/lib/format";
 
 /** Semantic colour for any pipeline / delivery / lifecycle status string. */
 export function statusColor(status: string | null | undefined): string {
@@ -69,6 +70,19 @@ export function Grid({ children, min = 180 }: { children: ReactNode; min?: numbe
     <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`, gap: 12 }}>
       {children}
     </div>
+  );
+}
+
+/**
+ * Compact absolute timestamp for table cells ("May 20th, 23:30"). Hover shows
+ * the full precise value (seconds + timezone) and the relative age.
+ */
+export function TimeText({ ts }: { ts: string | Date | null | undefined }) {
+  if (!ts) return <span style={{ color: "var(--muted)" }}>—</span>;
+  return (
+    <time title={`${fmtFull(ts)} · ${fmtAgo(ts)}`} style={{ whiteSpace: "nowrap" }}>
+      {fmtDate(ts)}
+    </time>
   );
 }
 

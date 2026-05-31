@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useLive } from "@/components/live";
-import { Badge, Card, Grid, Stat, StatusBadge, statusColor } from "@/components/ui";
-import { fmtAgo } from "@/lib/format";
+import { Badge, Card, Grid, Stat, StatusBadge, TimeText, statusColor } from "@/components/ui";
+import { fmtAgo, fmtFull } from "@/lib/format";
 
 interface Overview {
   windowHours: number;
@@ -76,7 +76,7 @@ export default function OverviewPage() {
             key={h.service}
             label={h.service}
             value={<StatusBadge status={h.state} />}
-            sub={`last log ${fmtAgo(h.last)}`}
+            sub={<span title={fmtFull(h.last)}>last log {fmtAgo(h.last)}</span>}
             color={statusColor(h.state)}
           />
         ))}
@@ -146,7 +146,7 @@ export default function OverviewPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {data.recentErrors.map((e) => (
               <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13 }}>
-                <span style={{ color: "var(--muted)", minWidth: 64 }}>{fmtAgo(e.ts)}</span>
+                <span style={{ color: "var(--muted)", minWidth: 120 }}><TimeText ts={e.ts} /></span>
                 <StatusBadge status={e.level} />
                 <span style={{ color: "var(--muted)" }}>[{e.service}]</span>
                 <span style={{ fontWeight: 600 }}>{e.event}</span>

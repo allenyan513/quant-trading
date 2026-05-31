@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Badge, JsonView, Meta, StatusBadge } from "@/components/ui";
-import { fmtAgo } from "@/lib/format";
+import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
+import { fmtFull } from "@/lib/format";
 
 interface EventRow {
   id: string;
@@ -21,7 +21,7 @@ interface EventRow {
 }
 
 const columns: Column<EventRow>[] = [
-  { key: "ingestedAt", header: "Ingested", render: (r) => fmtAgo(r.ingestedAt), width: 90 },
+  { key: "ingestedAt", header: "Ingested", render: (r) => <TimeText ts={r.ingestedAt} />, width: 128 },
   {
     key: "symbol",
     header: "Symbol",
@@ -60,7 +60,8 @@ export default function EventsPage() {
           <div style={{ display: "grid", gap: 10 }}>
             <Meta label="id" value={r.id} />
             <Meta label="direction hint" value={r.directionHint ?? "—"} />
-            <Meta label="observed_at" value={r.observedAt ?? "—"} />
+            <Meta label="observed_at" value={fmtFull(r.observedAt)} />
+            <Meta label="ingested_at" value={fmtFull(r.ingestedAt)} />
             {r.lastError && <Meta label="last_error" value={r.lastError} error />}
             <div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>raw payload</div>
