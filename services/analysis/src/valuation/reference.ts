@@ -12,8 +12,10 @@
  * null fair value — the agent reprices from the event regardless.
  */
 import { randomUUID } from "node:crypto";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { db, dbSchema, codeVersion, config, marketdata, type ReferenceValuation } from "@qt/shared";
 import { computeFullValuation } from "./models/summary.js";
+import { VERDICT_THRESHOLD } from "./constants.js";
 import { toFinancialStatements, toAnalystEstimates, toCompany, toPeerComparisons } from "./adapter.js";
 import { log } from "../log.js";
 
@@ -26,11 +28,66 @@ function median(xs: number[]): number | undefined {
   return v.length % 2 ? v[mid] : (v[mid - 1]! + v[mid]!) / 2;
 }
 
-export async function computeReferenceValuation(symbol: string): Promise<ReferenceValuation> {
+/** Pure: is a snapshot still within the reuse window? */
+export function isSnapshotFresh(createdAt: Date, now: Date, ttlDays: number): boolean {
+  return now.getTime() - createdAt.getTime() <= ttlDays * 86_400_000;
+}
+
+/** Pure: verdict from upside %, using the same threshold as the engine. */
+export function verdictFromUpside(upsidePct: number | null): ReferenceValuation["verdict"] {
+  if (upsidePct == null) return null;
+  if (upsidePct > VERDICT_THRESHOLD) return "undervalued";
+  if (upsidePct < -VERDICT_THRESHOLD) return "overvalued";
+  return "fairly_valued";
+}
+
+/**
+ * Reuse a recent reference valuation instead of recomputing. The slow part (fair
+ * value + model detail) is reused as-is; only the cheap, price-dependent part
+ * (current_price / upside / verdict) is refreshed via a single quote — so the
+ * signal still gets TODAY's entry price while we skip the expensive DCF + peers.
+ * Returns null when there's no fresh snapshot (caller does a full recompute).
+ */
+async function tryReuseSnapshot(sym: string, asOf: string): Promise<ReferenceValuation | null> {
+  const [snap] = await db()
+    .select()
+    .from(valuationSnapshots)
+    .where(and(eq(valuationSnapshots.symbol, sym), isNotNull(valuationSnapshots.fairValuePerShare)))
+    .orderBy(desc(valuationSnapshots.createdAt))
+    .limit(1);
+  if (!snap || !isSnapshotFresh(snap.createdAt, new Date(), config.referenceTtlDays())) return null;
+
+  const quote = await marketdata.getQuote(sym);
+  const price = quote ?? snap.currentPrice ?? null;
+  const fair = snap.fairValuePerShare;
+  const upside = price && fair ? (fair / price - 1) * 100 : null;
+  log.info("reference.reused", { symbol: sym, snapshot: snap.snapshotId, price, fair_value: fair });
+  return {
+    snapshot_id: snap.snapshotId,
+    symbol: sym,
+    as_of: asOf,
+    fair_value_per_share: fair,
+    current_price: price,
+    upside_pct: upside,
+    verdict: verdictFromUpside(upside),
+    detail: { source: "reused", from_snapshot: snap.snapshotId },
+  };
+}
+
+export async function computeReferenceValuation(
+  symbol: string,
+  opts: { forceRefresh?: boolean } = {},
+): Promise<ReferenceValuation> {
   const sym = symbol.toUpperCase();
   const asOf = new Date().toISOString().slice(0, 10);
-  const snapshotId = randomUUID();
 
+  // Reuse a fresh snapshot unless forced (e.g. earnings just changed the financials).
+  if (!opts.forceRefresh) {
+    const reused = await tryReuseSnapshot(sym, asOf);
+    if (reused) return reused;
+  }
+
+  const snapshotId = randomUUID();
   const [income, balance, cashflow, estimatesRows, profile, peersRaw, quote] = await Promise.all([
     marketdata.getIncomeStatement(sym, "annual", 12),
     marketdata.getBalanceSheet(sym, "annual", 12),

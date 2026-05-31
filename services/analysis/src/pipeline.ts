@@ -123,13 +123,18 @@ export async function processNotification(
   notifId: string,
   norm: NormalizedNotification,
 ): Promise<TradingSignalDTO> {
-  const ref = await computeReferenceValuation(norm.symbol);
+  // Earnings just changed the financials → force a fresh System A valuation;
+  // other event types reuse a recent snapshot (slow fair value barely moves).
+  const ref = await computeReferenceValuation(norm.symbol, {
+    forceRefresh: norm.eventType === "earnings",
+  });
   log.info("pipeline.reference", {
     symbol: norm.symbol,
     snapshot: ref.snapshot_id,
     price: ref.current_price,
     fair_value: ref.fair_value_per_share,
     verdict: ref.verdict,
+    reused: (ref.detail as { source?: string }).source === "reused",
   });
   const draft = await generateSignal(norm, ref);
   log.info("pipeline.drafted", {
