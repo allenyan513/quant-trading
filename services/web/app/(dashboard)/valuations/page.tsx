@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Meta } from "../events/page";
-import { Badge, JsonView, StatusBadge } from "@/components/ui";
+import { Badge, JsonView, Meta, StatusBadge } from "@/components/ui";
 import { fmtAgo, fmtMoney, fmtPct } from "@/lib/format";
 
 interface ValRow {

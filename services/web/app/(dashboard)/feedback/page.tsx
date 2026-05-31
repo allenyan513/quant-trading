@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Meta } from "../events/page";
-import { Badge, JsonView } from "@/components/ui";
+import { Badge, JsonView, Meta } from "@/components/ui";
 import { fmtAgo } from "@/lib/format";
 
 interface FeedbackRow {

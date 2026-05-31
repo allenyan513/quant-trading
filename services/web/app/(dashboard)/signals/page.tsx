@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Meta } from "../events/page";
-import { Badge, StatusBadge, statusColor } from "@/components/ui";
+import { Badge, Meta, StatusBadge, statusColor } from "@/components/ui";
 import { fmtAgo, fmtMoney, fmtPct } from "@/lib/format";
 
 interface Outcome {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Badge, JsonView, StatusBadge } from "@/components/ui";
+import { Badge, JsonView, Meta, StatusBadge } from "@/components/ui";
 import { fmtAgo } from "@/lib/format";
 
 interface EventRow {
@@ -69,15 +69,6 @@ export default function EventsPage() {
           </div>
         )}
       />
-    </div>
-  );
-}
-
-export function Meta({ label, value, error }: { label: string; value: string; error?: boolean }) {
-  return (
-    <div style={{ display: "flex", gap: 10, fontSize: 13 }}>
-      <span style={{ color: "var(--muted)", minWidth: 110 }}>{label}</span>
-      <span style={{ color: error ? "#f85149" : undefined, wordBreak: "break-word" }}>{value}</span>
     </div>
   );
 }

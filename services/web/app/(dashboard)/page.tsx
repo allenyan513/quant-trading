@@ -172,7 +172,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function ErrorBox({ error }: { error: { message?: string } }) {
+function ErrorBox({ error }: { error: { message?: string } }) {
   return (
     <div style={{ color: "#f85149", padding: 16, border: "1px solid #f8514940", borderRadius: 10 }}>
       Error: {String(error?.message ?? error)}

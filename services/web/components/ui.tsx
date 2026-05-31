@@ -72,6 +72,16 @@ export function Grid({ children, min = 180 }: { children: ReactNode; min?: numbe
   );
 }
 
+/** A labelled key/value row used in the expandable detail panels. */
+export function Meta({ label, value, error }: { label: string; value: string; error?: boolean }) {
+  return (
+    <div style={{ display: "flex", gap: 10, fontSize: 13 }}>
+      <span style={{ color: "var(--muted)", minWidth: 110 }}>{label}</span>
+      <span style={{ color: error ? "#f85149" : undefined, wordBreak: "break-word" }}>{value}</span>
+    </div>
+  );
+}
+
 export function JsonView({ value }: { value: unknown }) {
   if (value === null || value === undefined) return <span style={{ color: "var(--muted)" }}>—</span>;
   return (
