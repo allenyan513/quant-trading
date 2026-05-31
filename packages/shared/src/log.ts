@@ -11,6 +11,8 @@
  * Env: LOG_LEVEL=debug|info|warn|error (default info); LOG_FORMAT=json for
  * machine-parseable lines (Cloud Run / log aggregators).
  */
+import { sinkLog } from "./log-sink.js";
+
 type Level = "debug" | "info" | "warn" | "error";
 
 const ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
@@ -52,6 +54,8 @@ export function createLogger(service: string): Logger {
   function emit(level: Level, event: string, fields?: LogFields): void {
     if (ORDER[level] < threshold) return;
     const ts = new Date().toISOString();
+    // Best-effort DB persistence for the observability dashboard (opt-in via LOG_DB=on).
+    sinkLog({ ts, level, service, event, fields });
     const sink = level === "error" || level === "warn" ? console.error : console.log;
     if (asJson) {
       // Normalize Error fields so they don't serialize to "{}".

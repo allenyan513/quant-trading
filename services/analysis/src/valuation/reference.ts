@@ -57,10 +57,18 @@ async function tryReuseSnapshot(sym: string, asOf: string): Promise<ReferenceVal
     .limit(1);
   if (!snap || !isSnapshotFresh(snap.createdAt, new Date(), config.referenceTtlDays())) return null;
 
-  const quote = await marketdata.getQuote(sym);
+  // Quote can throw (network/5xx after retries); fall back to the cached price
+  // rather than failing the whole reuse path — we already have a fair value.
+  let quote: number | null = null;
+  try {
+    quote = await marketdata.getQuote(sym);
+  } catch (err) {
+    log.warn("reference.reuse.quote_failed", { symbol: sym, error: err instanceof Error ? err.message : String(err) });
+  }
   const price = quote ?? snap.currentPrice ?? null;
   const fair = snap.fairValuePerShare;
-  const upside = price && fair ? (fair / price - 1) * 100 : null;
+  // Explicit checks (not truthiness): a 0 price/fair must not silently null upside.
+  const upside = price !== null && price > 0 && fair !== null ? (fair / price - 1) * 100 : null;
   log.info("reference.reused", { symbol: sym, snapshot: snap.snapshotId, price, fair_value: fair });
   return {
     snapshot_id: snap.snapshotId,

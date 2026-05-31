@@ -134,7 +134,7 @@ export async function processNotification(
     price: ref.current_price,
     fair_value: ref.fair_value_per_share,
     verdict: ref.verdict,
-    reused: (ref.detail as { source?: string }).source === "reused",
+    reused: (ref.detail as { source?: string })?.source === "reused",
   });
   const draft = await generateSignal(norm, ref);
   log.info("pipeline.drafted", {

@@ -281,3 +281,59 @@ export const feedbackNotes = pgTable(
     index("idx_feedback_event_type").on(t.eventType),
   ],
 );
+
+// ---- Logs (structured app logs — observability dashboard sink) ----
+
+// Best-effort sink for the structured logger (see ../log-sink.ts). Common trace
+// keys (symbol/external_id/notification_id/signal_id) are promoted to indexed
+// columns so the dashboard can filter and join logs to the pipeline timeline;
+// everything else stays in `fields`. Written only when LOG_DB=on.
+export const logs = pgTable(
+  "logs",
+  {
+    id: text("id").primaryKey(),
+    ts: timestamp("ts", { withTimezone: true }).default(sql`now()`).notNull(),
+    level: text("level").notNull(), // debug|info|warn|error
+    service: text("service").notNull(), // ingestion|analysis|evaluation
+    event: text("event").notNull(), // dotted event name, e.g. pull.earnings.done
+    symbol: text("symbol"),
+    externalId: text("external_id"),
+    notificationId: text("notification_id"),
+    signalId: text("signal_id"),
+    fields: jsonb("fields"),
+  },
+  (t) => [
+    index("idx_logs_ts").on(t.ts),
+    index("idx_logs_service_ts").on(t.service, t.ts),
+    index("idx_logs_level").on(t.level),
+    index("idx_logs_symbol").on(t.symbol),
+  ],
+);
+
+// ---- Logs (structured app logs — observability dashboard sink) ----
+
+// Best-effort sink for the structured logger (see ../log-sink.ts). Common trace
+// keys (symbol/external_id/notification_id/signal_id) are promoted to indexed
+// columns so the dashboard can filter and join logs to the pipeline timeline;
+// everything else stays in `fields`. Written only when LOG_DB=on.
+export const logs = pgTable(
+  "logs",
+  {
+    id: text("id").primaryKey(),
+    ts: timestamp("ts", { withTimezone: true }).default(sql`now()`).notNull(),
+    level: text("level").notNull(), // debug|info|warn|error
+    service: text("service").notNull(), // ingestion|analysis|evaluation
+    event: text("event").notNull(), // dotted event name, e.g. pull.earnings.done
+    symbol: text("symbol"),
+    externalId: text("external_id"),
+    notificationId: text("notification_id"),
+    signalId: text("signal_id"),
+    fields: jsonb("fields"),
+  },
+  (t) => [
+    index("idx_logs_ts").on(t.ts),
+    index("idx_logs_service_ts").on(t.service, t.ts),
+    index("idx_logs_level").on(t.level),
+    index("idx_logs_symbol").on(t.symbol),
+  ],
+);
