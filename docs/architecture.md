@@ -112,6 +112,15 @@ TradingSignal {
 - **价值**：PIT 正确性 + 复盘可重放（信号输入快照进 `valuation_snapshots`）+ 省 FMP 限流/延迟。
 - 历史全量回测(需要全历史 PIT 序列)留待 v2。
 
+### 5.2 估值引擎（移植自 value-scope）
+
+`services/analysis/src/valuation/` 是从 `legends/value-scope` 移植的多模型引擎(纯函数,带 269 个单测):FCFF DCF(growth/EBITDA-exit, 5Y/10Y)+ trading multiples + PEG + EPV + DDM,按 **archetype** 选模型与终值增长率,WACC 用 CAPM(bottom-up 可选)。`computeFullValuation` 聚合成 **consensus fair value(主 = FCFF Growth Exit 5Y)**。
+
+- `reference.ts` 组装 marketdata 输入(经 `adapter.ts`:FMP jsonb → `FinancialStatement[]/AnalystEstimate[]/Company`)+ profile/peers/rfr → 调引擎 → consensus 落 `valuation_snapshots`(`detail` 存完整 `ValuationSummary`,含每个模型结果 + WACC + 分类,可重放)。
+- **降级**:缺输入的模型返回 N/A,consensus 自动只用可用模型;无财报/无价则落 price-only 快照。peers 拉不到 → 退化为 DCF+EPV+PEG。
+- **标定取舍**:FCFF + GDP-fade 终值偏**保守**,2026 高估值大盘股普遍判 overvalued——这是 System A 的诚实下限,真正决策靠事件重定价。consensus 模型选择 / ERP / 终值率的调参属后续。
+- 移植的模型文件标 `// @ts-nocheck`(vendored,源端已类型检查 + 本仓单测验证),公开签名仍对调用方类型安全。
+
 ## 6. analysis agent 内部（Agent SDK）
 
 - 用 `query()` 跑一个受控 agent loop。系统提示强调"从事件重定价，参考估值只是输入之一"。

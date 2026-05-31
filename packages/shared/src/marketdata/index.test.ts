@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   easternToUtc,
+  knownAtFrom,
   isStatementFresh,
   isPriceFresh,
   mapStatementRows,
@@ -20,6 +21,19 @@ describe("easternToUtc", () => {
 
   it("accepts a 'T' separator and missing seconds", () => {
     expect(easternToUtc("2026-07-15T09:30").toISOString()).toBe("2026-07-15T13:30:00.000Z");
+  });
+});
+
+describe("knownAtFrom", () => {
+  it("uses acceptedDate (ET→UTC) when valid", () => {
+    expect(knownAtFrom("2026-05-01 06:01:36", "2026-03-28").toISOString()).toBe("2026-05-01T10:01:36.000Z");
+  });
+  it("falls back to fiscalDate (UTC midnight) when acceptedDate is missing", () => {
+    expect(knownAtFrom(undefined, "2026-03-28").toISOString()).toBe("2026-03-28T00:00:00.000Z");
+  });
+  it("falls back to fiscalDate when acceptedDate is malformed (no Invalid Date leaks through)", () => {
+    expect(knownAtFrom("not-a-date", "2026-03-28").toISOString()).toBe("2026-03-28T00:00:00.000Z");
+    expect(knownAtFrom("", "2026-03-28").toISOString()).toBe("2026-03-28T00:00:00.000Z");
   });
 });
 

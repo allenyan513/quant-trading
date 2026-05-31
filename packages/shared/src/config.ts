@@ -23,6 +23,10 @@ export const config = {
 
   fmpApiKey: () => requireEnv("FMP_API_KEY"),
   fmpBaseUrl: () => optionalEnv("FMP_BASE_URL", "https://financialmodelingprep.com/stable"),
+  fmpRateLimit: () => Number(optionalEnv("FMP_RATE_LIMIT", "250")),
+
+  /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
+  riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),
 
   analysisUrl: () => requireEnv("ANALYSIS_URL"),
   evaluationUrl: () => requireEnv("EVALUATION_URL"),
