@@ -15,6 +15,13 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { fmpGet } from "../fmp.js";
+import { mapLimit } from "../concurrency.js";
+import { createLogger } from "../log.js";
+
+const log = createLogger("marketdata");
+
+/** Max peer `ratios` requests in flight at once (caps fan-out; fmpGet still throttles globally). */
+const PEER_FETCH_CONCURRENCY = 10;
 
 export type StatementPeriod = "annual" | "quarter";
 
@@ -80,6 +87,19 @@ export interface StatementRowInput {
   data: Record<string, unknown>;
 }
 
+/**
+ * known_at = acceptedDate (PIT). Guards against a malformed/empty acceptedDate
+ * yielding an Invalid Date (which would crash the timestamp insert): fall back
+ * to the fiscal date (midnight UTC) when the parse fails.
+ */
+export function knownAtFrom(acceptedDate: string | undefined, fiscalDate: string): Date {
+  if (acceptedDate) {
+    const d = easternToUtc(acceptedDate);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return new Date(`${fiscalDate}T00:00:00Z`);
+}
+
 /** Pure: FMP statement rows → PIT table rows. known_at = acceptedDate (PIT). */
 export function mapStatementRows(symbol: string, period: StatementPeriod, rows: FmpStatement[]): StatementRowInput[] {
   const out: StatementRowInput[] = [];
@@ -89,7 +109,7 @@ export function mapStatementRows(symbol: string, period: StatementPeriod, rows: 
       symbol,
       period,
       fiscalDate: r.date,
-      knownAt: r.acceptedDate ? easternToUtc(r.acceptedDate) : new Date(`${r.date}T00:00:00Z`),
+      knownAt: knownAtFrom(r.acceptedDate, r.date),
       data: r as Record<string, unknown>,
     });
   }
@@ -154,6 +174,13 @@ const STATEMENT_SOURCES = {
 } as const;
 type StatementKind = keyof typeof STATEMENT_SOURCES;
 
+// Always cache a deep window regardless of the caller's `limit`, then slice. This
+// decouples cache depth from request size, so a small-`limit` caller (e.g. the
+// agent's 4) can never leave a shallow cache that later starves a large-`limit`
+// caller (e.g. a 10Y DCF). The cache gate is therefore freshness-only — a fresh
+// cache is already as complete as FMP allows. (See #33.)
+const STATEMENT_FETCH_LIMIT = 20;
+
 async function getStatement(
   kind: StatementKind,
   symbol: string,
@@ -163,25 +190,29 @@ async function getStatement(
   const { table, path } = STATEMENT_SOURCES[kind];
   const sym = symbol.toUpperCase();
 
-  const read = () =>
+  const read = (n: number) =>
     db()
       .select()
       .from(table)
       .where(and(eq(table.symbol, sym), eq(table.period, period)))
       .orderBy(desc(table.fiscalDate))
-      .limit(limit);
+      .limit(n);
 
-  const existing = await read();
-  if (existing.length && isStatementFresh(existing[0]?.fiscalDate ?? null, period, new Date())) {
-    return existing as StatementRowInput[];
+  const cached = await read(STATEMENT_FETCH_LIMIT);
+  if (cached.length && isStatementFresh(cached[0]?.fiscalDate ?? null, period, new Date())) {
+    return cached.slice(0, limit) as StatementRowInput[];
   }
 
-  const fmp = await fmpGet<FmpStatement[]>(path, { symbol: sym, period, limit }, { softFail402: true });
-  if (!fmp?.length) return existing as StatementRowInput[]; // premium-gated/empty: serve stale if any
+  const fmp = await fmpGet<FmpStatement[]>(
+    path,
+    { symbol: sym, period, limit: STATEMENT_FETCH_LIMIT },
+    { softFail402: true },
+  );
+  if (!fmp?.length) return cached.slice(0, limit) as StatementRowInput[]; // gated/empty: serve stale if any
 
   const rows = mapStatementRows(sym, period, fmp);
   if (rows.length) await db().insert(table).values(rows).onConflictDoNothing();
-  return (await read()) as StatementRowInput[];
+  return (await read(limit)) as StatementRowInput[];
 }
 
 export const getIncomeStatement = (s: string, p: StatementPeriod = "annual", n?: number) => getStatement("income", s, p, n);
@@ -190,36 +221,127 @@ export const getCashFlow = (s: string, p: StatementPeriod = "annual", n?: number
 export const getRatios = (s: string, p: StatementPeriod = "annual", n?: number) => getStatement("ratios", s, p, n);
 export const getEstimates = (s: string, p: StatementPeriod = "annual", n?: number) => getStatement("estimates", s, p, n);
 
+// Fetch a deep (~2y) window so a small-`lookbackDays` caller never leaves a
+// shallow cache; callers slice off what they need. Gate on freshness only (not
+// row count): `lookbackDays` is calendar days but rows are trading days, so a
+// count comparison would never match and would refetch every call. (See #33.)
+const PRICE_FETCH_DAYS = 800;
+
 /** Daily OHLCV with read-through caching into daily_prices. */
 export async function getDailyPrices(symbol: string, lookbackDays = 400): Promise<PriceRowInput[]> {
   const sym = symbol.toUpperCase();
   const { dailyPrices } = schema;
 
-  const read = () =>
+  const read = (n: number) =>
     db()
       .select()
       .from(dailyPrices)
       .where(eq(dailyPrices.symbol, sym))
       .orderBy(desc(dailyPrices.tradeDate))
-      .limit(lookbackDays);
+      .limit(n);
 
-  const existing = await read();
-  if (existing.length && isPriceFresh(existing[0]?.tradeDate ?? null, new Date())) {
-    return existing as PriceRowInput[];
+  const cached = await read(PRICE_FETCH_DAYS);
+  if (cached.length && isPriceFresh(cached[0]?.tradeDate ?? null, new Date())) {
+    return cached.slice(0, lookbackDays) as PriceRowInput[];
   }
 
-  const from = new Date(Date.now() - lookbackDays * 86_400_000).toISOString().slice(0, 10);
+  const from = new Date(Date.now() - PRICE_FETCH_DAYS * 86_400_000).toISOString().slice(0, 10);
   const to = new Date().toISOString().slice(0, 10);
   const fmp = await fmpGet<FmpPrice[]>("historical-price-eod/full", { symbol: sym, from, to }, { softFail402: true });
-  if (!fmp?.length) return existing as PriceRowInput[];
+  if (!fmp?.length) return cached.slice(0, lookbackDays) as PriceRowInput[];
 
   const rows = mapPriceRows(sym, fmp);
   if (rows.length) await db().insert(dailyPrices).values(rows).onConflictDoNothing();
-  return (await read()) as PriceRowInput[];
+  return (await read(lookbackDays)) as PriceRowInput[];
 }
 
 /** Realtime quote price — pass-through (no PIT meaning, not cached). */
 export async function getQuote(symbol: string): Promise<number | null> {
   const q = await fmpGet<Array<{ price?: number | null }>>("quote", { symbol: symbol.toUpperCase() }, { softFail402: true });
   return q?.[0]?.price ?? null;
+}
+
+/**
+ * FMP company profile (beta / marketCap / price / sector …). Pass-through (it
+ * carries realtime price), but upserts the stable bits into `universe` as a side
+ * effect (advances the universe catalog). Returns the raw FMP profile row.
+ */
+export async function getProfile(symbol: string): Promise<Record<string, unknown> | null> {
+  const sym = symbol.toUpperCase();
+  const arr = await fmpGet<Array<Record<string, unknown>>>("profile", { symbol: sym }, { softFail402: true });
+  const p = arr?.[0] ?? null;
+  if (p) {
+    const { universe } = schema;
+    const meta = {
+      symbol: sym,
+      name: typeof p.companyName === "string" ? p.companyName : null,
+      sector: typeof p.sector === "string" ? p.sector : null,
+      industry: typeof p.industry === "string" ? p.industry : null,
+      beta: typeof p.beta === "number" ? p.beta : null,
+      reportingCurrency: typeof p.currency === "string" ? p.currency : "USD",
+      knownAt: new Date(),
+    };
+    await db()
+      .insert(universe)
+      .values(meta)
+      .onConflictDoUpdate({
+        target: universe.symbol,
+        set: {
+          name: meta.name,
+          sector: meta.sector,
+          industry: meta.industry,
+          beta: meta.beta,
+          reportingCurrency: meta.reportingCurrency,
+          knownAt: meta.knownAt,
+        },
+      });
+  }
+  return p;
+}
+
+/** A peer's valuation multiples, for cross-check models. Shared-defined so analysis maps it to its own type. */
+export interface PeerMultiples {
+  ticker: string;
+  market_cap: number | null;
+  trailing_pe: number | null;
+  ev_ebitda: number | null;
+  ev_revenue: number | null;
+}
+
+/**
+ * Best-effort peer multiples for the multiples / EBITDA-exit models. Pulls the
+ * peer list (`stock-peers`) then each peer's latest annual `ratios` (cached).
+ * Multiples are at the peer's fiscal-date price (approximation). Any failure /
+ * premium-gating yields fewer (or zero) peers — callers degrade to DCF-only.
+ */
+export async function getPeers(symbol: string, max = 6): Promise<PeerMultiples[]> {
+  const sym = symbol.toUpperCase();
+  const list = await fmpGet<Array<{ symbol?: string; mktCap?: number }>>("stock-peers", { symbol: sym }, { softFail402: true });
+  if (!list?.length) return [];
+  const peers = list.filter((p) => p.symbol && p.symbol.toUpperCase() !== sym).slice(0, max);
+
+  // Bounded fan-out: at most PEER_FETCH_CONCURRENCY peer `ratios` calls in flight,
+  // and each peer's failure is isolated (logged, mapped to null) so one bad symbol
+  // never aborts the batch — callers degrade to whatever peers did resolve.
+  const out = await mapLimit(peers, PEER_FETCH_CONCURRENCY, async (peer): Promise<PeerMultiples | null> => {
+    try {
+      const r = await getRatios(peer.symbol!, "annual", 1);
+      const d = (r[0]?.data ?? {}) as Record<string, unknown>;
+      const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+      return {
+        ticker: peer.symbol!.toUpperCase(),
+        market_cap: typeof peer.mktCap === "number" ? peer.mktCap : null,
+        trailing_pe: n(d.priceToEarningsRatio),
+        ev_ebitda: n(d.enterpriseValueMultiple),
+        ev_revenue: n(d.priceToSalesRatio), // P/S as an EV/Revenue proxy (v1)
+      };
+    } catch (err) {
+      log.warn("marketdata.peers.symbol_failed", {
+        symbol: peer.symbol,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  });
+  return out.filter((p): p is PeerMultiples => p !== null);
 }
