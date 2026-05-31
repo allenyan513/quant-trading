@@ -11,7 +11,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
-    "dev": "pnpm -r --parallel --if-present --filter=!@qt/web dev",
+    "dev": "pnpm -r --parallel --if-present dev",
     "dev:ingestion": "pnpm --filter @qt/ingestion dev",
     "dev:analysis": "pnpm --filter @qt/analysis dev",
     "dev:evaluation": "pnpm --filter @qt/evaluation dev",
