@@ -28,6 +28,9 @@ export const config = {
   /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
   riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),
 
+  /** Reuse a symbol's reference valuation (the slow fair value) for this many days before recomputing. */
+  referenceTtlDays: () => Number(optionalEnv("REFERENCE_TTL_DAYS", "1")),
+
   analysisUrl: () => requireEnv("ANALYSIS_URL"),
   evaluationUrl: () => requireEnv("EVALUATION_URL"),
 };
