@@ -13,10 +13,10 @@ interface Overview {
     notifications: Record<string, number>;
     signals: Record<string, number>;
   };
-  pipeline: { events: Record<string, number>; notifications: Record<string, number> };
+  pipeline: { notifications: Record<string, number> };
   signalStatus: Record<string, number>;
   heartbeats: { service: string; last: string | null; state: string }[];
-  stuck: { notifications: number; events: number; expiredOpenSignals: number };
+  stuck: { notifications: number; expiredOpenSignals: number };
   recentErrors: {
     id: string;
     ts: string;
@@ -61,7 +61,7 @@ export default function OverviewPage() {
       (data.outbox.notifications.failed ?? 0) +
       (data.outbox.signals.failed ?? 0) >
     0;
-  const stuckTotal = data.stuck.notifications + data.stuck.events + data.stuck.expiredOpenSignals;
+  const stuckTotal = data.stuck.notifications + data.stuck.expiredOpenSignals;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -115,9 +115,6 @@ export default function OverviewPage() {
           <Row label="notifications processing >5m">
             <b style={{ color: data.stuck.notifications ? "#d29922" : undefined }}>{data.stuck.notifications}</b>
           </Row>
-          <Row label="events processing >5m">
-            <b style={{ color: data.stuck.events ? "#d29922" : undefined }}>{data.stuck.events}</b>
-          </Row>
           <Row label="open signals past expiry">
             <b style={{ color: data.stuck.expiredOpenSignals ? "#d29922" : undefined }}>
               {data.stuck.expiredOpenSignals}
@@ -129,9 +126,6 @@ export default function OverviewPage() {
           <StatusCounts map={data.signalStatus} />
           <div style={{ height: 10 }} />
           <div style={{ fontSize: 12, color: "var(--muted)" }}>analysis pipeline status</div>
-          <Row label="events">
-            <StatusCounts map={data.pipeline.events} />
-          </Row>
           <Row label="notifications">
             <StatusCounts map={data.pipeline.notifications} />
           </Row>

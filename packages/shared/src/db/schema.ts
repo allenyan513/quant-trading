@@ -147,9 +147,9 @@ export const events = pgTable(
     raw: jsonb("raw"),
     observedAt: timestamp("observed_at", { withTimezone: true }),
     ingestedAt: timestamp("ingested_at", { withTimezone: true }).default(sql`now()`).notNull(),
-    // pipeline status (consumer side, set by analysis): pending|processing|done|noise
-    status: text("status").default("pending").notNull(),
-    // outbox delivery status (producer side, set by ingestion): pending|delivered|failed
+    // outbox delivery status (producer side, set by ingestion): pending|delivered|failed.
+    // NOTE: events have no consumer-side pipeline status — analysis aggregates them
+    // into a `notification` and tracks pending|processing|done|noise there, not per event.
     deliveryStatus: text("delivery_status").default("pending").notNull(),
     deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
     lastError: text("last_error"),

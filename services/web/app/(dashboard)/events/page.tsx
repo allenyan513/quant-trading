@@ -11,7 +11,6 @@ interface EventRow {
   eventType: string | null;
   headline: string | null;
   directionHint: string | null;
-  status: string;
   deliveryStatus: string;
   deliveryAttempts: number;
   lastError: string | null;
@@ -29,7 +28,6 @@ const columns: Column<EventRow>[] = [
   },
   { key: "eventType", header: "Type", render: (r) => (r.eventType ? <Badge>{r.eventType}</Badge> : "—") },
   { key: "headline", header: "Headline", render: (r) => r.headline ?? "—" },
-  { key: "status", header: "Pipeline", render: (r) => <StatusBadge status={r.status} /> },
   { key: "deliveryStatus", header: "Delivery", render: (r) => <StatusBadge status={r.deliveryStatus} /> },
   { key: "deliveryAttempts", header: "Tries", width: 50 },
 ];
@@ -44,11 +42,6 @@ export default function EventsPage() {
         columns={columns}
         filters={[
           { key: "symbol", label: "Symbol" },
-          {
-            key: "status",
-            label: "Pipeline",
-            options: ["pending", "processing", "done", "noise"].map((v) => ({ value: v, label: v })),
-          },
           {
             key: "deliveryStatus",
             label: "Delivery",

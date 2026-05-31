@@ -9,7 +9,6 @@ export async function GET(req: Request) {
     listEvents({
       limit: intParam(req, "limit"),
       symbol: param(req, "symbol"),
-      status: param(req, "status"),
       deliveryStatus: param(req, "deliveryStatus"),
       eventType: param(req, "eventType"),
     }),
