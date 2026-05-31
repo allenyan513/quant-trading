@@ -33,6 +33,19 @@ export const config = {
 
   analysisUrl: () => requireEnv("ANALYSIS_URL"),
   evaluationUrl: () => requireEnv("EVALUATION_URL"),
+
+  // ---- Portfolio construction (T7) deterministic sizing params ----
+  /** Total paper capital (USD). Only scales notional, not weight logic. */
+  portfolioCapital: () => Number(optionalEnv("PORTFOLIO_CAPITAL", "100000")),
+  /** Base weight per conviction tier (fraction of capital). */
+  sizeByConviction: () => ({
+    low: Number(optionalEnv("SIZE_LOW", "0.01")),
+    medium: Number(optionalEnv("SIZE_MED", "0.02")),
+    high: Number(optionalEnv("SIZE_HIGH", "0.03")),
+  }),
+  maxPositions: () => Number(optionalEnv("MAX_POSITIONS", "20")),
+  maxWeightPerName: () => Number(optionalEnv("MAX_WEIGHT_PER_NAME", "0.05")),
+  maxSectorWeight: () => Number(optionalEnv("MAX_SECTOR_WEIGHT", "0.30")),
 };
 
 /** Stable identifier for the running code, for snapshot/replay provenance. */

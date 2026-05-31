@@ -8,3 +8,11 @@ export { mapLimit } from "./concurrency.js";
 export * as dbSchema from "./db/schema.js";
 export { db, getPool, type DB } from "./db/client.js";
 export * as marketdata from "./marketdata/index.js";
+export {
+  sizePosition,
+  type SizingParams,
+  type SizingInput,
+  type SizingSignal,
+  type SizingDecision,
+  type OpenPosition,
+} from "./portfolio/sizing.js";
