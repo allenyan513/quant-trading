@@ -5,12 +5,11 @@
  * (FCFF/multiples/PEG/EPV/DDM) — see legends/value-scope/src/lib/valuation.
  */
 import { randomUUID } from "node:crypto";
-import { fmpGet, db, dbSchema, codeVersion, type ReferenceValuation, type Verdict } from "@qt/shared";
+import { fmpGet, db, dbSchema, codeVersion, marketdata, type ReferenceValuation, type Verdict } from "@qt/shared";
 import { log } from "../log.js";
 
 const { valuationSnapshots } = dbSchema;
 
-interface FmpQuote { symbol: string; price?: number | null }
 interface FmpDcf { symbol: string; dcf?: number | null; "Stock Price"?: number | null }
 
 function verdictOf(upsidePct: number | null): Verdict | null {
@@ -21,11 +20,11 @@ function verdictOf(upsidePct: number | null): Verdict | null {
 }
 
 export async function computeReferenceValuation(symbol: string): Promise<ReferenceValuation> {
-  const [quoteArr, dcfArr] = await Promise.all([
-    fmpGet<FmpQuote[]>("quote", { symbol }, { softFail402: true }),
+  const [quotePrice, dcfArr] = await Promise.all([
+    marketdata.getQuote(symbol),
     fmpGet<FmpDcf[]>("discounted-cash-flow", { symbol }, { softFail402: true }),
   ]);
-  const currentPrice = quoteArr?.[0]?.price ?? dcfArr?.[0]?.["Stock Price"] ?? null;
+  const currentPrice = quotePrice ?? dcfArr?.[0]?.["Stock Price"] ?? null;
   const fairValue = dcfArr?.[0]?.dcf ?? null;
   const upsidePct =
     fairValue != null && currentPrice ? (fairValue / currentPrice - 1) * 100 : null;
@@ -51,7 +50,7 @@ export async function computeReferenceValuation(symbol: string): Promise<Referen
     currentPrice,
     upsidePct,
     verdict,
-    detail: { source: "fmp_dcf", quote: quoteArr?.[0] ?? null, dcf: dcfArr?.[0] ?? null },
+    detail: { source: "fmp_dcf", price: currentPrice, dcf: dcfArr?.[0] ?? null },
     codeVersion: codeVersion(),
   });
 

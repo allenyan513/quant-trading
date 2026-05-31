@@ -17,7 +17,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { desc, eq, and } from "drizzle-orm";
-import { fmpGet, db, dbSchema, config, type SignalDraft, type ReferenceValuation } from "@qt/shared";
+import { db, dbSchema, config, marketdata, type SignalDraft, type ReferenceValuation } from "@qt/shared";
 import type { NormalizedNotification } from "./classify.js";
 import { log } from "./log.js";
 
@@ -101,16 +101,15 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<st
       return rows.length ? rows.map((r) => `- ${r.lesson}`).join("\n") : "No prior feedback recorded.";
     }
     case "get_fundamentals": {
-      const data = await fmpGet("ratios-ttm", { symbol: String(input.symbol) }, { softFail402: true });
-      return JSON.stringify(data ?? {}).slice(0, 4000);
+      // Read-through marketdata cache → financial_ratios (PIT, reused next time).
+      // Annual: quarterly ratios are premium-gated (402) on the current FMP plan.
+      const rows = await marketdata.getRatios(String(input.symbol), "annual", 4);
+      return JSON.stringify(rows.map((r) => r.data)).slice(0, 4000);
     }
     case "get_technicals": {
-      const data = await fmpGet(
-        "historical-price-eod/light",
-        { symbol: String(input.symbol) },
-        { softFail402: true },
-      );
-      return JSON.stringify(data ?? {}).slice(0, 4000);
+      // Read-through marketdata cache → daily_prices. Return recent closes.
+      const rows = await marketdata.getDailyPrices(String(input.symbol), 60);
+      return JSON.stringify(rows.map((r) => ({ d: r.tradeDate, c: r.close }))).slice(0, 4000);
     }
     default:
       return `unknown tool: ${name}`;
