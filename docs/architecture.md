@@ -103,6 +103,15 @@ TradingSignal {
 
 关键原则：**参考估值不是答案，事件重定价才是**（System A 季度数据滞后，没有反映今天的事件）。
 
+### 5.1 辅助数据层（marketdata 读穿缓存）
+
+估值用的**辅助数据**（财报三表 / ratios / estimates / 日线 / quote）**不是流式消息，不走 ingestion**——ingestion 只管事件。它由 `@qt/shared` 的 **marketdata 读穿缓存**提供：analysis 用到时调用 → 命中且新鲜则返回，否则拉 FMP → 以 `known_at = acceptedDate` 落 PIT 表（不可变，`onConflictDoNothing`）→ 返回。
+
+- **职责**：数据获取在 analysis 侧触发，但通过共享缓存层(确定性函数，非子 agent)，不是 ad-hoc 裸抓；ingestion 保持纯事件管道。
+- **staleness**：启发式（statements 季度、prices 日级，从已有数据判断新鲜度），无额外记账表。
+- **价值**：PIT 正确性 + 复盘可重放（信号输入快照进 `valuation_snapshots`）+ 省 FMP 限流/延迟。
+- 历史全量回测(需要全历史 PIT 序列)留待 v2。
+
 ## 6. analysis agent 内部（Agent SDK）
 
 - 用 `query()` 跑一个受控 agent loop。系统提示强调"从事件重定价，参考估值只是输入之一"。
@@ -142,6 +151,7 @@ TradingSignal {
 - `daily_prices`（symbol, trade_date）—— OHLCV + adj_close
 - `income_statement` / `balance_sheet` / `cash_flow`（symbol, period, fiscal_date；**known_at = acceptedDate** 用于 PIT）
 - `financial_ratios` / `analyst_estimates`
+- > 以上 PIT 数据表由 **marketdata 读穿缓存**(§5.1)按需填充(analysis 触发),**不由 ingestion 落库**。
 - `valuation_snapshots`（snapshot_id PK）—— reference valuation，JSON 存 assumptions/result，带 code_version
 - `events`（id PK，唯一 `(source, external_id)`）—— 原始事件 + 生产者 outbox（`delivery_status`：是否已被某条通知投递过）
 - `notifications`（id PK，唯一 `(source, batch_key)`）—— 聚合通知 + 双状态 outbox：消费者 `status pending|processing|done|noise`、生产者 `delivery_status`；`event_ids` JSONB 关联其打包的 events
