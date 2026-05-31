@@ -48,13 +48,11 @@ export async function getOverview(windowHours = 24) {
     feedbackTotal,
     eventsDelivery,
     notifDelivery,
-    eventsPipeline,
     notifPipeline,
     sigDelivery,
     signalStatus,
     serviceHeartbeats,
     stuckNotifs,
-    stuckEvents,
     expiredOpenSignals,
     recentErrors,
   ] = await Promise.all([
@@ -65,7 +63,6 @@ export async function getOverview(windowHours = 24) {
     db().select({ c: count() }).from(feedbackNotes).where(gte(feedbackNotes.createdAt, since)),
     db().select({ k: events.deliveryStatus, c: count() }).from(events).groupBy(events.deliveryStatus),
     db().select({ k: notifications.deliveryStatus, c: count() }).from(notifications).groupBy(notifications.deliveryStatus),
-    db().select({ k: events.status, c: count() }).from(events).groupBy(events.status),
     db().select({ k: notifications.status, c: count() }).from(notifications).groupBy(notifications.status),
     db()
       .select({ k: signalDeliveries.deliveryStatus, c: count() })
@@ -83,10 +80,6 @@ export async function getOverview(windowHours = 24) {
       .select({ c: count() })
       .from(notifications)
       .where(and(eq(notifications.status, "processing"), lt(notifications.ingestedAt, stuckBefore))),
-    db()
-      .select({ c: count() })
-      .from(events)
-      .where(and(eq(events.status, "processing"), lt(events.ingestedAt, stuckBefore))),
     db()
       .select({ c: count() })
       .from(tradingSignals)
@@ -122,14 +115,12 @@ export async function getOverview(windowHours = 24) {
       signals: toMap(sigDelivery),
     },
     pipeline: {
-      events: toMap(eventsPipeline),
       notifications: toMap(notifPipeline),
     },
     signalStatus: toMap(signalStatus),
     heartbeats,
     stuck: {
       notifications: Number(stuckNotifs[0]?.c ?? 0),
-      events: Number(stuckEvents[0]?.c ?? 0),
       expiredOpenSignals: Number(expiredOpenSignals[0]?.c ?? 0),
     },
     recentErrors,
@@ -148,7 +139,6 @@ export async function listEvents(opts: ListOpts = {}) {
   const limit = Math.min(opts.limit ?? 100, 500);
   const conds = [];
   if (opts.symbol) conds.push(eq(events.symbol, opts.symbol));
-  if (opts.status) conds.push(eq(events.status, opts.status));
   if (opts.deliveryStatus) conds.push(eq(events.deliveryStatus, opts.deliveryStatus));
   if (opts.eventType) conds.push(eq(events.eventType, opts.eventType));
   return db()

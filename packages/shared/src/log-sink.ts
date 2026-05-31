@@ -49,7 +49,13 @@ function extract(fields: LogFields | undefined): {
   // `signal` is the conventional field carrying a signal id in the codebase.
   const signalId = asStr(fields.signal ?? fields.signal_id ?? fields.signalId);
 
-  const rest = { ...fields };
+  // Normalize values the same way log.ts's stdout path does: Error has
+  // non-enumerable message/stack, so a raw JSON.stringify yields "{}" and the
+  // dashboard would show empty errors. Keep the message; ISO-ify Dates.
+  const rest: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    rest[k] = v instanceof Error ? v.message : v instanceof Date ? v.toISOString() : v;
+  }
   return { symbol, externalId, notificationId, signalId, rest };
 }
 

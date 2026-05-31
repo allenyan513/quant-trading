@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Badge, JsonView, StatusBadge } from "@/components/ui";
-import { fmtAgo } from "@/lib/format";
+import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
+import { fmtFull } from "@/lib/format";
 
 interface EventRow {
   id: string;
@@ -11,7 +11,6 @@ interface EventRow {
   eventType: string | null;
   headline: string | null;
   directionHint: string | null;
-  status: string;
   deliveryStatus: string;
   deliveryAttempts: number;
   lastError: string | null;
@@ -21,7 +20,7 @@ interface EventRow {
 }
 
 const columns: Column<EventRow>[] = [
-  { key: "ingestedAt", header: "Ingested", render: (r) => fmtAgo(r.ingestedAt), width: 90 },
+  { key: "ingestedAt", header: "Ingested", render: (r) => <TimeText ts={r.ingestedAt} />, width: 128 },
   {
     key: "symbol",
     header: "Symbol",
@@ -29,7 +28,6 @@ const columns: Column<EventRow>[] = [
   },
   { key: "eventType", header: "Type", render: (r) => (r.eventType ? <Badge>{r.eventType}</Badge> : "—") },
   { key: "headline", header: "Headline", render: (r) => r.headline ?? "—" },
-  { key: "status", header: "Pipeline", render: (r) => <StatusBadge status={r.status} /> },
   { key: "deliveryStatus", header: "Delivery", render: (r) => <StatusBadge status={r.deliveryStatus} /> },
   { key: "deliveryAttempts", header: "Tries", width: 50 },
 ];
@@ -45,11 +43,6 @@ export default function EventsPage() {
         filters={[
           { key: "symbol", label: "Symbol" },
           {
-            key: "status",
-            label: "Pipeline",
-            options: ["pending", "processing", "done", "noise"].map((v) => ({ value: v, label: v })),
-          },
-          {
             key: "deliveryStatus",
             label: "Delivery",
             options: ["pending", "delivered", "failed"].map((v) => ({ value: v, label: v })),
@@ -60,7 +53,8 @@ export default function EventsPage() {
           <div style={{ display: "grid", gap: 10 }}>
             <Meta label="id" value={r.id} />
             <Meta label="direction hint" value={r.directionHint ?? "—"} />
-            <Meta label="observed_at" value={r.observedAt ?? "—"} />
+            <Meta label="observed_at" value={fmtFull(r.observedAt)} />
+            <Meta label="ingested_at" value={fmtFull(r.ingestedAt)} />
             {r.lastError && <Meta label="last_error" value={r.lastError} error />}
             <div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>raw payload</div>
@@ -69,15 +63,6 @@ export default function EventsPage() {
           </div>
         )}
       />
-    </div>
-  );
-}
-
-export function Meta({ label, value, error }: { label: string; value: string; error?: boolean }) {
-  return (
-    <div style={{ display: "flex", gap: 10, fontSize: 13 }}>
-      <span style={{ color: "var(--muted)", minWidth: 110 }}>{label}</span>
-      <span style={{ color: error ? "#f85149" : undefined, wordBreak: "break-word" }}>{value}</span>
     </div>
   );
 }

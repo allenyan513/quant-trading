@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useLive } from "@/components/live";
 import { Badge, Card, Grid, JsonView, Stat, StatusBadge, statusColor } from "@/components/ui";
-import { fmtMoney, fmtPct, fmtTime } from "@/lib/format";
+import { fmtMoney, fmtPct, fmtFull } from "@/lib/format";
 
 interface Trace {
   symbol: string;
@@ -146,7 +146,7 @@ export default function SymbolPage() {
               key={`${e.kind}-${i}`}
               style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "6px 0", borderLeft: `2px solid ${e.color}`, paddingLeft: 12, marginLeft: 4 }}
             >
-              <span style={{ color: "var(--muted)", whiteSpace: "nowrap", fontSize: 12, minWidth: 150 }}>{fmtTime(e.ts)}</span>
+              <span style={{ color: "var(--muted)", whiteSpace: "nowrap", fontSize: 12, minWidth: 210 }}>{fmtFull(e.ts)}</span>
               <span style={{ fontSize: 13 }}>{e.node}</span>
             </div>
           ))}

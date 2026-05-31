@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Meta } from "../events/page";
-import { Badge, StatusBadge, statusColor } from "@/components/ui";
-import { fmtAgo, fmtMoney, fmtPct } from "@/lib/format";
+import { Badge, Meta, StatusBadge, TimeText, statusColor } from "@/components/ui";
+import { fmtFull, fmtMoney, fmtPct } from "@/lib/format";
 
 interface Outcome {
   horizon: string;
@@ -38,7 +37,7 @@ function dirColor(d: string) {
 }
 
 const columns: Column<SignalRow>[] = [
-  { key: "createdAt", header: "Created", render: (r) => fmtAgo(r.createdAt), width: 90 },
+  { key: "createdAt", header: "Created", render: (r) => <TimeText ts={r.createdAt} />, width: 128 },
   { key: "symbol", header: "Symbol", render: (r) => <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link> },
   { key: "direction", header: "Dir", render: (r) => <Badge color={dirColor(r.direction)}>{r.direction}</Badge> },
   { key: "conviction", header: "Conv", render: (r) => (r.conviction ? <Badge>{r.conviction}</Badge> : "—") },
@@ -85,7 +84,8 @@ export default function SignalsPage() {
             <Meta label="notification_id" value={r.notificationId ?? "—"} />
             <Meta label="snapshot_id" value={r.snapshotId ?? "—"} />
             <Meta label="fair_value_base" value={fmtMoney(r.fairValueBase)} />
-            <Meta label="horizon / expires" value={r.expiresAt ?? "—"} />
+            <Meta label="created_at" value={fmtFull(r.createdAt)} />
+            <Meta label="expires_at" value={fmtFull(r.expiresAt)} />
             {r.delivery?.lastError && <Meta label="delivery error" value={r.delivery.lastError} error />}
             <div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>thesis</div>

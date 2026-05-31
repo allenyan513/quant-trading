@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useLive } from "@/components/live";
 import { Badge, StatusBadge } from "@/components/ui";
-import { fmtTime } from "@/lib/format";
+import { fmtFull } from "@/lib/format";
 
 interface LogRow {
   id: string;
@@ -79,7 +79,7 @@ export default function LogsPage() {
             key={r.id}
             style={{ display: "flex", gap: 10, padding: "5px 12px", borderBottom: "1px solid var(--border)", alignItems: "baseline" }}
           >
-            <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtTime(r.ts)}</span>
+            <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtFull(r.ts)}</span>
             <span style={{ width: 50 }}>
               <StatusBadge status={r.level} />
             </span>

@@ -68,7 +68,7 @@ app.post("/internal/redeliver", async (c) => {
   }
 });
 
-// Recover events stuck in `processing` (background run died). Cron-triggered.
+// Recover notifications stuck in `processing` (background run died). Cron-triggered.
 app.post("/internal/reprocess", async (c) => {
   try {
     const res = await reprocessStuck();

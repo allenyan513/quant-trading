@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useLive } from "@/components/live";
-import { Badge, Card, Grid, Stat, StatusBadge, statusColor } from "@/components/ui";
-import { fmtAgo } from "@/lib/format";
+import { Badge, Card, Grid, Stat, StatusBadge, TimeText, statusColor } from "@/components/ui";
+import { fmtAgo, fmtFull } from "@/lib/format";
 
 interface Overview {
   windowHours: number;
@@ -13,10 +13,10 @@ interface Overview {
     notifications: Record<string, number>;
     signals: Record<string, number>;
   };
-  pipeline: { events: Record<string, number>; notifications: Record<string, number> };
+  pipeline: { notifications: Record<string, number> };
   signalStatus: Record<string, number>;
   heartbeats: { service: string; last: string | null; state: string }[];
-  stuck: { notifications: number; events: number; expiredOpenSignals: number };
+  stuck: { notifications: number; expiredOpenSignals: number };
   recentErrors: {
     id: string;
     ts: string;
@@ -61,7 +61,7 @@ export default function OverviewPage() {
       (data.outbox.notifications.failed ?? 0) +
       (data.outbox.signals.failed ?? 0) >
     0;
-  const stuckTotal = data.stuck.notifications + data.stuck.events + data.stuck.expiredOpenSignals;
+  const stuckTotal = data.stuck.notifications + data.stuck.expiredOpenSignals;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -76,7 +76,7 @@ export default function OverviewPage() {
             key={h.service}
             label={h.service}
             value={<StatusBadge status={h.state} />}
-            sub={`last log ${fmtAgo(h.last)}`}
+            sub={<span title={fmtFull(h.last)}>last log {fmtAgo(h.last)}</span>}
             color={statusColor(h.state)}
           />
         ))}
@@ -115,9 +115,6 @@ export default function OverviewPage() {
           <Row label="notifications processing >5m">
             <b style={{ color: data.stuck.notifications ? "#d29922" : undefined }}>{data.stuck.notifications}</b>
           </Row>
-          <Row label="events processing >5m">
-            <b style={{ color: data.stuck.events ? "#d29922" : undefined }}>{data.stuck.events}</b>
-          </Row>
           <Row label="open signals past expiry">
             <b style={{ color: data.stuck.expiredOpenSignals ? "#d29922" : undefined }}>
               {data.stuck.expiredOpenSignals}
@@ -129,9 +126,6 @@ export default function OverviewPage() {
           <StatusCounts map={data.signalStatus} />
           <div style={{ height: 10 }} />
           <div style={{ fontSize: 12, color: "var(--muted)" }}>analysis pipeline status</div>
-          <Row label="events">
-            <StatusCounts map={data.pipeline.events} />
-          </Row>
           <Row label="notifications">
             <StatusCounts map={data.pipeline.notifications} />
           </Row>
@@ -146,7 +140,7 @@ export default function OverviewPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {data.recentErrors.map((e) => (
               <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13 }}>
-                <span style={{ color: "var(--muted)", minWidth: 64 }}>{fmtAgo(e.ts)}</span>
+                <span style={{ color: "var(--muted)", minWidth: 120 }}><TimeText ts={e.ts} /></span>
                 <StatusBadge status={e.level} />
                 <span style={{ color: "var(--muted)" }}>[{e.service}]</span>
                 <span style={{ fontWeight: 600 }}>{e.event}</span>
@@ -172,7 +166,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function ErrorBox({ error }: { error: { message?: string } }) {
+function ErrorBox({ error }: { error: { message?: string } }) {
   return (
     <div style={{ color: "#f85149", padding: 16, border: "1px solid #f8514940", borderRadius: 10 }}>
       Error: {String(error?.message ?? error)}

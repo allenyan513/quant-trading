@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Meta } from "../events/page";
-import { Badge, JsonView, StatusBadge } from "@/components/ui";
-import { fmtAgo } from "@/lib/format";
+import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
+import { fmtFull } from "@/lib/format";
 
 interface NotifRow {
   id: string;
@@ -21,7 +20,7 @@ interface NotifRow {
 }
 
 const columns: Column<NotifRow>[] = [
-  { key: "ingestedAt", header: "Bundled", render: (r) => fmtAgo(r.ingestedAt), width: 90 },
+  { key: "ingestedAt", header: "Bundled", render: (r) => <TimeText ts={r.ingestedAt} />, width: 128 },
   {
     key: "symbol",
     header: "Symbol",
@@ -58,6 +57,7 @@ export default function NotificationsPage() {
         expand={(r) => (
           <div style={{ display: "grid", gap: 10 }}>
             <Meta label="id" value={r.id} />
+            <Meta label="bundled_at" value={fmtFull(r.ingestedAt)} />
             {r.lastError && <Meta label="last_error" value={r.lastError} error />}
             <div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>member event ids</div>

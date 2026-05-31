@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
-import { Badge } from "@/components/ui";
-import { fmtAgo } from "@/lib/format";
+import { Badge, TimeText } from "@/components/ui";
 
 interface FreshRow {
   symbol: string;
@@ -24,10 +23,10 @@ function priceCell(d: string | null) {
 const columns: Column<FreshRow>[] = [
   { key: "symbol", header: "Symbol", render: (r) => <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link> },
   { key: "lastPriceDate", header: "Latest price", render: (r) => priceCell(r.lastPriceDate) },
-  { key: "lastIncomeKnownAt", header: "Income known_at", render: (r) => fmtAgo(r.lastIncomeKnownAt) },
-  { key: "lastBalanceKnownAt", header: "Balance known_at", render: (r) => fmtAgo(r.lastBalanceKnownAt) },
-  { key: "lastCashFlowKnownAt", header: "Cashflow known_at", render: (r) => fmtAgo(r.lastCashFlowKnownAt) },
-  { key: "addedAt", header: "Watching since", render: (r) => fmtAgo(r.addedAt) },
+  { key: "lastIncomeKnownAt", header: "Income known_at", render: (r) => <TimeText ts={r.lastIncomeKnownAt} /> },
+  { key: "lastBalanceKnownAt", header: "Balance known_at", render: (r) => <TimeText ts={r.lastBalanceKnownAt} /> },
+  { key: "lastCashFlowKnownAt", header: "Cashflow known_at", render: (r) => <TimeText ts={r.lastCashFlowKnownAt} /> },
+  { key: "addedAt", header: "Watching since", render: (r) => <TimeText ts={r.addedAt} /> },
 ];
 
 export default function DataPage() {
