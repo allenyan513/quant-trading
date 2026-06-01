@@ -39,6 +39,13 @@ describe("sizePosition", () => {
     expect(d.targetWeight).toBeCloseTo(0.01);
   });
 
+  it("treats invalid conviction values as the most conservative (low) tier", () => {
+    const d = sizePosition(input({ signal: buy({ conviction: "invalid" as any }) }));
+    expect(d.action).toBe("open");
+    if (d.action !== "open") return;
+    expect(d.targetWeight).toBeCloseTo(0.01);
+  });
+
   it("rejects non-buy directions (long-only v1)", () => {
     for (const direction of ["sell", "hold"] as const) {
       const d = sizePosition(input({ signal: buy({ direction }) }));
