@@ -19,6 +19,9 @@ export const config = {
 
   anthropicApiKey: () => requireEnv("ANTHROPIC_API_KEY"),
   signalModel: () => optionalEnv("SIGNAL_MODEL", "claude-opus-4-8"),
+  /** Knowledge cutoff of the current signal model — signals pricing events after
+   *  this date are out-of-sample (look-ahead-safe). Bump alongside SIGNAL_MODEL. */
+  modelCutoff: () => new Date(optionalEnv("MODEL_CUTOFF", "2026-01-01")),
 
   fmpApiKey: () => requireEnv("FMP_API_KEY"),
   fmpBaseUrl: () => optionalEnv("FMP_BASE_URL", "https://financialmodelingprep.com/stable"),

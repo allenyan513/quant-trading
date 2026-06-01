@@ -27,6 +27,9 @@ interface SignalRow {
   generatedBy: string | null;
   snapshotId: string | null;
   notificationId: string | null;
+  modelVersion: string | null;
+  promptVersion: string | null;
+  outOfSample: boolean | null;
   status: string;
   createdAt: string;
   expiresAt: string | null;
@@ -102,6 +105,12 @@ export default function SignalsPage() {
             <Meta label="id" value={r.id} />
             <Meta label="notification_id" value={r.notificationId ?? "—"} />
             <Meta label="snapshot_id" value={r.snapshotId ?? "—"} />
+            <Meta label="model_version" value={r.modelVersion ?? "—"} />
+            <Meta label="prompt_version" value={r.promptVersion ?? "—"} />
+            <Meta
+              label="out_of_sample"
+              value={r.outOfSample == null ? "—" : r.outOfSample ? "yes (look-ahead-safe)" : "no (pre-cutoff)"}
+            />
             <Meta label="fair_value_base" value={fmtMoney(r.fairValueBase)} />
             <Meta label="created_at" value={fmtFull(r.createdAt)} />
             <Meta label="expires_at" value={fmtFull(r.expiresAt)} />

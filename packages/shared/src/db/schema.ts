@@ -12,6 +12,7 @@ import {
   doublePrecision,
   integer,
   bigint,
+  boolean,
   timestamp,
   jsonb,
   date,
@@ -219,6 +220,12 @@ export const tradingSignals = pgTable(
     thesis: text("thesis"),
     generatedBy: text("generated_by"), // llm|algo
     snapshotId: text("snapshot_id"),
+    // LLM provenance (T1) — full prompt/response lives in `signal_audits`.
+    modelVersion: text("model_version"), // actual served model (resp.model)
+    promptVersion: text("prompt_version"), // system-prompt version, bumped on change
+    // Honesty/cutoff (T2): true if all priced events post-date the model's
+    // knowledge cutoff (out-of-sample, look-ahead-safe); null = undetermined.
+    outOfSample: boolean("out_of_sample"),
     status: text("status").notNull(), // open|target_hit|stopped_out|expired|closed
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
@@ -231,6 +238,22 @@ export const tradingSignals = pgTable(
     index("idx_signals_status").on(t.status),
   ],
 );
+
+// Full LLM audit trail for a signal (T1) — written once by analysis, read rarely
+// (replay / "why did the model decide this"). Kept off `trading_signals` so the
+// hot table stays lean (a signal list never drags the full prompt/response).
+export const signalAudits = pgTable("signal_audits", {
+  signalId: text("signal_id").primaryKey(),
+  model: text("model"), // actual served model id (resp.model)
+  promptVersion: text("prompt_version"),
+  systemPrompt: text("system_prompt"),
+  userPrompt: text("user_prompt"),
+  messages: jsonb("messages"), // full multi-turn conversation incl. final emit_signal input
+  turns: integer("turns"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
 
 // ---- Positions / paper book (Portfolio Construction, T7) ----
 
