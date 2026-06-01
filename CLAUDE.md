@@ -19,27 +19,29 @@ cp .env.example .env          # 填 DATABASE_URL / ANTHROPIC_API_KEY / FMP_API_K
 pnpm db:generate              # 改了 schema 后生成迁移 SQL
 pnpm db:migrate               # 应用迁移
 
-pnpm dev                      # 一键起全部三个服务（本地 tsx 热重载）
+pnpm dev                      # 一键起全部服务（本地 tsx 热重载）
 pnpm dev:ingestion            # 单起 → :8081
 pnpm dev:analysis             # 单起 → :8082
 pnpm dev:evaluation           # 单起 → :8083
+pnpm dev:portfolio            # 单起 → :8084
 
 pnpm typecheck                # 全仓 tsc --noEmit；提交前必跑
 pnpm test                     # 全仓 vitest（纯函数单测，不碰 FMP/DB）；CI 也跑
 pnpm build                    # 全仓 tsc 构建
 
-pnpm up                       # docker-compose 全栈（host 8081/8082/8083）
+pnpm up                       # docker-compose 全栈（host 8081/8082/8083/8084）
 pnpm down
 ```
 
-本地 dev 端口固定为 ingestion 8081 / analysis 8082 / evaluation 8083（脚本里用 `PORT=` 指定）。`.env` 里的 `ANALYSIS_URL` / `EVALUATION_URL` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。
+本地 dev 端口固定为 ingestion 8081 / analysis 8082 / evaluation 8083 / portfolio 8084（脚本里用 `PORT=` 指定）。`.env` 里的 `ANALYSIS_URL` / `EVALUATION_URL` / `PORTFOLIO_URL` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。
 
 ## 仓库结构
 
-- `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被三个服务作为 `@qt/shared` workspace 依赖引用。
+- `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被各服务作为 `@qt/shared` workspace 依赖引用。
 - `services/ingestion` —— 外部数据唯一接收者（v1 只做定时 pull），无 LLM。
 - `services/analysis` —— **唯一的真 LLM agent**：事件 → 交易信号。
-- `services/evaluation` —— 信号结算（确定性）+ LLM 复盘 + 反馈库。
+- `services/evaluation` —— 信号结算（确定性）+ LLM 复盘 + 反馈库；登记信号后经 outbox 转投 portfolio。
+- `services/portfolio` —— **`positions` 账本唯一 owner**（T6）：接收 evaluation 转投的信号 → 确定性 sizing → 写 positions，无 LLM。
 
 ## 全局铁律（细则见 `.claude/rules/`）
 

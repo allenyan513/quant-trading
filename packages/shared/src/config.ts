@@ -33,6 +33,7 @@ export const config = {
 
   analysisUrl: () => requireEnv("ANALYSIS_URL"),
   evaluationUrl: () => requireEnv("EVALUATION_URL"),
+  portfolioUrl: () => requireEnv("PORTFOLIO_URL"),
 
   // ---- Portfolio construction (T7) deterministic sizing params ----
   /** Total paper capital (USD). Only scales notional, not weight logic. */

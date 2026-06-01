@@ -42,5 +42,25 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - CRITIQUE_MODEL=${CRITIQUE_MODEL:-claude-sonnet-4-6}
+      - PORTFOLIO_URL=http://portfolio:8080
     ports:
       - "8083:8080"
+    depends_on:
+      - portfolio
+
+  portfolio:
+    build:
+      context: .
+      dockerfile: services/portfolio/Dockerfile
+    environment:
+      - PORT=8080
+      - DATABASE_URL=${DATABASE_URL}
+      - PORTFOLIO_CAPITAL=${PORTFOLIO_CAPITAL:-100000}
+      - SIZE_LOW=${SIZE_LOW:-0.01}
+      - SIZE_MED=${SIZE_MED:-0.02}
+      - SIZE_HIGH=${SIZE_HIGH:-0.03}
+      - MAX_POSITIONS=${MAX_POSITIONS:-20}
+      - MAX_WEIGHT_PER_NAME=${MAX_WEIGHT_PER_NAME:-0.05}
+      - MAX_SECTOR_WEIGHT=${MAX_SECTOR_WEIGHT:-0.30}
+    ports:
+      - "8084:8080"

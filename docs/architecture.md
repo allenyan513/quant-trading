@@ -187,9 +187,10 @@ quant-trading/
     ingestion/   ( + Dockerfile )
     analysis/    ( + Dockerfile )
     evaluation/  ( + Dockerfile )
+    portfolio/   ( + Dockerfile )   # v2 批次2(T6)：positions 账本唯一 owner
 ```
 
-每个 service 独立 `package.json`、独立构建、独立镜像、独立部署到 Cloud Run。`shared` 作为 workspace 依赖被三者引用。
+每个 service 独立 `package.json`、独立构建、独立镜像、独立部署到 Cloud Run。`shared` 作为 workspace 依赖被各服务引用。
 
 ## 10. 分阶段交付
 
@@ -201,6 +202,9 @@ quant-trading/
 4. **M3 闭环**：evaluation `/signals` 登记 + `/jobs/track` 结算 + `/jobs/critique` 写 feedback；analysis `read_recent_feedback` 接回。
 5. **M4 加宽**：更多事件类型、更多估值模型、conviction 校准报表。
 6. **v2**：实时 push 通道（流式合并/去重）、Pub/Sub 替换 HTTP outbox、mock/live trading。
+
+> v2 的 4 服务重构（ingestion / analysis / **portfolio** / evaluation）按 [`distributed-v2-roadmap.md`](distributed-v2-roadmap.md) 分批推进。
+> **批次 2 / T6 已落地**：新增 portfolio 服务并独占 `positions` 表——sizing(T7)从 evaluation 迁入，evaluation 登记信号后经 `position_deliveries` outbox 转投 portfolio。持仓生命周期(T8)、analysis 无状态化(T9)、evaluation 收敛纯学习(T11)尚未做。
 
 ## 11. 部署要点（Cloud Run）
 

@@ -15,6 +15,7 @@
     "dev:ingestion": "pnpm --filter @qt/ingestion dev",
     "dev:analysis": "pnpm --filter @qt/analysis dev",
     "dev:evaluation": "pnpm --filter @qt/evaluation dev",
+    "dev:portfolio": "pnpm --filter @qt/portfolio dev",
     "dev:web": "pnpm --filter @qt/web dev",
     "db:generate": "pnpm --filter @qt/shared db:generate",
     "db:migrate": "pnpm --filter @qt/shared db:migrate",

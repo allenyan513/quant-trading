@@ -1,10 +1,11 @@
 /**
  * Portfolio construction (T7) — deterministic position sizing at signal intake.
  *
- * Transitional home: this lives in evaluation for v1 (see docs/plans/
- * T7-portfolio-construction.md §5). In the v2 refactor it moves into a dedicated
- * portfolio service; the pure sizer in @qt/shared stays put. Sizing failure must
- * NOT fail signal registration — a rejected position is a normal business result.
+ * This is the portfolio service's owned logic: it alone reads/writes the
+ * `positions` table. It receives a delivered trading signal (forwarded from
+ * evaluation's outbox), sizes it via the pure `sizePosition` in @qt/shared, and
+ * records an opened position. A rejected position is a normal business result.
+ * (Pre-T6 this lived in evaluation; see docs/plans/T6-portfolio-service.md.)
  */
 import { eq } from "drizzle-orm";
 import {

@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { ok, fail, config, db, dbSchema, type TradingSignalDTO } from "@qt/shared";
 import { trackOutcomes } from "./track.js";
 import { critiqueResolved } from "./critique.js";
-import { sizeAndRecord, type SizingOutcome } from "./portfolio.js";
+import { deliverPosition, redeliverPendingPositions } from "./deliver.js";
 import { log } from "./log.js";
 
 const { tradingSignals } = dbSchema;
@@ -50,19 +50,19 @@ app.post("/signals", async (c) => {
       .onConflictDoNothing({ target: tradingSignals.id });
     log.info("signal.registered", { signal: s.id, symbol: s.symbol, direction: s.direction });
 
-    // Portfolio construction (T7): deterministically size + record the position.
-    // A sizing failure must not fail registration — tracking and book-building
-    // are separate concerns, and a rejected position is a normal outcome.
-    let sizing: SizingOutcome | null = null;
+    // Forward to the portfolio service (T6), which owns sizing + the positions
+    // table. Outbox-backed and best-effort: a delivery failure leaves the row
+    // pending for /internal/redeliver and must not fail signal registration —
+    // tracking and book-building are separate concerns.
     try {
-      sizing = await sizeAndRecord(s);
+      await deliverPosition(s);
     } catch (err) {
-      log.error("portfolio.size_failed", {
+      log.error("portfolio.deliver_failed", {
         signal: s.id,
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    return c.json(ok({ registered: s.id, sizing }));
+    return c.json(ok({ registered: s.id }));
   } catch (err) {
     log.error("signal.register_failed", { signal: s.id, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("register_failed", err instanceof Error ? err.message : String(err)), 500);
@@ -88,6 +88,18 @@ app.post("/jobs/critique", async (c) => {
   } catch (err) {
     log.error("critique.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("critique_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Drain position deliveries left pending by a portfolio outage (cron-triggered).
+app.post("/internal/redeliver", async (c) => {
+  try {
+    const res = await redeliverPendingPositions();
+    log.info("redeliver.done", { tried: res.tried, delivered: res.delivered });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("redeliver.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("redeliver_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 

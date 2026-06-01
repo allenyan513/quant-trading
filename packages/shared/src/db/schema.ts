@@ -280,6 +280,21 @@ export const signalDeliveries = pgTable(
   (t) => [index("idx_deliveries_status").on(t.deliveryStatus)],
 );
 
+// Outbox for forwarding registered signals from evaluation to the portfolio
+// service, which owns sizing + the positions table (T6). Same shape as
+// signal_deliveries; keyed on signalId for idempotent at-least-once delivery.
+export const positionDeliveries = pgTable(
+  "position_deliveries",
+  {
+    signalId: text("signal_id").primaryKey(),
+    deliveryStatus: text("delivery_status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [index("idx_position_deliveries_status").on(t.deliveryStatus)],
+);
+
 // ---- Outcome tracking (evaluation) ----
 
 export const signalOutcomes = pgTable(
