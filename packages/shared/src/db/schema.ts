@@ -43,7 +43,33 @@ export const universe = pgTable("universe", {
 export const watchlist = pgTable("watchlist", {
   symbol: text("symbol").primaryKey(),
   addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  // How the symbol entered the universe: 'manual' (seeded) | 'discovery' (promoted
+  // from a scanner). Discovery entries carry a reason + TTL; manual never expire.
+  source: text("source").default("manual").notNull(),
+  discoveryReason: text("discovery_reason"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }), // null = permanent
 });
+
+/**
+ * `candidates` — the discovery review queue. Deterministic scanners (ingestion,
+ * no LLM) flag market-wide symbols NOT on the watchlist; a human (or, later, a
+ * score rule) promotes them into the watchlist. Candidates NEVER go straight to
+ * analysis — promotion is the gate. Owned (written) only by ingestion.
+ */
+export const candidates = pgTable(
+  "candidates",
+  {
+    symbol: text("symbol").primaryKey(),
+    source: text("source").notNull(), // scanner name, e.g. "earnings_surprise"
+    discoveryReason: text("discovery_reason"),
+    score: doublePrecision("score"), // ranking signal, e.g. |EPS surprise|
+    detail: jsonb("detail"), // raw scan row, for review
+    status: text("status").default("pending").notNull(), // pending|promoted|dismissed
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [index("idx_candidates_status").on(t.status)],
+);
 
 // ---- Prices ----
 

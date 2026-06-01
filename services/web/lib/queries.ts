@@ -17,6 +17,7 @@ import {
   balanceSheet,
   cashFlow,
   watchlist,
+  candidates,
   logs,
 } from "./db.js";
 
@@ -193,6 +194,18 @@ export async function listValuations(opts: ListOpts = {}) {
     .from(valuationSnapshots)
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(valuationSnapshots.createdAt))
+    .limit(limit);
+}
+
+/** Discovery review queue. Defaults to the pending candidates, highest score first. */
+export async function listCandidates(opts: ListOpts = {}) {
+  const limit = Math.min(opts.limit ?? 200, 500);
+  const status = opts.status ?? "pending";
+  return db()
+    .select()
+    .from(candidates)
+    .where(eq(candidates.status, status))
+    .orderBy(desc(candidates.score), desc(candidates.lastSeenAt))
     .limit(limit);
 }
 
