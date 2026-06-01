@@ -19,7 +19,6 @@ export const config = {
 
   anthropicApiKey: () => requireEnv("ANTHROPIC_API_KEY"),
   signalModel: () => optionalEnv("SIGNAL_MODEL", "claude-opus-4-8"),
-  critiqueModel: () => optionalEnv("CRITIQUE_MODEL", "claude-sonnet-4-6"),
 
   fmpApiKey: () => requireEnv("FMP_API_KEY"),
   fmpBaseUrl: () => optionalEnv("FMP_BASE_URL", "https://financialmodelingprep.com/stable"),
@@ -32,7 +31,7 @@ export const config = {
   referenceTtlDays: () => Number(optionalEnv("REFERENCE_TTL_DAYS", "1")),
 
   analysisUrl: () => requireEnv("ANALYSIS_URL"),
-  evaluationUrl: () => requireEnv("EVALUATION_URL"),
+  portfolioUrl: () => requireEnv("PORTFOLIO_URL"),
 
   // ---- Portfolio construction (T7) deterministic sizing params ----
   /** Total paper capital (USD). Only scales notional, not weight logic. */

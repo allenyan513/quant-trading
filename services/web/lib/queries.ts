@@ -10,8 +10,7 @@ import {
   notifications,
   tradingSignals,
   signalDeliveries,
-  signalOutcomes,
-  feedbackNotes,
+  positions,
   valuationSnapshots,
   dailyPrices,
   incomeStatement,
@@ -21,7 +20,7 @@ import {
   logs,
 } from "./db.js";
 
-const SERVICES = ["ingestion", "analysis", "evaluation"] as const;
+const SERVICES = ["ingestion", "analysis", "portfolio"] as const;
 const STUCK_MINUTES = 5;
 
 function hoursAgo(h: number): Date {
@@ -44,8 +43,7 @@ export async function getOverview(windowHours = 24) {
     eventsTotal,
     notifTotal,
     signalsTotal,
-    outcomesTotal,
-    feedbackTotal,
+    positionsTotal,
     eventsDelivery,
     notifDelivery,
     notifPipeline,
@@ -59,8 +57,7 @@ export async function getOverview(windowHours = 24) {
     db().select({ c: count() }).from(events).where(gte(events.ingestedAt, since)),
     db().select({ c: count() }).from(notifications).where(gte(notifications.ingestedAt, since)),
     db().select({ c: count() }).from(tradingSignals).where(gte(tradingSignals.createdAt, since)),
-    db().select({ c: count() }).from(signalOutcomes).where(gte(signalOutcomes.updatedAt, since)),
-    db().select({ c: count() }).from(feedbackNotes).where(gte(feedbackNotes.createdAt, since)),
+    db().select({ c: count() }).from(positions).where(gte(positions.openedAt, since)),
     db().select({ k: events.deliveryStatus, c: count() }).from(events).groupBy(events.deliveryStatus),
     db().select({ k: notifications.deliveryStatus, c: count() }).from(notifications).groupBy(notifications.deliveryStatus),
     db().select({ k: notifications.status, c: count() }).from(notifications).groupBy(notifications.status),
@@ -106,8 +103,7 @@ export async function getOverview(windowHours = 24) {
       events: Number(eventsTotal[0]?.c ?? 0),
       notifications: Number(notifTotal[0]?.c ?? 0),
       signals: Number(signalsTotal[0]?.c ?? 0),
-      outcomes: Number(outcomesTotal[0]?.c ?? 0),
-      feedback: Number(feedbackTotal[0]?.c ?? 0),
+      positions: Number(positionsTotal[0]?.c ?? 0),
     },
     outbox: {
       events: toMap(eventsDelivery),
@@ -178,13 +174,13 @@ export async function listSignals(opts: ListOpts = {}) {
 
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
-  const outcomes = await db().select().from(signalOutcomes).where(inArray(signalOutcomes.signalId, ids));
+  const pos = await db().select().from(positions).where(inArray(positions.signalId, ids));
   const deliveries = await db().select().from(signalDeliveries).where(inArray(signalDeliveries.signalId, ids));
-  const byId: Record<string, { outcomes: typeof outcomes; delivery: (typeof deliveries)[number] | null }> = {};
-  for (const r of rows) byId[r.id] = { outcomes: [], delivery: null };
-  for (const o of outcomes) byId[o.signalId]?.outcomes.push(o);
+  const byId: Record<string, { position: (typeof pos)[number] | null; delivery: (typeof deliveries)[number] | null }> = {};
+  for (const r of rows) byId[r.id] = { position: null, delivery: null };
+  for (const p of pos) if (byId[p.signalId]) byId[p.signalId]!.position = p;
   for (const d of deliveries) if (byId[d.signalId]) byId[d.signalId]!.delivery = d;
-  return rows.map((r) => ({ ...r, outcomes: byId[r.id]!.outcomes, delivery: byId[r.id]!.delivery }));
+  return rows.map((r) => ({ ...r, position: byId[r.id]!.position, delivery: byId[r.id]!.delivery }));
 }
 
 export async function listValuations(opts: ListOpts = {}) {
@@ -197,19 +193,6 @@ export async function listValuations(opts: ListOpts = {}) {
     .from(valuationSnapshots)
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(valuationSnapshots.createdAt))
-    .limit(limit);
-}
-
-export async function listFeedback(opts: ListOpts = {}) {
-  const limit = Math.min(opts.limit ?? 100, 500);
-  const conds = [];
-  if (opts.symbol) conds.push(eq(feedbackNotes.symbol, opts.symbol));
-  if (opts.eventType) conds.push(eq(feedbackNotes.eventType, opts.eventType));
-  return db()
-    .select()
-    .from(feedbackNotes)
-    .where(conds.length ? and(...conds) : undefined)
-    .orderBy(desc(feedbackNotes.createdAt))
     .limit(limit);
 }
 
@@ -291,13 +274,12 @@ export async function getDataFreshness() {
 
 /** Full cross-pipeline trace for one symbol, joined with its logs. */
 export async function getSymbolTrace(symbol: string) {
-  const [ev, notifs, signals, vals, fb, lg] = await Promise.all([
+  const [ev, notifs, signals, vals, lg] = await Promise.all([
     db().select().from(events).where(eq(events.symbol, symbol)).orderBy(desc(events.ingestedAt)).limit(100),
     db().select().from(notifications).where(eq(notifications.symbol, symbol)).orderBy(desc(notifications.ingestedAt)).limit(100),
     listSignals({ symbol, limit: 100 }),
     db().select().from(valuationSnapshots).where(eq(valuationSnapshots.symbol, symbol)).orderBy(desc(valuationSnapshots.createdAt)).limit(20),
-    db().select().from(feedbackNotes).where(eq(feedbackNotes.symbol, symbol)).orderBy(desc(feedbackNotes.createdAt)).limit(50),
     db().select().from(logs).where(eq(logs.symbol, symbol)).orderBy(desc(logs.ts)).limit(300),
   ]);
-  return { symbol, events: ev, notifications: notifs, signals, valuations: vals, feedback: fb, logs: lg };
+  return { symbol, events: ev, notifications: notifs, signals, valuations: vals, logs: lg };
 }

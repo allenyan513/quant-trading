@@ -280,42 +280,6 @@ export const signalDeliveries = pgTable(
   (t) => [index("idx_deliveries_status").on(t.deliveryStatus)],
 );
 
-// ---- Outcome tracking (evaluation) ----
-
-export const signalOutcomes = pgTable(
-  "signal_outcomes",
-  {
-    signalId: text("signal_id").notNull(),
-    horizon: text("horizon").notNull(), // 1d|1w|1m
-    priceAtHorizon: doublePrecision("price_at_horizon"),
-    returnPct: doublePrecision("return_pct"),
-    benchmarkReturnPct: doublePrecision("benchmark_return_pct"),
-    alphaPct: doublePrecision("alpha_pct"),
-    resolvedStatus: text("resolved_status"), // target_hit|stopped_out|expired|open
-    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.signalId, t.horizon] })],
-);
-
-// ---- Feedback / lessons store (retrieval-augmented self-optimization) ----
-
-export const feedbackNotes = pgTable(
-  "feedback_notes",
-  {
-    id: text("id").primaryKey(),
-    signalId: text("signal_id"),
-    symbol: text("symbol"),
-    eventType: text("event_type"),
-    lesson: text("lesson").notNull(),
-    scores: jsonb("scores"), // structured critique scores
-    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
-  },
-  (t) => [
-    index("idx_feedback_symbol").on(t.symbol),
-    index("idx_feedback_event_type").on(t.eventType),
-  ],
-);
-
 // ---- Logs (structured app logs — observability dashboard sink) ----
 
 // Best-effort sink for the structured logger (see ../log-sink.ts). Common trace

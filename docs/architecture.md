@@ -7,8 +7,11 @@
 重启一个**事件驱动的量化交易系统**。核心是一条闭环流水线：
 
 ```
-外部数据源 → ingestion → (event) → analysis → (trading signal) → evaluation → (feedback) ↺ analysis
+外部数据源 → ingestion → (event) → analysis → (trading signal) → portfolio (sizing + 开/平仓结算)
 ```
+
+> 注：本文档原设计含第 4 个 evaluation 服务(回溯学习/feedback 回灌 analysis)。该学习层暂缓,已并入并简化——
+> evaluation 删除,其"记录信号 + 结算"职责并入 **portfolio**(完整的组合服务:记录信号 + 确定性 sizing 开仓 + 止损/止盈/到期结算平仓,独占 `positions` 表,无 LLM)。下文凡提 "evaluation / feedback 闭环 / critique" 均为**暂未实现**的原设计,保留作为日后恢复学习层的蓝图。
 
 参考了 `legends/` 下两个成熟项目的经验：
 
@@ -20,7 +23,7 @@
 | 维度 | 决策 | 理由 |
 |---|---|---|
 | 语言 | **TypeScript / Node.js** | Anthropic Agent SDK 只有官方 TS/Python 版；Go 无官方 Agent SDK |
-| 形态 | **3 个独立 HTTP 服务**（ingestion / analysis / evaluation）组成分布式系统 | 用户要求；可独立部署、独立伸缩 |
+| 形态 | **3 个独立 HTTP 服务**（ingestion / analysis / portfolio）组成分布式系统 | 用户要求；可独立部署、独立伸缩 |
 | 通信 | **服务间直接 HTTP 调用** + DB outbox 兜底（at-least-once） | 简单；不引入消息队列 |
 | 数据库 | **Neon（serverless Postgres）+ Drizzle ORM** | 类型安全、TS-first、serverless 友好 |
 | Agent | analysis 用 **`@anthropic-ai/claude-agent-sdk`** 的 `query()` + 自定义 `tool()` | 唯一真正的 LLM agent |
@@ -34,7 +37,7 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
 
 ## 3. 服务边界与职责
 
-关键观点：**"agent" 这个词被用得太宽**。三个服务里只有 analysis 是真正的 LLM agent；ingestion 是确定性的数据管道；evaluation 是"确定性结算 + LLM 复盘"的混合体。这样划分是为了控制成本/延迟/可重放性。
+关键观点：**"agent" 这个词被用得太宽**。三个服务里只有 analysis 是真正的 LLM agent；ingestion 是确定性的数据管道；portfolio 是确定性的组合/结算服务（无 LLM）。这样划分是为了控制成本/延迟/可重放性。
 
 ### 3.1 ingestion service（确定性管道，无 LLM）
 - 外部信息的**唯一接收者**。
@@ -60,14 +63,14 @@ v1 范围：**只做 pull 闭环**（定时拉取 earnings / ratings）。实时
   2. 慢阶段（后台，不持有事务跨网络）：计算/读取 reference valuation + trading valuation，把整组事件跑一次 agent loop 生成 **1 个信号**；agent 可按需回查 `events` 表或 FMP 补数据。
   3. 持久化 `trading_signals`（挂 `notification_id`），标记 notification `done`。
 - 崩溃恢复：后台慢阶段若死，notification 卡在 `processing`，由 `reprocessStuck`（`POST /internal/reprocess`，cron）按年龄阈值捞回重跑。
-- 产出 **trading signal** → HTTP 投递给 evaluation（同样 outbox 兜底）。
+- 产出 **trading signal** → HTTP 投递给 portfolio（`signal_deliveries` outbox 兜底）。
 - 端点：`POST /notifications`、`POST /internal/redeliver`、`POST /internal/reprocess`、`GET /healthz`。
 
-### 3.3 evaluation service（结算 + 复盘，混合）
-- `POST /signals`：登记新信号，纳入跟踪。
-- 定时任务（Cloud Scheduler 触发 `POST /jobs/track`）：确定性结算信号生命周期 + 计算 alpha。
-- `POST /jobs/critique`：LLM 对信号质量/thesis 复盘，写入 feedback 库。
-- 端点：`POST /signals`、`POST /jobs/track`、`POST /jobs/critique`、`GET /healthz`。
+### 3.3 portfolio service（组合 + 结算，确定性，无 LLM）
+- `POST /signals`：消费 analysis 投来的信号——幂等登记 `trading_signals`(消费侧 safeguard) + 确定性 sizing 开仓(写 `positions`,独占该表)。sizing 见 `packages/shared/src/portfolio/sizing.ts` 纯函数 + sizing 参数 config。
+- `POST /jobs/track`（Cloud Scheduler 触发）：按 `trading_signals` 的 target/stop/expiry 结算 open `positions` —— 命中则平仓(写 `closedAt/exitPrice/realizedReturn`)并同步信号状态。取价用 `fmpGet("quote")`。
+- 端点：`POST /signals`、`POST /jobs/track`、`GET /healthz`。
+- （原设计的 `POST /jobs/critique` LLM 复盘 + feedback 回灌属暂缓的学习层,未实现。）
 
 ## 4. 事件传输（at-least-once，无队列）
 
@@ -132,6 +135,8 @@ TradingSignal {
 
 ## 7. evaluation + 自优化闭环（重点）
 
+> ⚠️ **本节为暂缓的原设计,当前未实现。** evaluation 服务已删除,学习闭环(critique LLM + `feedback_notes` + `read_recent_feedback` 回灌 + `signal_outcomes` 多 horizon 归因)整体下线。当前仅保留确定性的**持仓结算**(止损/止盈/到期平仓,写 `positions`),落在 portfolio `POST /jobs/track`(见 §3.3)。本节保留作为日后恢复学习层的蓝图。
+
 分三层，**对可行性诚实**：
 
 ### (a) 确定性结算（outcome tracking）
@@ -186,10 +191,11 @@ quant-trading/
   services/
     ingestion/   ( + Dockerfile )
     analysis/    ( + Dockerfile )
-    evaluation/  ( + Dockerfile )
+    portfolio/   ( + Dockerfile )   # 组合/结算服务,独占 positions 表
+    web/                            # 只读仪表盘(Next.js)
 ```
 
-每个 service 独立 `package.json`、独立构建、独立镜像、独立部署到 Cloud Run。`shared` 作为 workspace 依赖被三者引用。
+每个 service 独立 `package.json`、独立构建、独立镜像、独立部署到 Cloud Run。`shared` 作为 workspace 依赖被各服务引用。
 
 ## 10. 分阶段交付
 

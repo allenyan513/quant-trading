@@ -18,10 +18,9 @@ interface Trace {
     status: string;
     thesis: string | null;
     createdAt: string;
-    outcomes: { horizon: string; returnPct: number | null; alphaPct: number | null }[];
+    position: { status: string; targetWeight: number | null; realizedReturn: number | null } | null;
   }[];
   valuations: { snapshotId: string; fairValuePerShare: number | null; currentPrice: number | null; upsidePct: number | null; verdict: string | null; createdAt: string }[];
-  feedback: { id: string; lesson: string; createdAt: string }[];
   logs: { id: string; ts: string; level: string; service: string; event: string; fields: Record<string, unknown> | null }[];
 }
 
@@ -71,10 +70,12 @@ export default function SymbolPage() {
           <Badge color={s.direction === "buy" ? "#3fb950" : s.direction === "sell" ? "#f85149" : "#9aa7bd"}>{s.direction}</Badge>{" "}
           {s.conviction && <Badge>{s.conviction}</Badge>} target {fmtMoney(s.targetPrice)} · dev {fmtPct(s.deviationPct)}{" "}
           <StatusBadge status={s.status} />
-          {s.outcomes.length > 0 && (
+          {s.position && (
             <span style={{ color: "var(--muted)" }}>
               {" "}
-              · {s.outcomes.map((o) => `${o.horizon} ${fmtPct(o.returnPct)}`).join(" / ")}
+              · pos {s.position.targetWeight == null ? "—" : `${(s.position.targetWeight * 100).toFixed(1)}%`}
+              {s.position.status === "closed" &&
+                ` · realized ${fmtPct(s.position.realizedReturn == null ? null : s.position.realizedReturn * 100)}`}
             </span>
           )}
         </>
@@ -89,17 +90,6 @@ export default function SymbolPage() {
         <>
           <Badge color="#d29922">valuation</Badge> fair {fmtMoney(v.fairValuePerShare)} vs {fmtMoney(v.currentPrice)} · upside{" "}
           {fmtPct(v.upsidePct)} <StatusBadge status={v.verdict} />
-        </>
-      ),
-    });
-  for (const fb of data.feedback)
-    entries.push({
-      ts: fb.createdAt,
-      kind: "feedback",
-      color: "#8a97ab",
-      node: (
-        <>
-          <Badge>feedback</Badge> {fb.lesson}
         </>
       ),
     });
@@ -130,7 +120,6 @@ export default function SymbolPage() {
         <Stat label="events" value={data.events.length} />
         <Stat label="notifications" value={data.notifications.length} />
         <Stat label="signals" value={data.signals.length} sub={`${openSignals} open`} />
-        <Stat label="feedback" value={data.feedback.length} />
         <Stat
           label="latest valuation"
           value={latestVal ? <StatusBadge status={latestVal.verdict} /> : "—"}

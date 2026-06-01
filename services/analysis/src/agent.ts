@@ -16,35 +16,20 @@
  * legends/quant-researcher/quant_researcher/signal_system/generator.py.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { desc, eq, and } from "drizzle-orm";
-import { db, dbSchema, config, marketdata, type SignalDraft, type ReferenceValuation } from "@qt/shared";
+import { config, marketdata, type SignalDraft, type ReferenceValuation } from "@qt/shared";
 import type { NormalizedNotification } from "./classify.js";
 import { sanitizeSignalDraft } from "./signal-draft.js";
 import { log } from "./log.js";
 
-const { feedbackNotes } = dbSchema;
-
 const SYSTEM_PROMPT = `You are an event-driven pricing analyst inside an automated trading-signal service. Given a NOTIFICATION — one or more related market EVENTS of the same type (earnings, rating change, price-target change, insider, M&A) for a single company — plus FACTS about the company (current price plus a slow, financials-based reference fair value), decide the trade NOW.
 
-Critical: the reference fair value is just ONE input — it lags (quarterly data) and has NOT moved on today's events. Your job is to REPRICE from the events themselves, weighing them together: read what changed, optionally pull fundamentals/technicals, check past lessons for this symbol/event type, then translate into a SINGLE actionable signal for the symbol. If the events are immaterial, return direction "hold".
+Critical: the reference fair value is just ONE input — it lags (quarterly data) and has NOT moved on today's events. Your job is to REPRICE from the events themselves, weighing them together: read what changed, optionally pull fundamentals/technicals, then translate into a SINGLE actionable signal for the symbol. If the events are immaterial, return direction "hold".
 
-Workflow: (1) call read_recent_feedback to learn from past mistakes; (2) optionally call get_fundamentals / get_technicals; (3) call emit_signal exactly once with your decision.
+Workflow: (1) optionally call get_fundamentals / get_technicals; (2) call emit_signal exactly once with your decision.
 
 Always emit: direction (buy/sell/hold); absolute target_price and stop_loss; horizon in days; conviction (low/medium/high — notification priority only, NOT position size); and a one-paragraph thesis that explicitly references the events. Position sizing is out of scope.`;
 
 const TOOLS: Anthropic.Tool[] = [
-  {
-    name: "read_recent_feedback",
-    description: "Read recent lessons/feedback for this symbol or event type to avoid past mistakes.",
-    input_schema: {
-      type: "object",
-      properties: {
-        symbol: { type: "string", description: "Ticker symbol" },
-        event_type: { type: "string", description: "Event type, e.g. earnings, grade_change" },
-      },
-      required: ["symbol", "event_type"],
-    },
-  },
   {
     name: "get_fundamentals",
     description: "Fetch key annual financial ratios/metrics for a symbol.",
@@ -90,17 +75,6 @@ function client(): Anthropic {
 /** Execute a read-only tool call; returns a string the model can read. */
 async function runTool(name: string, input: Record<string, unknown>): Promise<string> {
   switch (name) {
-    case "read_recent_feedback": {
-      const symbol = String(input.symbol ?? "").toUpperCase();
-      const eventType = String(input.event_type ?? "");
-      const rows = await db()
-        .select({ lesson: feedbackNotes.lesson })
-        .from(feedbackNotes)
-        .where(and(eq(feedbackNotes.symbol, symbol), eq(feedbackNotes.eventType, eventType)))
-        .orderBy(desc(feedbackNotes.createdAt))
-        .limit(5);
-      return rows.length ? rows.map((r) => `- ${r.lesson}`).join("\n") : "No prior feedback recorded.";
-    }
     case "get_fundamentals": {
       // Read-through marketdata cache → financial_ratios (PIT, reused next time).
       // Annual: quarterly ratios are premium-gated (402) on the current FMP plan.

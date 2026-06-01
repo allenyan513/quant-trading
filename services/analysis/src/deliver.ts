@@ -15,7 +15,7 @@ export async function deliverSignal(signal: TradingSignalDTO): Promise<boolean> 
     .values({ signalId: signal.id })
     .onConflictDoNothing({ target: signalDeliveries.signalId });
 
-  const url = `${config.evaluationUrl()}/signals`;
+  const url = `${config.portfolioUrl()}/signals`;
   const res = await deliverJson(url, signal, {
     idempotencyKey: signal.id,
   });
