@@ -21,7 +21,7 @@ paths:
 
 ## 服务间投递（outbox / at-least-once）
 
-- 调下游用 `deliverJson(url, body, { timeoutMs, idempotencyKey })`（`@qt/shared`），URL 取自 `config.analysisUrl()` / `config.evaluationUrl()`。
+- 调下游用 `deliverJson(url, body, { timeoutMs, idempotencyKey })`（`@qt/shared`），URL 取自 `config.analysisUrl()` / `config.portfolioUrl()`。
 - 模式：**同一事务**里写业务数据 + outbox 行（`status: "pending"`）→ 提交 → 投递；成功标 `delivered`，失败留 `pending` 等 `POST /internal/redeliver`（cron 触发）重投。
 - 消费端必须**幂等**：按 `(source, external_id)`（或对应唯一键）去重，重复投递不得产生重复结果。
 - 新增需要被可靠传递的跨服务消息时，沿用这个 outbox 模式，不要直接 fire-and-forget。
@@ -36,5 +36,5 @@ paths:
 ## 边界
 
 - ingestion 无 LLM，只做确定性拉取/落库/投递。
-- 真正的 agent 逻辑只在 analysis（见 `.claude/rules/analysis-agent.md`）。
-- evaluation 的结算是确定性的，只有 critique 用 LLM。
+- 真正的 agent 逻辑只在 analysis（见 `.claude/rules/analysis-agent.md`）——也是系统里**唯一**用 LLM 的服务。
+- portfolio 无 LLM：确定性 sizing 开仓 + 按止损/止盈/到期结算平仓，独占 `positions` 表。

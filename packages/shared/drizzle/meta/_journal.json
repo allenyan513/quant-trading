@@ -50,6 +50,13 @@
       "when": 1780281363664,
       "tag": "0006_lazy_songbird",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780285156805,
+      "tag": "0007_organic_shiver_man",
+      "breakpoints": true
     }
   ]
 }

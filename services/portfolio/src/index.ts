@@ -1,21 +1,23 @@
 /**
- * Evaluation service — settles signal outcomes (deterministic) and critiques them
- * (LLM), writing lessons into the feedback store that analysis reads back.
+ * Portfolio service — owns the paper book end to end. It receives delivered
+ * trading signals from analysis, records them, deterministically sizes them into
+ * positions, and settles open positions (target/stop/expiry → close). No LLM.
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { ok, fail, config, db, dbSchema, type TradingSignalDTO } from "@qt/shared";
-import { trackOutcomes } from "./track.js";
-import { critiqueResolved } from "./critique.js";
-import { sizeAndRecord, type SizingOutcome } from "./portfolio.js";
+import { sizeAndRecord } from "./portfolio.js";
+import { settlePositions } from "./track.js";
 import { log } from "./log.js";
 
 const { tradingSignals } = dbSchema;
 const app = new Hono();
 
-app.get("/healthz", (c) => c.json(ok({ service: "evaluation", status: "up" })));
+app.get("/healthz", (c) => c.json(ok({ service: "portfolio", status: "up" })));
 
-// Intake: register a delivered signal for tracking (idempotent; shared DB in v1).
+// Intake: register the delivered signal (idempotent consumer-side safeguard;
+// shared DB in v1) and size it into a position. A sizing rejection is a normal
+// outcome and must not fail registration.
 app.post("/signals", async (c) => {
   let s: TradingSignalDTO;
   try {
@@ -50,18 +52,7 @@ app.post("/signals", async (c) => {
       .onConflictDoNothing({ target: tradingSignals.id });
     log.info("signal.registered", { signal: s.id, symbol: s.symbol, direction: s.direction });
 
-    // Portfolio construction (T7): deterministically size + record the position.
-    // A sizing failure must not fail registration — tracking and book-building
-    // are separate concerns, and a rejected position is a normal outcome.
-    let sizing: SizingOutcome | null = null;
-    try {
-      sizing = await sizeAndRecord(s);
-    } catch (err) {
-      log.error("portfolio.size_failed", {
-        signal: s.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    const sizing = await sizeAndRecord(s);
     return c.json(ok({ registered: s.id, sizing }));
   } catch (err) {
     log.error("signal.register_failed", { signal: s.id, error: err instanceof Error ? err.message : String(err) });
@@ -69,25 +60,15 @@ app.post("/signals", async (c) => {
   }
 });
 
+// Settle open positions (cron-triggered): close those that hit target/stop/expiry.
 app.post("/jobs/track", async (c) => {
   try {
-    const res = await trackOutcomes();
-    log.info("track.done", { scanned: res.scanned, updated: res.updated });
+    const res = await settlePositions();
+    log.info("track.done", { scanned: res.scanned, closed: res.closed });
     return c.json(ok(res));
   } catch (err) {
     log.error("track.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("track_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
-
-app.post("/jobs/critique", async (c) => {
-  try {
-    const res = await critiqueResolved();
-    log.info("critique.done", { reviewed: res.reviewed });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("critique.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("critique_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 

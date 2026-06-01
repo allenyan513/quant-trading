@@ -14,7 +14,7 @@ analysis 是系统里**唯一**真正的 LLM agent。完整设计见 [docs/archi
 `POST /notifications` 是**异步 ACK**：先 `await intakeNotification`（快），立即回 202，再后台跑 `processNotification`（慢）。这样生产者（ingestion）的投递不会被 LLM 阻塞超时。见 `src/pipeline.ts`。
 
 1. **intake（快，ACK 前 await）**：`findOrInsertNotification` 按 `(source, batch_key)` 定位/建通知；已有信号→`duplicate`；**noise（`classifyNotification` 判不材料）在调 LLM 前短路**标 `noise`（绝不进 agent）；否则标 `processing` 返回 `accepted`。纯 DB 操作，秒回。
-2. **process（慢，后台）**：`computeReferenceValuation`（staleness-aware，复用近期快照）→ `generateSignal`（agent）→ 持久化 `trading_signals`（带 `snapshot_id`）→ 标 `done` → 投递 evaluation。不持有事务跨网络。
+2. **process（慢，后台）**：`computeReferenceValuation`（staleness-aware，复用近期快照）→ `generateSignal`（agent）→ 持久化 `trading_signals`（带 `snapshot_id`）→ 标 `done` → 投递 portfolio（`config.portfolioUrl()`）。不持有事务跨网络。
 3. **恢复**：后台 process 若崩溃（实例被杀），notification 卡在 `processing`，由 `reprocessStuck`（`POST /internal/reprocess`，cron 触发）按年龄阈值捞回重跑——这是异步 ACK 下补回 at-least-once 的安全网，**不要删**。
 
 > 状态机挂在 `notifications`（`pending|processing|done|noise`），**不在 `events` 上**——event 只有 producer 侧 `delivery_status`（是否已被某条通知投递过），没有消费侧 status。
@@ -31,7 +31,7 @@ analysis 是系统里**唯一**真正的 LLM agent。完整设计见 [docs/archi
 
 - 用 **plain `@anthropic-ai/sdk` 的 Messages API** 跑**手写的 tool-use loop**，**不是** Agent SDK 的 `query()`。原因见 `src/agent.ts` 顶部注释：`query()` 会把 `claude` CLI 当子进程拉起（镜像里多一个二进制 + CLI 式鉴权），不适合无状态 Cloud Run 微服务；Messages API 用 `ANTHROPIC_API_KEY` 直连、延迟更低、对 tool loop 有确定性控制。多轮 tool 调用 + 强制收尾的 agentic 行为不变。
 - 模型取 `config.signalModel()`；`MAX_TURNS = 6`，`max_tokens` 有上限。
-- 工具是 `Anthropic.Tool[]` 声明 + `runTool(name, input)` 分发（**全只读**）：`read_recent_feedback(symbol, event_type)`（检索 evaluation 经验库）、`get_fundamentals(symbol)`、`get_technicals(symbol)`、`emit_signal(...)`（最后一轮 `tool_choice` 强制调用）。新增工具沿用这个声明 + switch 模式。
+- 工具是 `Anthropic.Tool[]` 声明 + `runTool(name, input)` 分发（**全只读**）：`get_fundamentals(symbol)`、`get_technicals(symbol)`、`emit_signal(...)`（最后一轮 `tool_choice` 强制调用）。新增工具沿用这个声明 + switch 模式。
 - **参考估值不是 agent 工具**：在进 agent 前由 `computeReferenceValuation` 算好，作为 FACTS 注入 prompt（agent 的活是「从事件重定价」，参考估值只是输入之一）。
 - 辅助数据（fundamentals / technicals）经 `marketdata` **读穿缓存**（`marketdata.getRatios` / `getDailyPrices`）→ PIT 落库复用；**不在 agent 里直连 FMP，也不挂 FMP MCP**。
 

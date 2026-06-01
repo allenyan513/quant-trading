@@ -36,7 +36,6 @@ export const {
   notifications,
   tradingSignals,
   signalDeliveries,
-  signalOutcomes,
-  feedbackNotes,
+  positions,
   logs,
 } = schema;

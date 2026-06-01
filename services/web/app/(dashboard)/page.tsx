@@ -7,7 +7,7 @@ import { fmtAgo, fmtFull } from "@/lib/format";
 
 interface Overview {
   windowHours: number;
-  funnel: { events: number; notifications: number; signals: number; outcomes: number; feedback: number };
+  funnel: { events: number; notifications: number; signals: number; positions: number };
   outbox: {
     events: Record<string, number>;
     notifications: Record<string, number>;
@@ -32,8 +32,7 @@ const FUNNEL: { key: keyof Overview["funnel"]; label: string }[] = [
   { key: "events", label: "Events" },
   { key: "notifications", label: "Notifications" },
   { key: "signals", label: "Signals" },
-  { key: "outcomes", label: "Outcomes" },
-  { key: "feedback", label: "Feedback" },
+  { key: "positions", label: "Positions" },
 ];
 
 function StatusCounts({ map }: { map: Record<string, number> }) {

@@ -5,11 +5,13 @@ import { LiveTable, type Column } from "@/components/live";
 import { Badge, Meta, StatusBadge, TimeText, statusColor } from "@/components/ui";
 import { fmtFull, fmtMoney, fmtPct } from "@/lib/format";
 
-interface Outcome {
-  horizon: string;
-  returnPct: number | null;
-  alphaPct: number | null;
-  resolvedStatus: string | null;
+interface Position {
+  status: string;
+  targetWeight: number | null;
+  targetNotional: number | null;
+  exitPrice: number | null;
+  realizedReturn: number | null;
+  sizingReasons: unknown;
 }
 interface SignalRow {
   id: string;
@@ -28,8 +30,13 @@ interface SignalRow {
   status: string;
   createdAt: string;
   expiresAt: string | null;
-  outcomes: Outcome[];
+  position: Position | null;
   delivery: { deliveryStatus: string; attempts: number; lastError: string | null } | null;
+}
+
+/** Position target weight (fraction of capital) → "3.0%". */
+function fmtWeight(w: number | null): string {
+  return w == null ? "—" : `${(w * 100).toFixed(1)}%`;
 }
 
 function dirColor(d: string) {
@@ -55,6 +62,18 @@ const columns: Column<SignalRow>[] = [
   },
   { key: "generatedBy", header: "By", render: (r) => (r.generatedBy ? <Badge>{r.generatedBy}</Badge> : "—") },
   { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+  {
+    key: "position",
+    header: "Pos",
+    render: (r) =>
+      r.position ? (
+        <span style={{ fontSize: 12 }}>
+          {fmtWeight(r.position.targetWeight)} <Badge color={statusColor(r.position.status)}>{r.position.status}</Badge>
+        </span>
+      ) : (
+        "—"
+      ),
+  },
   {
     key: "delivery",
     header: "Delivery",
@@ -91,19 +110,19 @@ export default function SignalsPage() {
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>thesis</div>
               <div style={{ fontSize: 13 }}>{r.thesis ?? "—"}</div>
             </div>
-            {r.outcomes.length > 0 && (
+            {r.position && (
               <div>
-                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>outcomes</div>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                  {r.outcomes
-                    .slice()
-                    .sort((a, b) => a.horizon.localeCompare(b.horizon))
-                    .map((o) => (
-                      <div key={o.horizon} style={{ fontSize: 13 }}>
-                        <Badge>{o.horizon}</Badge> ret {fmtPct(o.returnPct)} · α {fmtPct(o.alphaPct)}{" "}
-                        {o.resolvedStatus && <Badge color={statusColor(o.resolvedStatus)}>{o.resolvedStatus}</Badge>}
-                      </div>
-                    ))}
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>position</div>
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13 }}>
+                  <span>weight {fmtWeight(r.position.targetWeight)}</span>
+                  <span>notional {fmtMoney(r.position.targetNotional)}</span>
+                  <Badge color={statusColor(r.position.status)}>{r.position.status}</Badge>
+                  {r.position.status === "closed" && (
+                    <>
+                      <span>exit {fmtMoney(r.position.exitPrice)}</span>
+                      <span>realized {fmtPct(r.position.realizedReturn == null ? null : r.position.realizedReturn * 100)}</span>
+                    </>
+                  )}
                 </div>
               </div>
             )}
