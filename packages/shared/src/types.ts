@@ -103,6 +103,11 @@ export interface TradingSignalDTO {
   thesis: string | null;
   generated_by: "llm" | "algo";
   snapshot_id: string | null;
+  /** LLM provenance (T1); full prompt/response lives in signal_audits, not here. */
+  model_version: string | null;
+  prompt_version: string | null;
+  /** Honesty/cutoff (T2): all priced events post-date the model cutoff; null = undetermined. */
+  out_of_sample: boolean | null;
   status: SignalStatus;
   created_at: string;
   expires_at: string | null;

@@ -43,3 +43,12 @@ analysis 是系统里**唯一**真正的 LLM agent。这里是写代码时的硬
 - `conviction` 只决定通知优先级，**不是仓位**。
 - 信号必须带 `snapshot_id` 关联当时的 reference valuation 快照，保证可重放。
 - 改 agent 行为/工具/提示前，先确认不会绕过上述护栏或两阶段事务。
+
+## 验证纪律 / 前视污染（T1/T2，硬约束）
+
+LLM 给真实事件定价，事件结果可能已在模型训练数据里 → **cutoff 之前数据上的回测是自我欺骗**。
+
+- **可审计**：每个信号落 `trading_signals.model_version`（= `resp.model`，实际服务模型）+ `prompt_version`（agent 里 `PROMPT_VERSION` 常量，改 `SYSTEM_PROMPT`/工具/loop 契约时 bump）；完整 system/user prompt + 多轮 messages + token 落 `signal_audits`（按需读，**别塞进 `trading_signals` 热表**）。复盘"模型为何这么判"从 `signal_audits` 取，不靠重跑。
+- **样本外判定**：`trading_signals.out_of_sample` = 该信号**所有**所定价事件的 `observed_at` 都晚于 `config.modelCutoff()`（纯函数 `isOutOfSample`，`@qt/shared`）；有缺失/无事件 → `null`（未判定，保守不算干净）。
+- **回测/alpha 只统计 `out_of_sample = true` 的信号**。严禁在 cutoff 之前的数据上跑回测并当真实表现汇报。
+- **换模型 = 策略变更**：`MODEL_CUTOFF` 随 `SIGNAL_MODEL` 一起改；样本不可跨 `model_version` 混算（为 T5 分桶 baseline 埋点）。

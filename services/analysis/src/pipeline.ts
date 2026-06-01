@@ -16,14 +16,14 @@
  */
 import { randomUUID } from "node:crypto";
 import { and, eq, lt, inArray } from "drizzle-orm";
-import { db, dbSchema, type NotificationPayload, type TradingSignalDTO } from "@qt/shared";
+import { db, dbSchema, config, isOutOfSample, type NotificationPayload, type TradingSignalDTO } from "@qt/shared";
 import { classifyNotification, type NormalizedNotification, type NormalizedEvent } from "./classify.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { generateSignal } from "./agent.js";
 import { deliverSignal, rowToDto } from "./deliver.js";
 import { log } from "./log.js";
 
-const { events, notifications, tradingSignals } = dbSchema;
+const { events, notifications, tradingSignals, signalAudits } = dbSchema;
 
 export type IntakeResult =
   | { status: "noise"; notification_id: string }
@@ -119,6 +119,26 @@ export async function intakeNotification(p: NotificationPayload): Promise<Intake
  * Slow phase: reference valuation + agent reprice + persist signal + deliver.
  * Safe to call from the request handler (background) or from reprocessStuck().
  */
+/**
+ * T2 look-ahead guard: a signal is out-of-sample only if every event it priced
+ * post-dates the model cutoff. Reads the notification's member events' observed_at
+ * (not carried on the normalized bundle). Returns null when undetermined.
+ */
+async function computeOutOfSample(notifId: string): Promise<boolean | null> {
+  const [n] = await db()
+    .select({ eventIds: notifications.eventIds })
+    .from(notifications)
+    .where(eq(notifications.id, notifId));
+  const eventIds = (n?.eventIds as string[]) ?? [];
+  if (eventIds.length === 0) return null;
+  const rows = await db()
+    .select({ observedAt: events.observedAt })
+    .from(events)
+    .where(inArray(events.id, eventIds));
+  const observedMs = rows.map((r) => (r.observedAt ? r.observedAt.getTime() : null));
+  return isOutOfSample(observedMs, config.modelCutoff().getTime());
+}
+
 export async function processNotification(
   notifId: string,
   norm: NormalizedNotification,
@@ -136,7 +156,7 @@ export async function processNotification(
     verdict: ref.verdict,
     reused: (ref.detail as { source?: string })?.source === "reused",
   });
-  const draft = await generateSignal(norm, ref);
+  const { draft, audit } = await generateSignal(norm, ref);
   log.info("pipeline.drafted", {
     symbol: norm.symbol,
     direction: draft.direction,
@@ -152,6 +172,8 @@ export async function processNotification(
   const expiresAt = draft.horizon_days
     ? new Date(createdAt.getTime() + draft.horizon_days * 24 * 3600 * 1000)
     : null;
+
+  const outOfSample = await computeOutOfSample(notifId);
 
   const id = randomUUID();
   const [row] = await db()
@@ -171,6 +193,9 @@ export async function processNotification(
       thesis: draft.thesis,
       generatedBy: "llm",
       snapshotId: ref.snapshot_id,
+      modelVersion: audit.model,
+      promptVersion: audit.promptVersion,
+      outOfSample,
       status: "open",
       createdAt,
       expiresAt,
@@ -188,6 +213,23 @@ export async function processNotification(
     log.info("pipeline.signal.dup", { notification_id: notifId, signal: existing?.id });
     return rowToDto(existing!);
   }
+
+  // Persist the full LLM audit trail (T1) for replay. Keyed on the signal id;
+  // idempotent so a redelivered/retried run never duplicates it.
+  await db()
+    .insert(signalAudits)
+    .values({
+      signalId: id,
+      model: audit.model,
+      promptVersion: audit.promptVersion,
+      systemPrompt: audit.systemPrompt,
+      userPrompt: audit.userPrompt,
+      messages: audit.messages,
+      turns: audit.turns,
+      inputTokens: audit.inputTokens,
+      outputTokens: audit.outputTokens,
+    })
+    .onConflictDoNothing({ target: signalAudits.signalId });
 
   await db().update(notifications).set({ status: "done" }).where(eq(notifications.id, notifId));
   log.info("pipeline.signal", {

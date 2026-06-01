@@ -29,6 +29,27 @@ Workflow: (1) optionally call get_fundamentals / get_technicals; (2) call emit_s
 
 Always emit: direction (buy/sell/hold); absolute target_price and stop_loss; horizon in days; conviction (low/medium/high — notification priority only, NOT position size); and a one-paragraph thesis that explicitly references the events. Position sizing is out of scope.`;
 
+// Bump whenever SYSTEM_PROMPT (or the tool/loop contract) changes — lets us bucket
+// signal performance by prompt version (T1 auditability).
+const PROMPT_VERSION = "1";
+
+/** Full LLM provenance for one generated signal — persisted for replay/audit. */
+export interface SignalAudit {
+  model: string; // actual served model id (resp.model)
+  promptVersion: string;
+  systemPrompt: string;
+  userPrompt: string;
+  messages: Anthropic.MessageParam[]; // full conversation incl. final emit_signal turn
+  turns: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface AgentResult {
+  draft: SignalDraft;
+  audit: SignalAudit;
+}
+
 const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_fundamentals",
@@ -96,7 +117,7 @@ const MAX_TURNS = 6;
 export async function generateSignal(
   notif: NormalizedNotification,
   ref: ReferenceValuation,
-): Promise<SignalDraft> {
+): Promise<AgentResult> {
   // Bundle can be large (e.g. many news items); cap each raw so the prompt stays
   // bounded — the agent can pull more detail via the read-only tools if needed.
   const eventsBlock = notif.events
@@ -132,6 +153,9 @@ export async function generateSignal(
     model: config.signalModel(),
   });
 
+  let inputTokens = 0;
+  let outputTokens = 0;
+
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     // On the last allowed turn, force the model to finalize via emit_signal.
     const forceEmit = turn === MAX_TURNS - 1;
@@ -143,6 +167,9 @@ export async function generateSignal(
       tool_choice: forceEmit ? { type: "tool", name: "emit_signal" } : { type: "auto" },
       messages,
     });
+
+    inputTokens += resp.usage.input_tokens;
+    outputTokens += resp.usage.output_tokens;
 
     const toolUses = resp.content.filter(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
@@ -170,7 +197,19 @@ export async function generateSignal(
         direction: draft.direction,
         conviction: draft.conviction,
       });
-      return draft;
+      const audit: SignalAudit = {
+        model: resp.model,
+        promptVersion: PROMPT_VERSION,
+        systemPrompt: SYSTEM_PROMPT,
+        userPrompt,
+        // Include this final assistant turn (the emit_signal tool_use) so the
+        // stored conversation is complete and replayable.
+        messages: [...messages, { role: "assistant", content: resp.content }],
+        turns: turn + 1,
+        inputTokens,
+        outputTokens,
+      };
+      return { draft, audit };
     }
 
     if (toolUses.length === 0) {
