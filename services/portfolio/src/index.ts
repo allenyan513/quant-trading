@@ -1,23 +1,26 @@
 /**
  * Portfolio service — owns the paper book end to end. It receives delivered
- * trading signals from analysis, records them, deterministically sizes them into
- * positions, and settles open positions (target/stop/expiry → close). No LLM.
+ * trading signals from analysis and acts on its book: open a new position, close
+ * an existing one when the view turns bearish (re-decision), or settle open
+ * positions on target/stop/expiry (/jobs/track). No LLM.
+ *
+ * Ownership (T12): analysis is the sole creator of `trading_signals` (it writes
+ * the row before delivering). Portfolio never inserts signals — it owns
+ * `positions` and only mirrors lifecycle onto `trading_signals.status`.
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { ok, fail, config, db, dbSchema, type TradingSignalDTO } from "@qt/shared";
-import { sizeAndRecord } from "./portfolio.js";
+import { ok, fail, config, type TradingSignalDTO } from "@qt/shared";
+import { handleSignal } from "./portfolio.js";
 import { settlePositions } from "./track.js";
 import { log } from "./log.js";
 
-const { tradingSignals } = dbSchema;
 const app = new Hono();
 
 app.get("/healthz", (c) => c.json(ok({ service: "portfolio", status: "up" })));
 
-// Intake: register the delivered signal (idempotent consumer-side safeguard;
-// shared DB in v1) and size it into a position. A sizing rejection is a normal
-// outcome and must not fail registration.
+// Intake: act on a delivered signal against the book (open / close / hold /
+// reject). A non-open outcome (e.g. reject, held) is normal, not an error.
 app.post("/signals", async (c) => {
   let s: TradingSignalDTO;
   try {
@@ -27,39 +30,11 @@ app.post("/signals", async (c) => {
   }
   if (!s?.id) return c.json(fail("bad_request", "signal id required"), 400);
   try {
-    await db()
-      .insert(tradingSignals)
-      .values({
-        id: s.id,
-        notificationId: s.notification_id,
-        eventId: s.event_id,
-        symbol: s.symbol,
-        direction: s.direction,
-        targetPrice: s.target_price,
-        stopLoss: s.stop_loss,
-        horizonDays: s.horizon_days,
-        conviction: s.conviction,
-        entryPrice: s.entry_price,
-        fairValueBase: s.fair_value_base,
-        deviationPct: s.deviation_pct,
-        thesis: s.thesis,
-        generatedBy: s.generated_by,
-        snapshotId: s.snapshot_id,
-        modelVersion: s.model_version,
-        promptVersion: s.prompt_version,
-        outOfSample: s.out_of_sample,
-        status: s.status,
-        createdAt: new Date(s.created_at),
-        expiresAt: s.expires_at ? new Date(s.expires_at) : null,
-      })
-      .onConflictDoNothing({ target: tradingSignals.id });
-    log.info("signal.registered", { signal: s.id, symbol: s.symbol, direction: s.direction });
-
-    const sizing = await sizeAndRecord(s);
-    return c.json(ok({ registered: s.id, sizing }));
+    const outcome = await handleSignal(s);
+    return c.json(ok({ signal: s.id, outcome }));
   } catch (err) {
-    log.error("signal.register_failed", { signal: s.id, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("register_failed", err instanceof Error ? err.message : String(err)), 500);
+    log.error("signal.handle_failed", { signal: s.id, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("handle_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
