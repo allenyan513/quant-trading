@@ -59,13 +59,17 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(values)) if (v) qs.set(k, v);
   if (pageSize) {
-    qs.set("limit", String(pageSize));
+    // Fetch one extra row as a probe: if it comes back there IS a next page —
+    // an accurate hasMore without a separate count query.
+    qs.set("limit", String(pageSize + 1));
     qs.set("offset", String(offset));
   }
   const url = qs.toString() ? `${path}?${qs}` : path;
 
   const { data, error, isLoading } = useLive<Row[]>(url);
-  const rows = data ?? [];
+  const fetched = data ?? [];
+  const hasMore = pageSize ? fetched.length > pageSize : false;
+  const rows = pageSize ? fetched.slice(0, pageSize) : fetched;
 
   return (
     <div>
@@ -162,7 +166,7 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
           <span style={{ fontSize: 12, color: "var(--muted)" }}>
             {rows.length === 0 ? "0" : `${offset + 1}–${offset + rows.length}`}
           </span>
-          <button disabled={rows.length < pageSize} onClick={() => setOffset((o) => o + pageSize)} style={pageBtn(rows.length < pageSize)}>
+          <button disabled={!hasMore} onClick={() => setOffset((o) => o + pageSize)} style={pageBtn(!hasMore)}>
             Next ›
           </button>
         </div>
