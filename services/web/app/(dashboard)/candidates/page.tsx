@@ -1,8 +1,54 @@
 "use client";
 
+import { useState } from "react";
+import { mutate } from "swr";
 import { LiveTable, type Column } from "@/components/live";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
+
+/** Promote/dismiss buttons. Calls the web route (which forwards to ingestion),
+ *  then revalidates the candidates table so the row updates immediately. */
+function CandidateActions({ symbol, status }: { symbol: string; status: string }) {
+  const [busy, setBusy] = useState(false);
+  if (status !== "pending") return <span style={{ color: "var(--muted)" }}>—</span>;
+
+  async function act(action: "promote" | "dismiss") {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/candidates/${action}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ symbol }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(`${action} failed: ${j.error ?? res.status}`);
+        return;
+      }
+      await mutate((k) => typeof k === "string" && k.startsWith("/api/candidates"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const btn = (color: string): React.CSSProperties => ({
+    fontSize: 12,
+    padding: "2px 8px",
+    borderRadius: 4,
+    cursor: busy ? "default" : "pointer",
+    border: `1px solid ${color}`,
+    background: "transparent",
+    color,
+    opacity: busy ? 0.5 : 1,
+  });
+
+  return (
+    <span style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+      <button disabled={busy} onClick={() => act("promote")} style={btn("#3fb950")}>Promote</button>
+      <button disabled={busy} onClick={() => act("dismiss")} style={btn("#f85149")}>Dismiss</button>
+    </span>
+  );
+}
 
 interface CandidateRow {
   symbol: string;
@@ -22,6 +68,7 @@ const columns: Column<CandidateRow>[] = [
   { key: "score", header: "Score", render: (r) => (r.score == null ? "—" : r.score.toFixed(3)) },
   { key: "discoveryReason", header: "Reason", render: (r) => <span style={{ fontSize: 13 }}>{r.discoveryReason ?? "—"}</span> },
   { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+  { key: "actions", header: "Actions", render: (r) => <CandidateActions symbol={r.symbol} status={r.status} /> },
 ];
 
 export default function CandidatesPage() {
@@ -36,6 +83,7 @@ export default function CandidatesPage() {
         path="/api/candidates"
         rowKey={(r) => r.symbol}
         columns={columns}
+        pageSize={50}
         emptyText="No candidates — run POST /scan/earnings."
         filters={[
           {
