@@ -1,22 +1,23 @@
 # Quant Trading System
 
-事件驱动的分布式量化交易系统。三个独立 HTTP 服务组成闭环：
+事件驱动的分布式量化交易系统。三个独立 HTTP 服务：
 
 ```
-外部源 → ingestion → (event) → analysis → (signal) → evaluation → (feedback) ↺
+外部源 → ingestion → (event) → analysis → (signal) → portfolio (sizing + 开/平仓结算)
 ```
 
-技术栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic Agent SDK。
+技术栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic SDK（Messages API）。
 部署：Cloud Run / 本地 Docker Compose。
 
-设计文档见 [docs/architecture.md](docs/architecture.md)。
+编码约束见 `.claude/rules/`；设计讨论 / 路线图 / 任务状态用 GitHub issues（v2 总览见 #48）。
 
 ## 结构
 
 - `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具
-- `services/ingestion` —— 外部数据唯一接收者（v1 只做定时 pull）
+- `services/ingestion` —— 外部数据唯一接收者（v1 只做定时 pull），无 LLM
 - `services/analysis` —— 核心 LLM agent，事件 → 交易信号
-- `services/evaluation` —— 信号结算 + LLM 复盘 + 反馈库
+- `services/portfolio` —— `positions` 账本唯一 owner，无 LLM：记录信号 + 确定性 sizing 开仓 + 止损/止盈/到期结算平仓
+- `services/web` —— 只读监控仪表盘（Next.js）
 
 ## 本地开发
 
@@ -25,13 +26,13 @@ pnpm install
 cp .env.example .env   # 填入 DATABASE_URL / ANTHROPIC_API_KEY / FMP_API_KEY
 pnpm db:generate && pnpm db:migrate
 # 一键起全部（本地 tsx 热重载）
-pnpm dev             # ingestion:8081 analysis:8082 evaluation:8083
+pnpm dev             # ingestion:8081 analysis:8082 portfolio:8084 (+ web)
 # 或单服务热重载
 pnpm dev:ingestion   # :8081
 # 或全栈容器
-pnpm up              # ingestion:8081 analysis:8082 evaluation:8083
+pnpm up              # host 8081/8082/8084
 ```
 
 ## 状态
 
-详见 [docs/architecture.md](docs/architecture.md) §10 分阶段交付。当前：M0 骨架。
+闭环已打通（ingestion → analysis → portfolio + web 仪表盘）。进行中的工作与路线图见 GitHub issues。
