@@ -16,3 +16,4 @@ export {
   type SizingDecision,
   type OpenPosition,
 } from "./portfolio/sizing.js";
+export { settleDecision, type SettleInput, type SettleDecision } from "./portfolio/settle.js";
