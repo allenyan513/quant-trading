@@ -64,6 +64,13 @@
       "when": 1780287966591,
       "tag": "0008_cute_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780290923426,
+      "tag": "0009_smiling_risque",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,7 @@
  */
 import { fmpGet, type EventPayload } from "@qt/shared";
 
-interface FmpEarning {
+export interface FmpEarning {
   symbol: string;
   date: string;
   epsActual?: number | null;

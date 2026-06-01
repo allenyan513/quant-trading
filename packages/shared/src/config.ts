@@ -27,6 +27,12 @@ export const config = {
   fmpBaseUrl: () => optionalEnv("FMP_BASE_URL", "https://financialmodelingprep.com/stable"),
   fmpRateLimit: () => Number(optionalEnv("FMP_RATE_LIMIT", "250")),
 
+  // ---- Discovery / universe selection ----
+  /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
+  scanEarningsSurprisePct: () => Number(optionalEnv("SCAN_EARNINGS_SURPRISE_PCT", "0.20")),
+  /** TTL (days) for a discovery-promoted watchlist entry before it expires out. */
+  discoveryTtlDays: () => Number(optionalEnv("DISCOVERY_TTL_DAYS", "30")),
+
   /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
   riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),
 

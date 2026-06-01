@@ -37,7 +37,7 @@ pnpm down
 ## 仓库结构
 
 - `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被各服务作为 `@qt/shared` workspace 依赖引用。
-- `services/ingestion` —— 外部数据唯一接收者（v1 只做定时 pull），无 LLM。
+- `services/ingestion` —— 外部数据唯一接收者（定时 `/pull/*` 拉 watchlist），无 LLM；含**选股发现 scanner**(`/scan/*` → `candidates` 队列 → 人工 `promote` 进 watchlist 带 TTL)。
 - `services/analysis` —— **唯一的真 LLM agent**：事件 → 交易信号。
 - `services/portfolio` —— **`positions` 账本唯一 owner**，无 LLM：接收 analysis 的信号 → 记录 + 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓。`services/web` 仪表盘只读这套数据。
 

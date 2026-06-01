@@ -13,6 +13,8 @@ import { pullNews } from "./pull/news.js";
 import { pullPriceTargets } from "./pull/price-target.js";
 import { pullInsider } from "./pull/insider.js";
 import { pullMna } from "./pull/mna.js";
+import { scanEarnings } from "./scan/earnings.js";
+import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
 import { getWatchlistSymbols } from "./watchlist.js";
 import { log } from "./log.js";
 
@@ -87,6 +89,66 @@ app.post("/internal/redeliver", async (c) => {
   } catch (err) {
     log.error("redeliver.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("redeliver_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// ---- Discovery / universe selection (deterministic, no LLM) ----
+
+// Earnings-surprise scanner (cron): flag out-of-watchlist surprises as candidates.
+app.post("/scan/earnings", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const win = defaultWindow();
+    const res = await scanEarnings({
+      from: (body.from as string) ?? win.from,
+      to: (body.to as string) ?? win.to,
+      minSurprisePct: (body.minSurprisePct as number | undefined) ?? config.scanEarningsSurprisePct(),
+    });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("scan.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("scan_earnings_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Human review: promote a candidate into the watchlist, or dismiss it.
+app.post("/candidates/promote", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  try {
+    const res = await promoteCandidate(symbol);
+    if (!res.promoted) return c.json(fail("not_found", `no candidate ${symbol.toUpperCase()}`), 404);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("candidate.promote.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("promote_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+app.post("/candidates/dismiss", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  try {
+    const res = await dismissCandidate(symbol);
+    if (!res.dismissed) return c.json(fail("not_found", `no candidate ${symbol.toUpperCase()}`), 404);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("candidate.dismiss.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("dismiss_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Expiry sweep (cron): drop discovery-sourced watchlist entries past their TTL.
+app.post("/internal/expire-watchlist", async (c) => {
+  try {
+    const res = await expireDiscoveryWatchlist();
+    log.info("expire.done", { removed: res.removed });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("expire.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("expire_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
