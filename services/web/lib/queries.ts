@@ -126,6 +126,7 @@ export async function getOverview(windowHours = 24) {
 
 interface ListOpts {
   limit?: number;
+  offset?: number;
   symbol?: string;
   status?: string;
   deliveryStatus?: string;
@@ -206,7 +207,8 @@ export async function listCandidates(opts: ListOpts = {}) {
     .from(candidates)
     .where(eq(candidates.status, status))
     .orderBy(desc(candidates.score), desc(candidates.lastSeenAt))
-    .limit(limit);
+    .limit(limit)
+    .offset(Math.max(0, opts.offset ?? 0));
 }
 
 interface LogOpts {

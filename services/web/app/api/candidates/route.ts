@@ -8,6 +8,7 @@ export async function GET(req: Request) {
   return handle(() =>
     listCandidates({
       limit: intParam(req, "limit"),
+      offset: intParam(req, "offset"),
       status: param(req, "status"),
     }),
   );

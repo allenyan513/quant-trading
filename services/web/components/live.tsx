@@ -41,14 +41,27 @@ interface LiveTableProps<Row> {
   rowKey: (row: Row) => string;
   expand?: (row: Row) => ReactNode;
   emptyText?: string;
+  /** Opt-in pagination: when set, append limit/offset and show Prev/Next. */
+  pageSize?: number;
 }
 
-export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText }: LiveTableProps<Row>) {
+export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+
+  // Changing a filter resets to the first page.
+  function setFilter(key: string, val: string) {
+    setValues((v) => ({ ...v, [key]: val }));
+    setOffset(0);
+  }
 
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(values)) if (v) qs.set(k, v);
+  if (pageSize) {
+    qs.set("limit", String(pageSize));
+    qs.set("offset", String(offset));
+  }
   const url = qs.toString() ? `${path}?${qs}` : path;
 
   const { data, error, isLoading } = useLive<Row[]>(url);
@@ -63,7 +76,7 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
               <select
                 key={f.key}
                 value={values[f.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                onChange={(e) => setFilter(f.key, e.target.value)}
                 style={inputStyle}
               >
                 <option value="">{f.label}: all</option>
@@ -78,7 +91,7 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
                 key={f.key}
                 placeholder={f.label}
                 value={values[f.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                onChange={(e) => setFilter(f.key, e.target.value)}
                 style={inputStyle}
               />
             ),
@@ -140,9 +153,34 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
           </tbody>
         </table>
       </div>
+
+      {pageSize && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
+          <button disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - pageSize))} style={pageBtn(offset === 0)}>
+            ‹ Prev
+          </button>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>
+            {rows.length === 0 ? "0" : `${offset + 1}–${offset + rows.length}`}
+          </span>
+          <button disabled={rows.length < pageSize} onClick={() => setOffset((o) => o + pageSize)} style={pageBtn(rows.length < pageSize)}>
+            Next ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+const pageBtn = (disabled: boolean): React.CSSProperties => ({
+  background: "var(--panel-2)",
+  border: "1px solid var(--border)",
+  color: "var(--text)",
+  borderRadius: 8,
+  padding: "5px 12px",
+  fontSize: 13,
+  cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.4 : 1,
+});
 
 const inputStyle: React.CSSProperties = {
   background: "var(--panel-2)",
