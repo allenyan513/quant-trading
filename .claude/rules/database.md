@@ -8,7 +8,7 @@ paths:
 
 # 数据库（Neon + Drizzle）
 
-schema 总览见 [docs/architecture.md](../../docs/architecture.md) §8。schema 真源是 `packages/shared/src/db/schema.ts`。
+schema 真源是 `packages/shared/src/db/schema.ts`（唯一权威，无另册总览）。
 
 ## 迁移流程
 

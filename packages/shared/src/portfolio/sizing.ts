@@ -2,10 +2,9 @@
  * Deterministic position sizing — Portfolio Construction (T7).
  *
  * Pure function: (signal, sector, current book, params) -> sizing decision.
- * No DB/FMP/IO — the call site loads the open book and looks up the sector, so
- * this stays trivially unit-testable and portable. Today it is called from
- * evaluation's /signals intake; in the v2 refactor it moves into a dedicated
- * portfolio service UNCHANGED (see docs/plans/T7-portfolio-construction.md).
+ * No DB/FMP/IO — the call site (portfolio service's /signals intake) loads the
+ * open book and looks up the sector, so this stays trivially unit-testable and
+ * portable.
  *
  * v1 scope: long-only, paper-money, sizing-by-conviction with per-name / sector
  * / cash caps. Sells/holds, exits, shorts, add-to-position and a real

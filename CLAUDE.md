@@ -6,9 +6,9 @@
 外部源 → ingestion → (event) → analysis → (signal) → portfolio (sizing + 开/平仓结算)
 ```
 
-栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic Agent SDK。pnpm workspaces 单仓库。
+栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic SDK（Messages API，非 Agent SDK）。pnpm workspaces 单仓库。
 
-**架构基准是 [docs/architecture.md](docs/architecture.md)** —— 任何涉及服务边界、数据流、estim/估值分层、schema 的问题先读它，本文件不复制其内容。
+**编码硬约束在 `.claude/rules/`**（按目录自动加载，见文末）；schema 真源是 `packages/shared/src/db/schema.ts`。设计讨论 / 路线图 / 任务状态一律用 **GitHub issues**（不再维护 `docs/` —— 它易和代码脱节）。服务边界与数据流见下方拓扑图 + 仓库结构。
 
 ## 命令
 
@@ -75,4 +75,4 @@ pnpm down
 
 ## 当前阶段
 
-见 architecture.md §10。当前：**M0 骨架**（三服务 health 端点 + 本地/容器起得来）。
+闭环已打通：ingestion 拉取/聚合投递 → analysis 重定价出信号 → portfolio sizing 开仓 + `/jobs/track` 结算平仓；`services/web` 只读仪表盘。进行中的工作与路线图见 **GitHub issues**（v2 总览 #48，架构讨论 #44）。

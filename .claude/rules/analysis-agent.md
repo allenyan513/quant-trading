@@ -5,7 +5,7 @@ paths:
 
 # analysis service —— LLM agent 细则
 
-analysis 是系统里**唯一**真正的 LLM agent。完整设计见 [docs/architecture.md](../../docs/architecture.md) §5 / §6，这里是写代码时的硬约束。
+analysis 是系统里**唯一**真正的 LLM agent。这里是写代码时的硬约束（设计讨论/路线图见 GitHub issues，如 #44/#48）。
 
 ## 异步 ACK + 两阶段（不可破坏）
 
@@ -26,6 +26,7 @@ analysis 是系统里**唯一**真正的 LLM agent。完整设计见 [docs/archi
 - **Reference valuation（System A）**：慢、基本面驱动，只在财报/估值刷新时更新，持久化为不可变 `valuation_snapshots`（带 `code_version`）。
 - **Trading valuation（System B）**：快、事件调整后的近端价值，以 reference 为输入之一。
 - 核心原则：**参考估值不是答案，事件重定价才是**。不同 event 类型有不同 playbook（earnings 先刷参考估值；rating/price_target 直接调交易估值；news 先判材料性）。
+- **估值引擎**（`services/analysis/src/valuation/`，移植自 `legends/value-scope` 的纯函数多模型引擎）：FCFF DCF(growth/EBITDA-exit, 5Y/10Y) + multiples + PEG + EPV + DDM，按公司 **archetype** 选模型与终值增长率，WACC 用 CAPM。`computeFullValuation` 聚合成 **consensus fair value（主 = FCFF Growth Exit 5Y）**；缺输入的模型自动降级，无财报/无价则落 price-only 快照；快照 `detail` 存完整结果可重放。FCFF + GDP-fade 终值偏**保守**（System A 的诚实下限，真正决策靠事件重定价）。移植的模型文件标 `// @ts-nocheck`（vendored，靠本仓单测兜底）。
 
 ## Agent loop（plain Messages API，非 Agent SDK）
 
