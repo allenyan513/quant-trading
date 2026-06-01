@@ -43,6 +43,13 @@
       "when": 1780250489357,
       "tag": "0005_ambitious_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780281363664,
+      "tag": "0006_lazy_songbird",
+      "breakpoints": true
     }
   ]
 }

@@ -232,6 +232,40 @@ export const tradingSignals = pgTable(
   ],
 );
 
+// ---- Positions / paper book (Portfolio Construction, T7) ----
+
+// One open position per entry signal (1:1, signal_id is PK -> idempotent intake).
+// Sizing is deterministic (see @qt/shared portfolio/sizing). v1 is long-only,
+// paper-money; lifecycle close fields (closed_at/exit_price/realized_return) are
+// filled by a later task. Sizing inputs are snapshotted (sizing_params) and the
+// sector at entry is frozen, mirroring PIT/replayability conventions elsewhere.
+export const positions = pgTable(
+  "positions",
+  {
+    signalId: text("signal_id").primaryKey(),
+    symbol: text("symbol").notNull(),
+    direction: text("direction").notNull(), // v1 always 'buy'
+    status: text("status").default("open").notNull(), // open|closed
+    // sizing result (immutable snapshot at open)
+    targetWeight: doublePrecision("target_weight"), // fraction of capital 0..1
+    targetNotional: doublePrecision("target_notional"),
+    entryPrice: doublePrecision("entry_price"),
+    shares: doublePrecision("shares"),
+    sectorAtEntry: text("sector_at_entry"),
+    sizingReasons: jsonb("sizing_reasons"), // string[]
+    sizingParams: jsonb("sizing_params"), // SizingParams snapshot for replay
+    // lifecycle close (left null in v1; filled by later task)
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    exitPrice: doublePrecision("exit_price"),
+    realizedReturn: doublePrecision("realized_return"),
+    openedAt: timestamp("opened_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    index("idx_positions_status").on(t.status),
+    index("idx_positions_symbol").on(t.symbol),
+  ],
+);
+
 // ---- Signal delivery outbox (analysis -> evaluation) ----
 
 export const signalDeliveries = pgTable(
