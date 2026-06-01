@@ -84,8 +84,10 @@ export function sizePosition(input: SizingInput): SizingDecision {
     return { action: "reject", reasons: ["max_positions_reached"] };
   }
 
-  // 5. Base weight by conviction (null -> low, the most conservative tier).
-  const conviction = signal.conviction ?? "low";
+  // 5. Base weight by conviction (null or invalid -> low, the most conservative tier).
+  const conviction = (signal.conviction === "medium" || signal.conviction === "high")
+    ? signal.conviction
+    : "low";
   let weight = params.sizeByConviction[conviction];
 
   // 6. Per-name cap.
