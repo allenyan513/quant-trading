@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
+import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull, fmtMoney, fmtPct } from "@/lib/format";
 
@@ -39,7 +40,7 @@ const columns: Column<ValRow>[] = [
 export default function ValuationsPage() {
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>Valuations</h1>
+      <PageTitle subsystem="analysis">Valuations</PageTitle>
       <LiveTable
         path="/api/valuations"
         rowKey={(r) => r.snapshotId}

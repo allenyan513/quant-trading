@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
+import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
 
@@ -35,7 +36,7 @@ const columns: Column<EventRow>[] = [
 export default function EventsPage() {
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>Events</h1>
+      <PageTitle subsystem="ingestion">Events</PageTitle>
       <LiveTable
         path="/api/events"
         rowKey={(r) => r.id}

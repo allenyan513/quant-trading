@@ -18,7 +18,15 @@ interface Trace {
     status: string;
     thesis: string | null;
     createdAt: string;
-    position: { status: string; targetWeight: number | null; realizedReturn: number | null } | null;
+    position: {
+      status: string;
+      targetWeight: number | null;
+      realizedReturn: number | null;
+      entryPrice: number | null;
+      exitPrice: number | null;
+      openedAt: string;
+      closedAt: string | null;
+    } | null;
   }[];
   valuations: { snapshotId: string; fairValuePerShare: number | null; currentPrice: number | null; upsidePct: number | null; verdict: string | null; createdAt: string }[];
   logs: { id: string; ts: string; level: string; service: string; event: string; fields: Record<string, unknown> | null }[];
@@ -81,6 +89,38 @@ export default function SymbolPage() {
         </>
       ),
     });
+  // Portfolio segment: surface each position's open/close as its own event so
+  // the portfolio subsystem is visible on the timeline, not just nested in the
+  // signal that spawned it.
+  const POS = "#f0883e";
+  for (const s of data.signals) {
+    const p = s.position;
+    if (!p) continue;
+    entries.push({
+      ts: p.openedAt,
+      kind: "position",
+      color: POS,
+      node: (
+        <>
+          <Badge color={POS}>position</Badge> opened · weight{" "}
+          {p.targetWeight == null ? "—" : `${(p.targetWeight * 100).toFixed(1)}%`} @ {fmtMoney(p.entryPrice)}{" "}
+          <StatusBadge status={p.status} />
+        </>
+      ),
+    });
+    if (p.closedAt)
+      entries.push({
+        ts: p.closedAt,
+        kind: "position",
+        color: POS,
+        node: (
+          <>
+            <Badge color={POS}>position</Badge> closed @ {fmtMoney(p.exitPrice)} · realized{" "}
+            {fmtPct(p.realizedReturn == null ? null : p.realizedReturn * 100)} <StatusBadge status={p.status} />
+          </>
+        ),
+      });
+  }
   for (const v of data.valuations)
     entries.push({
       ts: v.createdAt,
@@ -111,6 +151,8 @@ export default function SymbolPage() {
 
   const latestVal = data.valuations[0];
   const openSignals = data.signals.filter((s) => s.status === "open").length;
+  const positions = data.signals.filter((s) => s.position);
+  const openPositions = positions.filter((s) => s.position?.status === "open").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -120,6 +162,7 @@ export default function SymbolPage() {
         <Stat label="events" value={data.events.length} />
         <Stat label="notifications" value={data.notifications.length} />
         <Stat label="signals" value={data.signals.length} sub={`${openSignals} open`} />
+        <Stat label="positions" value={positions.length} sub={`${openPositions} open`} color="#f0883e" />
         <Stat
           label="latest valuation"
           value={latestVal ? <StatusBadge status={latestVal.verdict} /> : "—"}

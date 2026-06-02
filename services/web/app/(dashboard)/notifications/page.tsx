@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
+import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
 
@@ -36,7 +37,9 @@ const columns: Column<NotifRow>[] = [
 export default function NotificationsPage() {
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>Notifications</h1>
+      <PageTitle subsystem="ingestion" sub="生产侧 delivery_status 归 ingestion · 消费侧 status 由 analysis 推进">
+        Notifications
+      </PageTitle>
       <LiveTable
         path="/api/notifications"
         rowKey={(r) => r.id}
