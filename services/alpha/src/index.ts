@@ -1,6 +1,6 @@
 /**
- * Analysis service — the core. Receives events, reprices into trading signals via
- * the Agent SDK, persists them, and delivers to evaluation.
+ * Alpha service — the core. Receives notifications, reprices into trading signals
+ * via the Anthropic Messages API, persists them, and delivers to portfolio.
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -11,7 +11,7 @@ import { log } from "./log.js";
 
 const app = new Hono();
 
-app.get("/healthz", (c) => c.json(ok({ service: "analysis", status: "up" })));
+app.get("/healthz", (c) => c.json(ok({ service: "alpha", status: "up" })));
 
 app.post("/notifications", async (c) => {
   let payload: NotificationPayload;

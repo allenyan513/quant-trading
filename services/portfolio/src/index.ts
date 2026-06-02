@@ -1,10 +1,10 @@
 /**
  * Portfolio service — owns the paper book end to end. It receives delivered
- * trading signals from analysis and acts on its book: open a new position, close
+ * trading signals from alpha and acts on its book: open a new position, close
  * an existing one when the view turns bearish (re-decision), or settle open
  * positions on target/stop/expiry (/jobs/track). No LLM.
  *
- * Ownership (T12): analysis is the sole creator of `trading_signals` (it writes
+ * Ownership (T12): alpha is the sole creator of `trading_signals` (it writes
  * the row before delivering). Portfolio never inserts signals — it owns
  * `positions` and only mirrors lifecycle onto `trading_signals.status`.
  */

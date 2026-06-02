@@ -40,7 +40,7 @@ const columns: Column<ValRow>[] = [
 export default function ValuationsPage() {
   return (
     <div>
-      <PageTitle subsystem="analysis">Valuations</PageTitle>
+      <PageTitle subsystem="alpha">Valuations</PageTitle>
       <LiveTable
         path="/api/valuations"
         rowKey={(r) => r.snapshotId}

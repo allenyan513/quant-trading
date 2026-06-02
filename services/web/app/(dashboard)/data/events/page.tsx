@@ -36,7 +36,7 @@ const columns: Column<EventRow>[] = [
 export default function EventsPage() {
   return (
     <div>
-      <PageTitle subsystem="ingestion">Events</PageTitle>
+      <PageTitle subsystem="data">Events</PageTitle>
       <LiveTable
         path="/api/events"
         rowKey={(r) => r.id}

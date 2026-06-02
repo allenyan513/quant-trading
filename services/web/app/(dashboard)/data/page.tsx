@@ -2,6 +2,6 @@
 
 import { SubsystemLanding } from "@/components/subsystem-landing";
 
-export default function IngestionPage() {
-  return <SubsystemLanding name="ingestion" />;
+export default function DataPage() {
+  return <SubsystemLanding name="data" />;
 }

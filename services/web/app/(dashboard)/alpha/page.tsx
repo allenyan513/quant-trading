@@ -2,6 +2,6 @@
 
 import { SubsystemLanding } from "@/components/subsystem-landing";
 
-export default function AnalysisPage() {
-  return <SubsystemLanding name="analysis" />;
+export default function AlphaPage() {
+  return <SubsystemLanding name="alpha" />;
 }

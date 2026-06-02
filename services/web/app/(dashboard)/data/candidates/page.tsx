@@ -7,7 +7,7 @@ import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
 
-/** Promote/dismiss buttons. Calls the web route (which forwards to ingestion),
+/** Promote/dismiss buttons. Calls the web route (which forwards to the data service),
  *  then revalidates the candidates table so the row updates immediately. */
 function CandidateActions({ symbol, status }: { symbol: string; status: string }) {
   const [busy, setBusy] = useState(false);
@@ -75,10 +75,10 @@ const columns: Column<CandidateRow>[] = [
 export default function CandidatesPage() {
   return (
     <div>
-      <PageTitle subsystem="ingestion" sub="选股发现 scanner → 人工 promote 进 watchlist">Candidates</PageTitle>
+      <PageTitle subsystem="data" sub="选股发现 scanner → 人工 promote 进 watchlist">Candidates</PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
         Discovery review queue. Promote via{" "}
-        <code>POST /candidates/promote {"{ symbol }"}</code> (ingestion) to add to the watchlist.
+        <code>POST /candidates/promote {"{ symbol }"}</code> (data) to add to the watchlist.
       </p>
       <LiveTable
         path="/api/candidates"

@@ -1,7 +1,7 @@
 /**
- * Ingestion service — the sole receiver of external info. v1: scheduled pull
+ * Data service — the sole receiver of external info. v1: scheduled pull
  * only. Cloud Scheduler hits /pull/* on a cron; each pulled item becomes an
- * event, persisted (dedup) and delivered to analysis with outbox fallback.
+ * event, persisted (dedup) and delivered to alpha with outbox fallback.
  */
 import { serve } from "@hono/node-server";
 import { Hono, type Context } from "hono";
@@ -20,7 +20,7 @@ import { log } from "./log.js";
 
 const app = new Hono();
 
-app.get("/healthz", (c) => c.json(ok({ service: "ingestion", status: "up" })));
+app.get("/healthz", (c) => c.json(ok({ service: "data", status: "up" })));
 
 function defaultWindow(): { from: string; to: string } {
   const to = new Date();

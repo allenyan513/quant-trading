@@ -31,9 +31,9 @@ interface Overview {
 
 /** Funnel steps, each tagged with the subsystem that produces it. */
 const FUNNEL: { key: keyof Overview["funnel"]; label: string; subsystem: string }[] = [
-  { key: "events", label: "Events", subsystem: "ingestion" },
-  { key: "notifications", label: "Notifications", subsystem: "ingestion" },
-  { key: "signals", label: "Signals", subsystem: "analysis" },
+  { key: "events", label: "Events", subsystem: "data" },
+  { key: "notifications", label: "Notifications", subsystem: "data" },
+  { key: "signals", label: "Signals", subsystem: "alpha" },
   { key: "positions", label: "Positions", subsystem: "portfolio" },
 ];
 
@@ -83,7 +83,7 @@ export default function OverviewPage() {
         </div>
       </Card>
 
-      {/* Three subsystem swimlanes: ingestion → analysis → portfolio */}
+      {/* Three subsystem swimlanes: data → alpha → portfolio */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
         {SUBSYSTEMS.map((s) => {
           const beat = beatOf(s.name);
@@ -92,7 +92,7 @@ export default function OverviewPage() {
               key={s.name}
               accent={s.color}
               title={
-                <Link href={`/${s.slug}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Link href={`/${s.name}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 999, background: statusColor(beat?.state ?? "unknown") }} />
                   <span style={{ color: s.color, fontWeight: 700 }}>{s.label}</span>
                   <span style={{ color: "var(--muted)", fontWeight: 400 }}>:{s.port}</span>
@@ -103,12 +103,12 @@ export default function OverviewPage() {
                 </Link>
               }
             >
-              {s.name === "ingestion" && (
+              {s.name === "data" && (
                 <>
-                  <Row label="events → analysis">
+                  <Row label="events → alpha">
                     <StatusCounts map={data.outbox.events} />
                   </Row>
-                  <Row label="notifications → analysis">
+                  <Row label="notifications → alpha">
                     <StatusCounts map={data.outbox.notifications} />
                   </Row>
                   <Row label="notifications stuck >5m">
@@ -116,7 +116,7 @@ export default function OverviewPage() {
                   </Row>
                 </>
               )}
-              {s.name === "analysis" && (
+              {s.name === "alpha" && (
                 <>
                   <Row label="signals → portfolio">
                     <StatusCounts map={data.outbox.signals} />

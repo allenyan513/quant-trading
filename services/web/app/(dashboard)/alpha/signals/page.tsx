@@ -88,7 +88,7 @@ const columns: Column<SignalRow>[] = [
 export default function SignalsPage() {
   return (
     <div>
-      <PageTitle subsystem="analysis">Signals</PageTitle>
+      <PageTitle subsystem="alpha">Signals</PageTitle>
       <LiveTable
         path="/api/signals"
         rowKey={(r) => r.id}

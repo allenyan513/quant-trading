@@ -4,13 +4,13 @@
  *   intake (fast):  locate the notification by (source, batch_key); dedup; noise
  *                   short-circuit; mark `processing`. Cheap DB-only work.
  *   process (slow): reference valuation + agent reprice (no tx across network);
- *                   persist one trading signal, mark `done`; deliver to evaluation.
+ *                   persist one trading signal, mark `done`; deliver to portfolio.
  *
- * A notification bundles 1..N raw events sharing (symbol, event_type); analysis
+ * A notification bundles 1..N raw events sharing (symbol, event_type); alpha
  * reprices the whole bundle into ONE signal (uq_signals_notification).
  *
  * The HTTP handler awaits intake then ACKs 202 and runs process() in the
- * background, so the producer (ingestion) is never blocked on the LLM. If a
+ * background, so the producer (data) is never blocked on the LLM. If a
  * background run dies, the notification is left in `processing` and recovered by
  * reprocessStuck(). Idempotent on (source, batch_key) throughout.
  */
@@ -31,7 +31,7 @@ export type IntakeResult =
   | { status: "accepted"; notification_id: string; norm: NormalizedNotification };
 
 /**
- * Locate the notification row. In v1 (shared DB) ingestion has already written
+ * Locate the notification row. In v1 (shared DB) data has already written
  * it before POSTing, so this is normally a lookup. The insert is a fallback for
  * a future non-shared DB: it resolves member event ids from the raw `events`.
  */
@@ -280,7 +280,7 @@ async function rowToNormalized(
  * Recover notifications stuck in `processing` (background run died before
  * persisting a signal). Cron-triggered. The age cutoff keeps in-flight work
  * untouched, so a normal ~20s LLM run is never double-processed. Mirrors
- * ingestion's redelivery: the analysis-side safety net that makes async ACK
+ * data's redelivery: the alpha-side safety net that makes async ACK
  * at-least-once.
  *
  * `limit` is deliberately small and processing is sequential: each run is a slow

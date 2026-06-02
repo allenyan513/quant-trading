@@ -1,7 +1,7 @@
 /**
  * Minimal structured logger for tracing the distributed flow across services.
  * One readable line per event, e.g.:
- *   12:34:56.789 [ingestion] INFO  pull.earnings.done pulled=3 delivered=3
+ *   12:34:56.789 [data] INFO  pull.earnings.done pulled=3 delivered=3
  *
  * Conventions:
  *  - `event` is a dotted name (`<area>.<step>[.<outcome>]`) so a flow reads top-down.

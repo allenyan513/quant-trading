@@ -1,17 +1,17 @@
 /**
- * Outbox-backed event ingestion + aggregated notification delivery.
+ * Outbox-backed event intake + aggregated notification delivery.
  *
  * A pull persists EVERY qualified event (dedup on source+external_id) — nothing
  * is collapsed away. The not-yet-delivered events are then grouped by
- * (symbol, event_type) and each group is delivered to analysis as ONE
- * `notification` (e.g. "NVDA: 3 grade changes"), so analysis reprices the whole
+ * (symbol, event_type) and each group is delivered to alpha as ONE
+ * `notification` (e.g. "NVDA: 3 grade changes"), so alpha reprices the whole
  * bundle into a single signal instead of fighting N near-simultaneous events.
  *
  * Two outbox layers, both at-least-once:
- *   - events.delivery_status: "have we told analysis about this raw event yet".
+ *   - events.delivery_status: "have we told alpha about this raw event yet".
  *     Flipped to `delivered` only when the notification carrying it succeeds.
  *   - notifications.delivery_status: the POST itself; `pending` ones are retried
- *     by /internal/redeliver. The consumer (analysis) dedups on (source, batch_key).
+ *     by /internal/redeliver. The consumer (alpha) dedups on (source, batch_key).
  */
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
@@ -112,13 +112,13 @@ async function markEventsDelivered(eventIds: string[]): Promise<void> {
   await db().update(events).set({ deliveryStatus: "delivered" }).where(inArray(events.id, eventIds));
 }
 
-/** Deliver one stored notification to analysis and update its + its events' outbox. */
+/** Deliver one stored notification to alpha and update its + its events' outbox. */
 async function deliverNotification(
   notifId: string,
   payload: NotificationPayload,
   eventIds: string[],
 ): Promise<boolean> {
-  const url = `${config.analysisUrl()}/notifications`;
+  const url = `${config.alphaUrl()}/notifications`;
   const res = await deliverJson(url, payload, { idempotencyKey: `${payload.source}:${payload.batch_key}` });
   await db()
     .update(notifications)
@@ -205,7 +205,7 @@ async function buildAndDeliverNotification(
 }
 
 export interface IngestResult {
-  /** Events newly carried to analysis (in a delivered notification). */
+  /** Events newly carried to alpha (in a delivered notification). */
   delivered: number;
   /** Events skipped because a prior notification already delivered them. */
   skipped: number;

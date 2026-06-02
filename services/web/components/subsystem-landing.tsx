@@ -50,11 +50,11 @@ export function SubsystemLanding({ name }: { name: SubsystemName }) {
 
   // What flows through this subsystem in the 24h window, by name.
   const funnel: Record<SubsystemName, { label: string; value: number }[]> = {
-    ingestion: [
+    data: [
       { label: "events", value: data.funnel.events },
       { label: "notifications", value: data.funnel.notifications },
     ],
-    analysis: [{ label: "signals", value: data.funnel.signals }],
+    alpha: [{ label: "signals", value: data.funnel.signals }],
     portfolio: [{ label: "positions", value: data.funnel.positions }],
   };
 
@@ -88,8 +88,8 @@ export function SubsystemLanding({ name }: { name: SubsystemName }) {
           </div>
         </Card>
 
-        {sub.name === "ingestion" && (
-          <Card title="Outbox → analysis">
+        {sub.name === "data" && (
+          <Card title="Outbox → alpha">
             <Row label="events">
               <StatusCounts map={data.outbox.events} />
             </Row>
@@ -98,7 +98,7 @@ export function SubsystemLanding({ name }: { name: SubsystemName }) {
             </Row>
           </Card>
         )}
-        {sub.name === "analysis" && (
+        {sub.name === "alpha" && (
           <>
             <Card title="Outbox → portfolio">
               <Row label="signals">

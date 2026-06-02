@@ -1,6 +1,6 @@
 /**
  * Position re-decision (T10) — what to do when a new signal arrives for a symbol
- * the book already holds. Portfolio owns this: analysis stays a stateless opinion
+ * the book already holds. Portfolio owns this: alpha stays a stateless opinion
  * engine, and the book reacts to fresh views on its holdings instead of letting
  * them ride blindly to a mechanical stop/target/expiry.
  *

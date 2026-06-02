@@ -1,6 +1,6 @@
 /**
- * Outbox-backed delivery of a trading signal to the evaluation service. Mirrors
- * the ingestion outbox: write a signal_deliveries row, POST, update status; a
+ * Outbox-backed delivery of a trading signal to the portfolio service. Mirrors
+ * the data-service outbox: write a signal_deliveries row, POST, update status; a
  * cron-triggered redelivery drains anything left pending.
  */
 import { eq } from "drizzle-orm";

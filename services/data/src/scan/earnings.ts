@@ -3,7 +3,7 @@
  * market-wide `earnings-calendar` feed — but where /pull/earnings FILTERS to the
  * watchlist, this keeps symbols NOT on the watchlist whose EPS surprise clears a
  * threshold, as discovery candidates. Promotion to the watchlist is a separate
- * gated step (candidates.ts); candidates never reach analysis.
+ * gated step (candidates.ts); candidates never reach alpha.
  */
 import { fmpGet } from "@qt/shared";
 import type { FmpEarning } from "../pull/earnings.js";

@@ -51,10 +51,10 @@ export const watchlist = pgTable("watchlist", {
 });
 
 /**
- * `candidates` — the discovery review queue. Deterministic scanners (ingestion,
+ * `candidates` — the discovery review queue. Deterministic scanners (data,
  * no LLM) flag market-wide symbols NOT on the watchlist; a human (or, later, a
  * score rule) promotes them into the watchlist. Candidates NEVER go straight to
- * analysis — promotion is the gate. Owned (written) only by ingestion.
+ * alpha — promotion is the gate. Owned (written) only by data.
  */
 export const candidates = pgTable(
   "candidates",
@@ -159,7 +159,7 @@ export const valuationSnapshots = pgTable("valuation_snapshots", {
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
 }, (t) => [index("idx_valsnap_symbol").on(t.symbol)]);
 
-// ---- Events (ingestion -> analysis) + outbox ----
+// ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(
   "events",
@@ -174,8 +174,8 @@ export const events = pgTable(
     raw: jsonb("raw"),
     observedAt: timestamp("observed_at", { withTimezone: true }),
     ingestedAt: timestamp("ingested_at", { withTimezone: true }).default(sql`now()`).notNull(),
-    // outbox delivery status (producer side, set by ingestion): pending|delivered|failed.
-    // NOTE: events have no consumer-side pipeline status — analysis aggregates them
+    // outbox delivery status (producer side, set by data): pending|delivered|failed.
+    // NOTE: events have no consumer-side pipeline status — alpha aggregates them
     // into a `notification` and tracks pending|processing|done|noise there, not per event.
     deliveryStatus: text("delivery_status").default("pending").notNull(),
     deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
@@ -187,12 +187,12 @@ export const events = pgTable(
   ],
 );
 
-// ---- Notifications (ingestion -> analysis) + outbox ----
+// ---- Notifications (data -> alpha) + outbox ----
 
 // One aggregated notification per (symbol, event_type) batch: it bundles that
-// group's not-yet-delivered raw `events` into a single delivery to analysis.
-// Carries BOTH the producer outbox status (delivery_status, set by ingestion)
-// and the consumer pipeline status (status, set by analysis) — same dual-status
+// group's not-yet-delivered raw `events` into a single delivery to alpha.
+// Carries BOTH the producer outbox status (delivery_status, set by data)
+// and the consumer pipeline status (status, set by alpha) — same dual-status
 // shape as `events`. Idempotency: batch_key = hash of the sorted member
 // external_ids, so a crash-retry that regroups the same set hits the unique
 // (source, batch_key) and re-delivers the existing row instead of duplicating.
@@ -209,9 +209,9 @@ export const notifications = pgTable(
     summary: text("summary"), // human headline, e.g. "NVDA: 3 grade changes"
     observedAt: timestamp("observed_at", { withTimezone: true }), // latest member observed_at
     ingestedAt: timestamp("ingested_at", { withTimezone: true }).default(sql`now()`).notNull(),
-    // pipeline status (consumer side, set by analysis): pending|processing|done|noise
+    // pipeline status (consumer side, set by alpha): pending|processing|done|noise
     status: text("status").default("pending").notNull(),
-    // outbox delivery status (producer side, set by ingestion): pending|delivered|failed
+    // outbox delivery status (producer side, set by data): pending|delivered|failed
     deliveryStatus: text("delivery_status").default("pending").notNull(),
     deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
     lastError: text("last_error"),
@@ -223,7 +223,7 @@ export const notifications = pgTable(
   ],
 );
 
-// ---- Trading signals (analysis output) ----
+// ---- Trading signals (alpha output) ----
 
 export const tradingSignals = pgTable(
   "trading_signals",
@@ -265,7 +265,7 @@ export const tradingSignals = pgTable(
   ],
 );
 
-// Full LLM audit trail for a signal (T1) — written once by analysis, read rarely
+// Full LLM audit trail for a signal (T1) — written once by alpha, read rarely
 // (replay / "why did the model decide this"). Kept off `trading_signals` so the
 // hot table stays lean (a signal list never drags the full prompt/response).
 export const signalAudits = pgTable("signal_audits", {
@@ -315,7 +315,7 @@ export const positions = pgTable(
   ],
 );
 
-// ---- Signal delivery outbox (analysis -> evaluation) ----
+// ---- Signal delivery outbox (alpha -> portfolio) ----
 
 export const signalDeliveries = pgTable(
   "signal_deliveries",
@@ -341,7 +341,7 @@ export const logs = pgTable(
     id: text("id").primaryKey(),
     ts: timestamp("ts", { withTimezone: true }).default(sql`now()`).notNull(),
     level: text("level").notNull(), // debug|info|warn|error
-    service: text("service").notNull(), // ingestion|analysis|evaluation
+    service: text("service").notNull(), // data|alpha|portfolio
     event: text("event").notNull(), // dotted event name, e.g. pull.earnings.done
     symbol: text("symbol"),
     externalId: text("external_id"),

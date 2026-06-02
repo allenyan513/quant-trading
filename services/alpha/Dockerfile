@@ -1,17 +1,17 @@
-# Build from repo root: docker build -f services/analysis/Dockerfile .
+# Build from repo root: docker build -f services/alpha/Dockerfile .
 FROM node:20-slim AS base
 RUN corepack enable
 WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
 COPY packages/shared/package.json packages/shared/package.json
-COPY services/analysis/package.json services/analysis/package.json
+COPY services/alpha/package.json services/alpha/package.json
 RUN pnpm install --frozen-lockfile=false
 
 COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
-COPY services/analysis services/analysis
+COPY services/alpha services/alpha
 
 ENV NODE_ENV=production
 EXPOSE 8080
-CMD ["pnpm", "--filter", "@qt/analysis", "exec", "tsx", "src/index.ts"]
+CMD ["pnpm", "--filter", "@qt/alpha", "exec", "tsx", "src/index.ts"]

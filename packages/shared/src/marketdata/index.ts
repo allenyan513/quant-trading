@@ -1,9 +1,9 @@
 /**
  * Read-through market-data cache — System A's data layer.
  *
- * analysis asks for fundamentals / prices; we serve from the PIT tables when
+ * alpha asks for fundamentals / prices; we serve from the PIT tables when
  * they're fresh, else fetch from FMP, persist (known_at = acceptedDate, rows are
- * immutable so onConflictDoNothing), and return. This keeps ingestion a pure
+ * immutable so onConflictDoNothing), and return. This keeps data a pure
  * event pipeline while still landing reusable, replayable PIT data — and avoids
  * re-hitting FMP (rate limits / latency) on every signal.
  *
@@ -299,7 +299,7 @@ export async function getProfile(symbol: string): Promise<Record<string, unknown
   return p;
 }
 
-/** A peer's valuation multiples, for cross-check models. Shared-defined so analysis maps it to its own type. */
+/** A peer's valuation multiples, for cross-check models. Shared-defined so alpha maps it to its own type. */
 export interface PeerMultiples {
   ticker: string;
   market_cap: number | null;

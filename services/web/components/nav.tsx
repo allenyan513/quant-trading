@@ -60,7 +60,7 @@ export function Nav() {
           <Section
             key={s.name}
             label={s.label}
-            href={`/${s.slug}`}
+            href={`/${s.name}`}
             color={s.color}
             dot={stateOf(s.name)}
             pages={s.pages}

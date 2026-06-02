@@ -42,7 +42,7 @@ export default function LogsPage() {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         <select value={f.service ?? ""} onChange={(e) => setF({ ...f, service: e.target.value })} style={inputStyle}>
           <option value="">service: all</option>
-          {["ingestion", "analysis", "evaluation"].map((s) => (
+          {["data", "alpha", "portfolio"].map((s) => (
             <option key={s} value={s}>
               {s}
             </option>

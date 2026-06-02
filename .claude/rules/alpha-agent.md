@@ -1,17 +1,17 @@
 ---
 paths:
-  - "services/analysis/**/*.ts"
+  - "services/alpha/**/*.ts"
 ---
 
-# analysis service —— LLM agent 细则
+# alpha service —— LLM agent 细则
 
-analysis 是系统里**唯一**真正的 LLM agent。这里是写代码时的硬约束（设计讨论/路线图见 GitHub issues，如 #44/#48）。
+alpha 是系统里**唯一**真正的 LLM agent。这里是写代码时的硬约束（设计讨论/路线图见 GitHub issues，如 #44/#48）。
 
 ## 异步 ACK + 两阶段（不可破坏）
 
-消费单位是**通知（notification）**，不是单个 event：一条 notification = 某 symbol 同类型的一批事件聚合（由 ingestion 按 `(symbol, event_type)` 打包），**整批重定价成 1 个信号**。
+消费单位是**通知（notification）**，不是单个 event：一条 notification = 某 symbol 同类型的一批事件聚合（由 data 按 `(symbol, event_type)` 打包），**整批重定价成 1 个信号**。
 
-`POST /notifications` 是**异步 ACK**：先 `await intakeNotification`（快），立即回 202，再后台跑 `processNotification`（慢）。这样生产者（ingestion）的投递不会被 LLM 阻塞超时。见 `src/pipeline.ts`。
+`POST /notifications` 是**异步 ACK**：先 `await intakeNotification`（快），立即回 202，再后台跑 `processNotification`（慢）。这样生产者（data）的投递不会被 LLM 阻塞超时。见 `src/pipeline.ts`。
 
 1. **intake（快，ACK 前 await）**：`findOrInsertNotification` 按 `(source, batch_key)` 定位/建通知；已有信号→`duplicate`；**noise（`classifyNotification` 判不材料）在调 LLM 前短路**标 `noise`（绝不进 agent）；否则标 `processing` 返回 `accepted`。纯 DB 操作，秒回。
 2. **process（慢，后台）**：`computeReferenceValuation`（staleness-aware，复用近期快照）→ `generateSignal`（agent）→ 持久化 `trading_signals`（带 `snapshot_id`）→ 标 `done` → 投递 portfolio（`config.portfolioUrl()`）。不持有事务跨网络。
@@ -26,7 +26,7 @@ analysis 是系统里**唯一**真正的 LLM agent。这里是写代码时的硬
 - **Reference valuation（System A）**：慢、基本面驱动，只在财报/估值刷新时更新，持久化为不可变 `valuation_snapshots`（带 `code_version`）。
 - **Trading valuation（System B）**：快、事件调整后的近端价值，以 reference 为输入之一。
 - 核心原则：**参考估值不是答案，事件重定价才是**。不同 event 类型有不同 playbook（earnings 先刷参考估值；rating/price_target 直接调交易估值；news 先判材料性）。
-- **估值引擎**（`services/analysis/src/valuation/`，移植自 `legends/value-scope` 的纯函数多模型引擎）：FCFF DCF(growth/EBITDA-exit, 5Y/10Y) + multiples + PEG + EPV + DDM，按公司 **archetype** 选模型与终值增长率，WACC 用 CAPM。`computeFullValuation` 聚合成 **consensus fair value（主 = FCFF Growth Exit 5Y）**；缺输入的模型自动降级，无财报/无价则落 price-only 快照；快照 `detail` 存完整结果可重放。FCFF + GDP-fade 终值偏**保守**（System A 的诚实下限，真正决策靠事件重定价）。移植的模型文件标 `// @ts-nocheck`（vendored，靠本仓单测兜底）。
+- **估值引擎**（`services/alpha/src/valuation/`，移植自 `legends/value-scope` 的纯函数多模型引擎）：FCFF DCF(growth/EBITDA-exit, 5Y/10Y) + multiples + PEG + EPV + DDM，按公司 **archetype** 选模型与终值增长率，WACC 用 CAPM。`computeFullValuation` 聚合成 **consensus fair value（主 = FCFF Growth Exit 5Y）**；缺输入的模型自动降级，无财报/无价则落 price-only 快照；快照 `detail` 存完整结果可重放。FCFF + GDP-fade 终值偏**保守**（System A 的诚实下限，真正决策靠事件重定价）。移植的模型文件标 `// @ts-nocheck`（vendored，靠本仓单测兜底）。
 
 ## Agent loop（plain Messages API，非 Agent SDK）
 

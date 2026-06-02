@@ -1,8 +1,8 @@
 /**
- * Discovery candidate lifecycle. ingestion owns `candidates` + `watchlist`:
+ * Discovery candidate lifecycle. The data service owns `candidates` + `watchlist`:
  * scanners upsert candidates; a human promotes one into the watchlist (with a
  * source + TTL) or dismisses it; an expiry sweep drops aged discovery entries.
- * Candidates are the gate — nothing reaches analysis until it's on the watchlist.
+ * Candidates are the gate — nothing reaches alpha until it's on the watchlist.
  */
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db, dbSchema, config } from "@qt/shared";

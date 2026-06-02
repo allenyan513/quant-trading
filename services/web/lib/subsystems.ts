@@ -1,14 +1,14 @@
 /**
  * Single source of truth for the three subsystems the dashboard surfaces.
  *
- * The backend is three independent services (ingestion / analysis / portfolio),
+ * The backend is three independent services (data / alpha / portfolio),
  * each the sole owner of a set of tables (see .claude/rules/services.md). The UI
  * mirrors that boundary: every page belongs to exactly one subsystem, and each
  * subsystem gets a stable accent colour reused across the nav, page headers,
  * the overview swimlanes and the per-subsystem landing pages.
  */
 
-export type SubsystemName = "ingestion" | "analysis" | "portfolio";
+export type SubsystemName = "data" | "alpha" | "portfolio";
 
 export interface SubsystemPage {
   href: string;
@@ -17,15 +17,11 @@ export interface SubsystemPage {
 
 export interface Subsystem {
   /**
-   * Backend service identity — matches the log/heartbeat `service` name and the
-   * funnel keys (see queries.ts SERVICES). Stable; do NOT rename to follow UI
-   * branding, or the health dots and funnel stop resolving.
+   * Backend service identity — equals the route folder under app/(dashboard),
+   * the log/heartbeat `service` name and the funnel keys (see queries.ts
+   * SERVICES). Keep all of these in sync when renaming a service.
    */
   name: SubsystemName;
-  /** URL slug — the route folder under app/(dashboard). Decoupled from `name`
-   * so the UI can be rebranded (e.g. analysis→/alpha) without touching the
-   * backend service identity. */
-  slug: string;
   /** Display name shown in the nav, headers and landing pages. */
   label: string;
   /** Local dev port (docker/compose override it via env). */
@@ -42,8 +38,7 @@ export interface Subsystem {
 
 export const SUBSYSTEMS: Subsystem[] = [
   {
-    name: "ingestion",
-    slug: "data",
+    name: "data",
     label: "Data",
     port: 8081,
     color: "#58a6ff",
@@ -70,8 +65,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     ],
   },
   {
-    name: "analysis",
-    slug: "alpha",
+    name: "alpha",
     label: "Alpha",
     port: 8082,
     color: "#a371f7",
@@ -85,7 +79,6 @@ export const SUBSYSTEMS: Subsystem[] = [
   },
   {
     name: "portfolio",
-    slug: "portfolio",
     label: "Portfolio",
     port: 8084,
     color: "#f0883e",

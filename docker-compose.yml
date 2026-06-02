@@ -1,25 +1,25 @@
 # Local distributed run. Each service is an independent container,
 # mirroring the Cloud Run deployment (one image per service).
 services:
-  ingestion:
+  data:
     build:
       context: .
-      dockerfile: services/ingestion/Dockerfile
+      dockerfile: services/data/Dockerfile
     environment:
       - PORT=8080
       - DATABASE_URL=${DATABASE_URL}
       - FMP_API_KEY=${FMP_API_KEY}
       - FMP_BASE_URL=${FMP_BASE_URL:-https://financialmodelingprep.com/stable}
-      - ANALYSIS_URL=http://analysis:8080
+      - ALPHA_URL=http://alpha:8080
     ports:
       - "8081:8080"
     depends_on:
-      - analysis
+      - alpha
 
-  analysis:
+  alpha:
     build:
       context: .
-      dockerfile: services/analysis/Dockerfile
+      dockerfile: services/alpha/Dockerfile
     environment:
       - PORT=8080
       - DATABASE_URL=${DATABASE_URL}
