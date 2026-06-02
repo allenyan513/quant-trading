@@ -39,9 +39,9 @@ export const config = {
   /** Reuse a symbol's reference valuation (the slow fair value) for this many days before recomputing. */
   referenceTtlDays: () => Number(optionalEnv("REFERENCE_TTL_DAYS", "1")),
 
-  analysisUrl: () => requireEnv("ANALYSIS_URL"),
+  alphaUrl: () => requireEnv("ALPHA_URL"),
   portfolioUrl: () => requireEnv("PORTFOLIO_URL"),
-  ingestionUrl: () => requireEnv("INGESTION_URL"),
+  dataUrl: () => requireEnv("DATA_URL"),
 
   // ---- Portfolio construction (T7) deterministic sizing params ----
   /** Total paper capital (USD). Only scales notional, not weight logic. */

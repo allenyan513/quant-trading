@@ -4,9 +4,9 @@
  * hand-written DTOs that travel over HTTP between services.
  */
 
-// ---- Events (ingestion -> analysis) ----
+// ---- Events (data -> alpha) ----
 
-/** Event types the analysis brain acts on. Anything else is noise. */
+/** Event types the alpha brain acts on. Anything else is noise. */
 export const ACTIONABLE_EVENT_TYPES = [
   "earnings",
   "grade_change",
@@ -19,7 +19,7 @@ export type EventType = (typeof ACTIONABLE_EVENT_TYPES)[number];
 
 export type DirectionHint = "bullish" | "bearish" | null;
 
-/** A single raw event. Persisted by ingestion (dedup on source+external_id). */
+/** A single raw event. Persisted by data (dedup on source+external_id). */
 export interface EventPayload {
   /** Origin system, e.g. "fmp". Part of the dedup key. */
   source: string;
@@ -45,9 +45,9 @@ export interface EventRef {
 }
 
 /**
- * The payload ingestion POSTs to analysis `/notifications`: one aggregated
+ * The payload data POSTs to alpha `/notifications`: one aggregated
  * notification per (symbol, event_type) batch, bundling that group's events.
- * Analysis dedups on (source, batch_key), unpacks `events`, and reprices the
+ * Alpha dedups on (source, batch_key), unpacks `events`, and reprices the
  * whole bundle into ONE signal.
  */
 export interface NotificationPayload {
@@ -63,7 +63,7 @@ export interface NotificationPayload {
   events: EventRef[];
 }
 
-// ---- Trading signals (analysis -> evaluation) ----
+// ---- Trading signals (alpha -> portfolio) ----
 
 export type Direction = "buy" | "sell" | "hold";
 export type Conviction = "low" | "medium" | "high";
@@ -84,7 +84,7 @@ export interface SignalDraft {
   thesis: string;
 }
 
-/** The payload analysis POSTs to evaluation `/signals`. */
+/** The payload alpha POSTs to portfolio `/signals`. */
 export interface TradingSignalDTO {
   id: string;
   /** The aggregated notification this signal was repriced from. */
@@ -129,7 +129,7 @@ export interface ReferenceValuation {
   detail: Record<string, unknown>;
 }
 
-// ---- Feedback (evaluation -> analysis, retrieval-augmented) ----
+// ---- Feedback (evaluation -> alpha, retrieval-augmented) ----
 
 export interface FeedbackNote {
   id: string;

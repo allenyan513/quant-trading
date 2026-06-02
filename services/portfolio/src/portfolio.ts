@@ -4,7 +4,7 @@
  *    long; otherwise hold (v1 long-only — no add/reduce yet).
  *  - not held → deterministic sizing → open (or reject).
  *
- * Portfolio owns this end to end (it alone reads/writes `positions`); analysis
+ * Portfolio owns this end to end (it alone reads/writes `positions`); alpha
  * stays a stateless opinion engine. Sizing/re-decision are pure functions in
  * @qt/shared; this module is the DB I/O around them.
  */

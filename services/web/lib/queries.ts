@@ -21,7 +21,7 @@ import {
   logs,
 } from "./db.js";
 
-const SERVICES = ["ingestion", "analysis", "portfolio"] as const;
+const SERVICES = ["data", "alpha", "portfolio"] as const;
 const STUCK_MINUTES = 5;
 
 function hoursAgo(h: number): Date {

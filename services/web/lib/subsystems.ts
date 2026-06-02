@@ -1,14 +1,14 @@
 /**
  * Single source of truth for the three subsystems the dashboard surfaces.
  *
- * The backend is three independent services (ingestion / analysis / portfolio),
+ * The backend is three independent services (data / alpha / portfolio),
  * each the sole owner of a set of tables (see .claude/rules/services.md). The UI
  * mirrors that boundary: every page belongs to exactly one subsystem, and each
  * subsystem gets a stable accent colour reused across the nav, page headers,
  * the overview swimlanes and the per-subsystem landing pages.
  */
 
-export type SubsystemName = "ingestion" | "analysis" | "portfolio";
+export type SubsystemName = "data" | "alpha" | "portfolio";
 
 export interface SubsystemPage {
   href: string;
@@ -16,7 +16,13 @@ export interface SubsystemPage {
 }
 
 export interface Subsystem {
+  /**
+   * Backend service identity — equals the route folder under app/(dashboard),
+   * the log/heartbeat `service` name and the funnel keys (see queries.ts
+   * SERVICES). Keep all of these in sync when renaming a service.
+   */
   name: SubsystemName;
+  /** Display name shown in the nav, headers and landing pages. */
   label: string;
   /** Local dev port (docker/compose override it via env). */
   port: number;
@@ -32,8 +38,8 @@ export interface Subsystem {
 
 export const SUBSYSTEMS: Subsystem[] = [
   {
-    name: "ingestion",
-    label: "Ingestion",
+    name: "data",
+    label: "Data",
     port: 8081,
     color: "#58a6ff",
     blurb:
@@ -52,23 +58,23 @@ export const SUBSYSTEMS: Subsystem[] = [
       "notifications",
     ],
     pages: [
-      { href: "/events", label: "Events" },
-      { href: "/notifications", label: "Notifications" },
-      { href: "/candidates", label: "Candidates" },
-      { href: "/data", label: "Data" },
+      { href: "/data/events", label: "Events" },
+      { href: "/data/notifications", label: "Notifications" },
+      { href: "/data/candidates", label: "Candidates" },
+      { href: "/data/freshness", label: "Freshness" },
     ],
   },
   {
-    name: "analysis",
-    label: "Analysis",
+    name: "alpha",
+    label: "Alpha",
     port: 8082,
     color: "#a371f7",
     blurb:
       "系统中唯一的真 LLM agent：把 notifications 重定价为交易信号，并写出估值快照与审计。",
     tables: ["trading_signals", "valuation_snapshots", "signal_audits"],
     pages: [
-      { href: "/signals", label: "Signals" },
-      { href: "/valuations", label: "Valuations" },
+      { href: "/alpha/signals", label: "Signals" },
+      { href: "/alpha/valuations", label: "Valuations" },
     ],
   },
   {
@@ -79,14 +85,14 @@ export const SUBSYSTEMS: Subsystem[] = [
     blurb:
       "positions 账本唯一 owner：确定性 sizing 开仓，按止损/止盈/到期结算平仓。无 LLM。",
     tables: ["positions"],
-    pages: [{ href: "/positions", label: "Positions" }],
+    pages: [{ href: "/portfolio/positions", label: "Positions" }],
   },
 ];
 
 /** Cross-cutting pages that don't belong to a single subsystem. */
 export const SYSTEM_PAGES: SubsystemPage[] = [
-  { href: "/", label: "Overview" },
-  { href: "/logs", label: "Logs" },
+  { href: "/system", label: "Overview" },
+  { href: "/system/logs", label: "Logs" },
 ];
 
 export function subsystemByName(name: string): Subsystem | undefined {

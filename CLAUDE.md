@@ -3,7 +3,7 @@
 事件驱动的分布式量化交易系统。三个独立 HTTP 服务：
 
 ```
-外部源 → ingestion → (event) → analysis → (signal) → portfolio (sizing + 开/平仓结算)
+外部源 → data → (event) → alpha → (signal) → portfolio (sizing + 开/平仓结算)
 ```
 
 栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic SDK（Messages API，非 Agent SDK）。pnpm workspaces 单仓库。
@@ -20,8 +20,8 @@ pnpm db:generate              # 改了 schema 后生成迁移 SQL
 pnpm db:migrate               # 应用迁移
 
 pnpm dev                      # 一键起全部服务（本地 tsx 热重载）
-pnpm dev:ingestion            # 单起 → :8081
-pnpm dev:analysis             # 单起 → :8082
+pnpm dev:data                 # 单起 → :8081
+pnpm dev:alpha                # 单起 → :8082
 pnpm dev:portfolio            # 单起 → :8084
 
 pnpm typecheck                # 全仓 tsc --noEmit；提交前必跑
@@ -32,14 +32,14 @@ pnpm up                       # docker-compose 全栈（host 8081/8082/8084）
 pnpm down
 ```
 
-本地 dev 端口固定为 ingestion 8081 / analysis 8082 / portfolio 8084（脚本里用 `PORT=` 指定）。`.env` 里的 `ANALYSIS_URL` / `PORTFOLIO_URL` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。
+本地 dev 端口固定为 data 8081 / alpha 8082 / portfolio 8084（脚本里用 `PORT=` 指定）。`.env` 里的 `ALPHA_URL` / `PORTFOLIO_URL` / `DATA_URL` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。
 
 ## 仓库结构
 
 - `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被各服务作为 `@qt/shared` workspace 依赖引用。
-- `services/ingestion` —— 外部数据唯一接收者（定时 `/pull/*` 拉 watchlist），无 LLM；含**选股发现 scanner**(`/scan/*` → `candidates` 队列 → 人工 `promote` 进 watchlist 带 TTL)。
-- `services/analysis` —— **唯一的真 LLM agent**：事件 → 交易信号。
-- `services/portfolio` —— **`positions` 账本唯一 owner**，无 LLM：接收 analysis 的信号 → 记录 + 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓。`services/web` 仪表盘只读这套数据。
+- `services/data` —— 外部数据唯一接收者（定时 `/pull/*` 拉 watchlist），无 LLM；含**选股发现 scanner**(`/scan/*` → `candidates` 队列 → 人工 `promote` 进 watchlist 带 TTL)。
+- `services/alpha` —— **唯一的真 LLM agent**：事件 → 交易信号。
+- `services/portfolio` —— **`positions` 账本唯一 owner**，无 LLM：接收 alpha 的信号 → 记录 + 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓。`services/web` 仪表盘只读这套数据。
 
 ## 全局铁律（细则见 `.claude/rules/`）
 
@@ -70,9 +70,9 @@ pnpm down
 
 - `.claude/rules/typescript.md` —— TS/ESM 编码规范（`**/*.ts`）
 - `.claude/rules/services.md` —— Hono 服务 / 端点 / outbox 投递约定（`services/**`）
-- `.claude/rules/analysis-agent.md` —— Agent SDK、工具集、emit_signal 护栏（`services/analysis/**`）
+- `.claude/rules/alpha-agent.md` —— Agent SDK、工具集、emit_signal 护栏（`services/alpha/**`）
 - `.claude/rules/database.md` —— Drizzle schema / 迁移流程 / PIT（`packages/shared/src/db/**` 等）
 
 ## 当前阶段
 
-闭环已打通：ingestion 拉取/聚合投递 → analysis 重定价出信号 → portfolio sizing 开仓 + `/jobs/track` 结算平仓；`services/web` 只读仪表盘。进行中的工作与路线图见 **GitHub issues**（v2 总览 #48，架构讨论 #44）。
+闭环已打通：data 拉取/聚合投递 → alpha 重定价出信号 → portfolio sizing 开仓 + `/jobs/track` 结算平仓；`services/web` 只读仪表盘。进行中的工作与路线图见 **GitHub issues**（v2 总览 #48，架构讨论 #44）。
