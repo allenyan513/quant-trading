@@ -28,6 +28,27 @@ function hoursAgo(h: number): Date {
   return new Date(Date.now() - h * 60 * 60 * 1000);
 }
 
+/** Map a service's last-log timestamp to a liveness state. Shared so the nav
+ * health dots and the overview heartbeats never drift apart. */
+export function heartbeatState(last: string | null): string {
+  if (!last) return "unknown";
+  const ageMs = Date.now() - new Date(last).getTime();
+  return ageMs < 5 * 60_000 ? "up" : ageMs < 60 * 60_000 ? "idle" : "stale";
+}
+
+/** Per-service liveness from the last structured log row. Cheap enough to poll
+ * from the global nav (one grouped scan over `logs`). */
+export async function getHeartbeats() {
+  const rows = await db()
+    .select({ service: logs.service, last: sql<string>`max(${logs.ts})` })
+    .from(logs)
+    .groupBy(logs.service);
+  return SERVICES.map((service) => {
+    const last = rows.find((r) => r.service === service)?.last ?? null;
+    return { service, last, state: heartbeatState(last) };
+  });
+}
+
 /** Fold [{k, c}] grouped-count rows into a {status: count} map. */
 function toMap(rows: { k: string | null; c: number | string }[]): Record<string, number> {
   const out: Record<string, number> = {};
@@ -91,11 +112,8 @@ export async function getOverview(windowHours = 24) {
   ]);
 
   const heartbeats = SERVICES.map((service) => {
-    const hit = serviceHeartbeats.find((h) => h.service === service);
-    const last = hit?.last ?? null;
-    const ageMs = last ? Date.now() - new Date(last).getTime() : null;
-    const state = ageMs === null ? "unknown" : ageMs < 5 * 60_000 ? "up" : ageMs < 60 * 60_000 ? "idle" : "stale";
-    return { service, last, state };
+    const last = serviceHeartbeats.find((h) => h.service === service)?.last ?? null;
+    return { service, last, state: heartbeatState(last) };
   });
 
   return {
@@ -183,6 +201,39 @@ export async function listSignals(opts: ListOpts = {}) {
   for (const p of pos) if (byId[p.signalId]) byId[p.signalId]!.position = p;
   for (const d of deliveries) if (byId[d.signalId]) byId[d.signalId]!.delivery = d;
   return rows.map((r) => ({ ...r, position: byId[r.id]!.position, delivery: byId[r.id]!.delivery }));
+}
+
+/** Portfolio ledger. Each position is keyed by its source signal; we join back
+ * the signal's conviction/thesis/targets so the row reads on its own. */
+export async function listPositions(opts: ListOpts = {}) {
+  const limit = Math.min(opts.limit ?? 100, 500);
+  const conds = [];
+  if (opts.symbol) conds.push(eq(positions.symbol, opts.symbol));
+  if (opts.status) conds.push(eq(positions.status, opts.status));
+  const rows = await db()
+    .select()
+    .from(positions)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(desc(positions.openedAt))
+    .limit(limit)
+    .offset(Math.max(0, opts.offset ?? 0));
+
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.signalId);
+  const sigs = await db()
+    .select({
+      id: tradingSignals.id,
+      conviction: tradingSignals.conviction,
+      targetPrice: tradingSignals.targetPrice,
+      stopLoss: tradingSignals.stopLoss,
+      thesis: tradingSignals.thesis,
+      expiresAt: tradingSignals.expiresAt,
+    })
+    .from(tradingSignals)
+    .where(inArray(tradingSignals.id, ids));
+  const byId: Record<string, (typeof sigs)[number]> = {};
+  for (const s of sigs) byId[s.id] = s;
+  return rows.map((r) => ({ ...r, signal: byId[r.signalId] ?? null }));
 }
 
 export async function listValuations(opts: ListOpts = {}) {

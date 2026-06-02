@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
+import { PageTitle } from "@/components/page-title";
 import { Badge, Meta, StatusBadge, TimeText, statusColor } from "@/components/ui";
 import { fmtFull, fmtMoney, fmtPct } from "@/lib/format";
 
@@ -87,7 +88,7 @@ const columns: Column<SignalRow>[] = [
 export default function SignalsPage() {
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>Signals</h1>
+      <PageTitle subsystem="analysis">Signals</PageTitle>
       <LiveTable
         path="/api/signals"
         rowKey={(r) => r.id}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LiveTable, type Column } from "@/components/live";
+import { PageTitle } from "@/components/page-title";
 import { Badge, TimeText } from "@/components/ui";
 
 interface FreshRow {
@@ -32,7 +33,7 @@ const columns: Column<FreshRow>[] = [
 export default function DataPage() {
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>Data freshness</h1>
+      <PageTitle subsystem="ingestion">Data freshness</PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>Per watchlist symbol: latest cached price + latest filing known_at (PIT).</p>
       <LiveTable path="/api/data" rowKey={(r) => r.symbol} columns={columns} emptyText="Watchlist is empty — seed it first." />
     </div>

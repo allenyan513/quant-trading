@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { mutate } from "swr";
 import { LiveTable, type Column } from "@/components/live";
+import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
 
@@ -74,7 +75,7 @@ const columns: Column<CandidateRow>[] = [
 export default function CandidatesPage() {
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>Candidates</h1>
+      <PageTitle subsystem="ingestion" sub="选股发现 scanner → 人工 promote 进 watchlist">Candidates</PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
         Discovery review queue. Promote via{" "}
         <code>POST /candidates/promote {"{ symbol }"}</code> (ingestion) to add to the watchlist.

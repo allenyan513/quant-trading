@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useLive } from "@/components/live";
+import { PageTitle } from "@/components/page-title";
 import { Badge, StatusBadge } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
 
@@ -37,7 +38,7 @@ export default function LogsPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>Logs</h1>
+      <PageTitle sub="跨服务结构化日志（三个子系统都写）">Logs</PageTitle>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         <select value={f.service ?? ""} onChange={(e) => setF({ ...f, service: e.target.value })} style={inputStyle}>
           <option value="">service: all</option>
