@@ -92,7 +92,7 @@ export default function OverviewPage() {
               key={s.name}
               accent={s.color}
               title={
-                <Link href={`/${s.name}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Link href={`/${s.slug}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 999, background: statusColor(beat?.state ?? "unknown") }} />
                   <span style={{ color: s.color, fontWeight: 700 }}>{s.label}</span>
                   <span style={{ color: "var(--muted)", fontWeight: 400 }}>:{s.port}</span>

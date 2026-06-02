@@ -7,7 +7,7 @@ import { subsystemByName, type SubsystemName } from "@/lib/subsystems";
 
 /**
  * Landing page for one subsystem, rendered as the index route of each
- * subsystem folder (/ingestion, /analysis, /portfolio). Shows the 24h funnel,
+ * subsystem folder (/data, /alpha, /portfolio). Shows the 24h funnel,
  * the tables it solely owns, its outbox / lifecycle counters, and links to its
  * pages — making the service boundary the organising principle of the URL too.
  */

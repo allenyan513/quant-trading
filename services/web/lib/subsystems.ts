@@ -16,7 +16,17 @@ export interface SubsystemPage {
 }
 
 export interface Subsystem {
+  /**
+   * Backend service identity — matches the log/heartbeat `service` name and the
+   * funnel keys (see queries.ts SERVICES). Stable; do NOT rename to follow UI
+   * branding, or the health dots and funnel stop resolving.
+   */
   name: SubsystemName;
+  /** URL slug — the route folder under app/(dashboard). Decoupled from `name`
+   * so the UI can be rebranded (e.g. analysis→/alpha) without touching the
+   * backend service identity. */
+  slug: string;
+  /** Display name shown in the nav, headers and landing pages. */
   label: string;
   /** Local dev port (docker/compose override it via env). */
   port: number;
@@ -33,7 +43,8 @@ export interface Subsystem {
 export const SUBSYSTEMS: Subsystem[] = [
   {
     name: "ingestion",
-    label: "Ingestion",
+    slug: "data",
+    label: "Data",
     port: 8081,
     color: "#58a6ff",
     blurb:
@@ -52,27 +63,29 @@ export const SUBSYSTEMS: Subsystem[] = [
       "notifications",
     ],
     pages: [
-      { href: "/ingestion/events", label: "Events" },
-      { href: "/ingestion/notifications", label: "Notifications" },
-      { href: "/ingestion/candidates", label: "Candidates" },
-      { href: "/ingestion/data", label: "Data" },
+      { href: "/data/events", label: "Events" },
+      { href: "/data/notifications", label: "Notifications" },
+      { href: "/data/candidates", label: "Candidates" },
+      { href: "/data/freshness", label: "Freshness" },
     ],
   },
   {
     name: "analysis",
-    label: "Analysis",
+    slug: "alpha",
+    label: "Alpha",
     port: 8082,
     color: "#a371f7",
     blurb:
       "系统中唯一的真 LLM agent：把 notifications 重定价为交易信号，并写出估值快照与审计。",
     tables: ["trading_signals", "valuation_snapshots", "signal_audits"],
     pages: [
-      { href: "/analysis/signals", label: "Signals" },
-      { href: "/analysis/valuations", label: "Valuations" },
+      { href: "/alpha/signals", label: "Signals" },
+      { href: "/alpha/valuations", label: "Valuations" },
     ],
   },
   {
     name: "portfolio",
+    slug: "portfolio",
     label: "Portfolio",
     port: 8084,
     color: "#f0883e",
