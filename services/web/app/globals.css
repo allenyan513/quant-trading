@@ -39,3 +39,51 @@ table {
   background: var(--border);
   border-radius: 6px;
 }
+
+/* Sidebar page links: inline styles can't express :hover, so do it here. */
+.nav-item:hover {
+  background: var(--panel-2);
+}
+
+/* On narrow viewports the fixed sidebar would crowd the content, so collapse it
+   into a horizontal, wrapping top strip: each section's header and its page
+   links flow inline, sections wrap onto new rows as needed. */
+@media (max-width: 720px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  .app-shell > nav {
+    width: 100% !important;
+    height: auto !important;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .app-shell > nav > a {
+    border-bottom: none !important;
+    padding: 12px 14px !important;
+  }
+  .app-shell > nav > div {
+    flex: 1 1 100%;
+    display: flex !important;
+    flex-flow: row wrap;
+    align-items: center;
+    gap: 4px 14px;
+    padding: 8px 12px;
+  }
+  .nav-section {
+    margin-bottom: 0 !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .nav-section-header {
+    padding: 0 !important;
+  }
+  .nav-section-pages {
+    flex-direction: row !important;
+  }
+}

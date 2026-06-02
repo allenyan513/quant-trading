@@ -52,10 +52,10 @@ export const SUBSYSTEMS: Subsystem[] = [
       "notifications",
     ],
     pages: [
-      { href: "/events", label: "Events" },
-      { href: "/notifications", label: "Notifications" },
-      { href: "/candidates", label: "Candidates" },
-      { href: "/data", label: "Data" },
+      { href: "/ingestion/events", label: "Events" },
+      { href: "/ingestion/notifications", label: "Notifications" },
+      { href: "/ingestion/candidates", label: "Candidates" },
+      { href: "/ingestion/data", label: "Data" },
     ],
   },
   {
@@ -67,8 +67,8 @@ export const SUBSYSTEMS: Subsystem[] = [
       "系统中唯一的真 LLM agent：把 notifications 重定价为交易信号，并写出估值快照与审计。",
     tables: ["trading_signals", "valuation_snapshots", "signal_audits"],
     pages: [
-      { href: "/signals", label: "Signals" },
-      { href: "/valuations", label: "Valuations" },
+      { href: "/analysis/signals", label: "Signals" },
+      { href: "/analysis/valuations", label: "Valuations" },
     ],
   },
   {
@@ -79,14 +79,14 @@ export const SUBSYSTEMS: Subsystem[] = [
     blurb:
       "positions 账本唯一 owner：确定性 sizing 开仓，按止损/止盈/到期结算平仓。无 LLM。",
     tables: ["positions"],
-    pages: [{ href: "/positions", label: "Positions" }],
+    pages: [{ href: "/portfolio/positions", label: "Positions" }],
   },
 ];
 
 /** Cross-cutting pages that don't belong to a single subsystem. */
 export const SYSTEM_PAGES: SubsystemPage[] = [
-  { href: "/", label: "Overview" },
-  { href: "/logs", label: "Logs" },
+  { href: "/system", label: "Overview" },
+  { href: "/system/logs", label: "Logs" },
 ];
 
 export function subsystemByName(name: string): Subsystem | undefined {

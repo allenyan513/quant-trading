@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
 import { useLive } from "@/components/live";
 import { Badge, Card, Grid, Stat, StatusBadge, statusColor } from "@/components/ui";
 import { subsystemByName, type SubsystemName } from "@/lib/subsystems";
+
+/**
+ * Landing page for one subsystem, rendered as the index route of each
+ * subsystem folder (/ingestion, /analysis, /portfolio). Shows the 24h funnel,
+ * the tables it solely owns, its outbox / lifecycle counters, and links to its
+ * pages — making the service boundary the organising principle of the URL too.
+ */
 
 interface Overview {
   funnel: { events: number; notifications: number; signals: number; positions: number };
@@ -32,13 +38,11 @@ function StatusCounts({ map }: { map: Record<string, number> }) {
   );
 }
 
-export default function SubsystemPage() {
-  const params = useParams<{ name: string }>();
-  const sub = subsystemByName(params.name ?? "");
-  if (!sub) notFound();
-
+export function SubsystemLanding({ name }: { name: SubsystemName }) {
+  const sub = subsystemByName(name);
   const { data, error } = useLive<Overview>("/api/overview?windowHours=24");
 
+  if (!sub) return null;
   if (error) return <div style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</div>;
   if (!data) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
 

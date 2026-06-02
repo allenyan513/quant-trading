@@ -23,7 +23,7 @@ export function PageTitle({
       <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{children}</h1>
       {s && (
         <Link
-          href={`/system/${s.name}`}
+          href={`/${s.name}`}
           title={`${s.label} 子系统`}
           style={{
             fontSize: 12,
