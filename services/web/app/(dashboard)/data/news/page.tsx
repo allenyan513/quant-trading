@@ -37,7 +37,7 @@ function refreshNews() {
 
 /** Top control: pull market-wide FMP news into staging (does not touch alpha). */
 function PullBar() {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState(1);
   const [busy, setBusy] = useState(false);
 
   async function pull() {
@@ -93,7 +93,6 @@ export default function NewsPage() {
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
   const [symbol, setSymbol] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
 
   const qs = new URLSearchParams();
@@ -105,18 +104,6 @@ export default function NewsPage() {
 
   const { data, error, isLoading } = useLive<NewsRow[]>(url);
   const rows = useMemo(() => data ?? [], [data]);
-
-  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
-  function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
-  }
-  function toggle(id: string) {
-    setSelected((s) => {
-      const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  }
 
   async function postNotify(ids: string[], symbolOverride: Record<string, string> = {}) {
     setBusy(true);
@@ -137,7 +124,6 @@ export default function NewsPage() {
       }
       const d = j.data!;
       alert(`已通知 ${d.notified} 条（分组成 ${d.notifications} 条通知发给 alpha）${d.skipped ? `，跳过 ${d.skipped} 条无 ticker` : ""}`);
-      setSelected(new Set());
       await refreshNews();
     } finally {
       setBusy(false);
@@ -183,11 +169,6 @@ export default function NewsPage() {
         <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted)" }}>
           {isLoading ? "loading…" : `${rows.length} rows · live 5s`}
         </span>
-        {selected.size > 0 && (
-          <button onClick={() => postNotify([...selected])} disabled={busy} style={primaryBtn(busy)}>
-            合并通知 alpha（{selected.size}）
-          </button>
-        )}
       </div>
 
       {error && <div style={{ color: "#f85149", marginBottom: 8 }}>Error: {String(error.message ?? error)}</div>}
@@ -196,9 +177,6 @@ export default function NewsPage() {
         <table>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 34 }}>
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-              </th>
               <th style={{ ...thStyle, width: 128 }}>Published</th>
               <th style={{ ...thStyle, width: 80 }}>Feed</th>
               <th style={{ ...thStyle, width: 80 }}>Symbol</th>
@@ -211,16 +189,15 @@ export default function NewsPage() {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ ...tdStyle, color: "var(--muted)" }}>
+                <td colSpan={7} style={{ ...tdStyle, color: "var(--muted)" }}>
                   No staged news — click 拉取新闻.
                 </td>
               </tr>
             )}
-            {rows.map((r) => (
-              <tr key={r.id} style={{ background: selected.has(r.id) ? "var(--panel-2)" : undefined }}>
-                <td style={tdStyle}>
-                  <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
-                </td>
+            {rows.map((r) => {
+              const notified = r.status === "notified";
+              return (
+              <tr key={r.id} style={{ opacity: notified ? 0.5 : 1 }}>
                 <td style={tdStyle}>
                   <TimeText ts={r.publishedAt} />
                 </td>
@@ -242,12 +219,13 @@ export default function NewsPage() {
                   <StatusBadge status={r.status} />
                 </td>
                 <td style={tdStyle}>
-                  <button onClick={() => notifyOne(r)} disabled={busy} style={smallBtn(busy)}>
-                    通知 alpha
+                  <button onClick={() => notifyOne(r)} disabled={busy || notified} style={smallBtn(busy || notified)}>
+                    {notified ? "已通知" : "通知 alpha"}
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
