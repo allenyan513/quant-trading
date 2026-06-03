@@ -37,9 +37,9 @@ pnpm down
 ## 仓库结构
 
 - `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被各服务作为 `@qt/shared` workspace 依赖引用。
-- `services/data` —— 外部数据唯一接收者（定时 `/pull/*` 拉 watchlist），无 LLM；含**选股发现 scanner**(`/scan/*` → `candidates` 队列 → 人工 `promote` 进 watchlist 带 TTL)。
+- `services/data` —— 外部数据唯一接收者（定时 `/pull/*` 拉 watchlist），无 LLM；含**选股发现 scanner**(`/scan/*` → `data_candidates` 队列 → 人工 `promote` 进 `data_watchlist` 带 TTL)。
 - `services/alpha` —— **唯一的真 LLM agent**：事件 → 交易信号。
-- `services/portfolio` —— **`positions` 账本唯一 owner**，无 LLM：接收 alpha 的信号 → 记录 + 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓。`services/web` 仪表盘只读这套数据。
+- `services/portfolio` —— **`portfolio_positions` 账本唯一 owner**，无 LLM：接收 alpha 的信号 → 记录 + 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓。`services/web` 仪表盘只读这套数据。
 
 ## 全局铁律（细则见 `.claude/rules/`）
 
