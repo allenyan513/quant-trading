@@ -193,7 +193,10 @@ export async function listNews(opts: ListOpts = {}) {
     .select()
     .from(newsItems)
     .where(conds.length ? and(...conds) : undefined)
-    .orderBy(desc(newsItems.publishedAt))
+    // published_at DESC, but NULLS LAST (Postgres defaults DESC -> NULLS FIRST,
+    // which floats undated rows above real news). pulled_at breaks ties so freshly
+    // pulled rows sort sensibly when publish times collide / are missing.
+    .orderBy(sql`${newsItems.publishedAt} desc nulls last`, desc(newsItems.pulledAt))
     .limit(limit)
     .offset(opts.offset ?? 0);
 }

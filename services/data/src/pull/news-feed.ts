@@ -89,6 +89,20 @@ export function firstTicker(tickers?: string): string | null {
 
 const toIso = (s?: string): string | null => (s ? easternToUtcIso(s) ?? s : null);
 
+/**
+ * `fmp-articles` `date` is naive UTC "YYYY-MM-DD HH:MM:SS" — NOT Eastern wall-clock
+ * like the news/*-latest feeds. Verified empirically: applying the ET->UTC shift
+ * pushed article timestamps ~4h into the future (published_at > pulled_at), which
+ * wrongly ranked FMP articles above genuinely newer stock news. Parse as UTC.
+ */
+const articleToIso = (s?: string): string | null => {
+  if (!s) return null;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return s;
+  const [, y, mo, d, h, mi, se] = m;
+  return new Date(Date.UTC(+y!, +mo! - 1, +d!, +h!, +mi!, +(se ?? 0))).toISOString();
+};
+
 export function normalizeNews(category: NewsCategory, n: RawNews): NewsItemRow {
   return {
     category,
@@ -114,7 +128,7 @@ export function normalizeArticle(category: NewsCategory, a: RawArticle): NewsIte
     url: a.link ?? null,
     site: a.site ?? null,
     image: a.image ?? null,
-    published_at: toIso(a.date),
+    published_at: articleToIso(a.date),
     raw: a as unknown as Record<string, unknown>,
   };
 }
