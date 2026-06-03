@@ -8,6 +8,7 @@ import {
   db,
   events,
   notifications,
+  newsItems,
   tradingSignals,
   signalDeliveries,
   positions,
@@ -149,6 +150,7 @@ interface ListOpts {
   status?: string;
   deliveryStatus?: string;
   eventType?: string;
+  category?: string;
 }
 
 export async function listEvents(opts: ListOpts = {}) {
@@ -178,6 +180,22 @@ export async function listNotifications(opts: ListOpts = {}) {
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(notifications.ingestedAt))
     .limit(limit);
+}
+
+/** Staged FMP news for the manual flow (issue #59), newest published first. */
+export async function listNews(opts: ListOpts = {}) {
+  const limit = Math.min(opts.limit ?? 100, 500);
+  const conds = [];
+  if (opts.symbol) conds.push(eq(newsItems.symbol, opts.symbol));
+  if (opts.status) conds.push(eq(newsItems.status, opts.status));
+  if (opts.category) conds.push(eq(newsItems.category, opts.category));
+  return db()
+    .select()
+    .from(newsItems)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(desc(newsItems.publishedAt))
+    .limit(limit)
+    .offset(opts.offset ?? 0);
 }
 
 export async function listSignals(opts: ListOpts = {}) {

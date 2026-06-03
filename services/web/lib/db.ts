@@ -35,6 +35,7 @@ export const {
   valuationSnapshots,
   events,
   notifications,
+  newsItems,
   tradingSignals,
   signalDeliveries,
   positions,
