@@ -45,4 +45,9 @@ describe("mapGrades", () => {
     expect(new Set(out.map((e) => e.external_id)).size).toBe(2);
     expect(out.map((e) => e.direction_hint)).toEqual(["bullish", "bearish"]);
   });
+
+  it("PIT (#5): observed_at is the grade-change date, never now()", () => {
+    const [ev] = mapGrades([g({ date: "2026-05-15", action: "upgrade", previousGrade: "Hold", newGrade: "Buy" })], W);
+    expect(ev!.observed_at).toBe("2026-05-15");
+  });
 });

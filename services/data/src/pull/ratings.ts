@@ -51,6 +51,8 @@ export function mapGrades(rows: FmpGrade[], opts: { from: string; to: string }):
       event_type: "grade_change",
       direction_hint: directionHint(g),
       headline: `${g.gradingCompany ?? "Analyst"} ${g.action ?? "rated"} ${g.symbol}: ${g.previousGrade ?? "?"} -> ${g.newGrade ?? "?"}`,
+      // PIT (#5): `date` is the grade-change date — when the analyst action became
+      // public, i.e. the correct "knowable at" for this event. Never now().
       observed_at: g.date,
       raw: g as unknown as Record<string, unknown>,
     });
