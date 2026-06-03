@@ -18,12 +18,15 @@ import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-fe
 import { stageNews, notifyNews } from "./news.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
 import { getWatchlistSymbols } from "./watchlist.js";
+import { resolveWindow, advanceWatermark } from "./watermark.js";
 import { log } from "./log.js";
 
 const app = new Hono();
 
 app.get("/healthz", (c) => c.json(ok({ service: "data", status: "up" })));
 
+// Fallback window for explicit/partial overrides and the scanner. Steady-state
+// /pull/* uses the per-source watermark (resolveWindow) instead — see #4.
 function defaultWindow(): { from: string; to: string } {
   const to = new Date();
   const from = new Date(to.getTime() - 3 * 24 * 3600 * 1000); // last 3 days
@@ -54,7 +57,11 @@ function makePullRoute(name: string, puller: Puller) {
       if (symbols.length === 0) {
         return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
       }
-      const win = defaultWindow();
+      // An explicit from/to is a manual backfill: use it as-is (default the missing
+      // side) and DON'T touch the steady-state cursor. Otherwise resume from the
+      // per-source watermark and advance it after a successful pull (#4).
+      const hasExplicit = body.from !== undefined || body.to !== undefined;
+      const win = hasExplicit ? defaultWindow() : await resolveWindow(name);
       const args: PullArgs = {
         from: (body.from as string) ?? win.from,
         to: (body.to as string) ?? win.to,
@@ -65,6 +72,15 @@ function makePullRoute(name: string, puller: Puller) {
       const payloads = await puller(args);
       log.info(`pull.${name}.fetched`, { events: payloads.length });
       const res = await ingestAndNotifyAll(payloads);
+      if (!hasExplicit) {
+        // Best-effort: the pull already persisted+delivered; a failed advance just
+        // re-pulls the overlap next run (dedup-safe), so never fail the request.
+        try {
+          await advanceWatermark(name, payloads);
+        } catch (e) {
+          log.warn(`pull.${name}.watermark_failed`, { error: e instanceof Error ? e.message : String(e) });
+        }
+      }
       log.info(`pull.${name}.done`, { pulled: payloads.length, ...res });
       return c.json(ok({ pulled: payloads.length, ...res }));
     } catch (err) {

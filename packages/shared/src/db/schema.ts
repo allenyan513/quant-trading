@@ -71,6 +71,24 @@ export const candidates = pgTable(
   (t) => [index("idx_candidates_status").on(t.status)],
 );
 
+/**
+ * `pull_watermarks` — per-source ingest cursor (#4). Replaces the fixed trailing
+ * pull window with a resumable high-water mark: each /pull/* resolves its `from`
+ * from the last successful pull's max observed_at (minus a safety overlap), so an
+ * outage longer than the old window no longer drops events permanently, and
+ * steady-state runs stop re-fetching the full trailing window. The
+ * (source, external_id) unique index on `data_events` stays as the backstop for
+ * the overlap region. Keyed by pull endpoint id (e.g. "earnings"). Owned by data.
+ */
+export const pullWatermarks = pgTable("data_pull_watermarks", {
+  sourceKey: text("source_key").primaryKey(), // pull endpoint id, e.g. "earnings"
+  // Max observed_at across the last successful pull. Drives the next `from`.
+  // Null until the first event-bearing pull; never moves backwards.
+  lastEventAt: timestamp("last_event_at", { withTimezone: true }),
+  lastPulledAt: timestamp("last_pulled_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  lastCount: integer("last_count").default(0).notNull(), // events pulled last run (observability)
+});
+
 // ---- Prices ----
 
 export const dailyPrices = pgTable(
