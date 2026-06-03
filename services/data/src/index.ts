@@ -14,6 +14,8 @@ import { pullPriceTargets } from "./pull/price-target.js";
 import { pullInsider } from "./pull/insider.js";
 import { pullMna } from "./pull/mna.js";
 import { scanEarnings } from "./scan/earnings.js";
+import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
+import { stageNews, notifyNews } from "./news.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
 import { getWatchlistSymbols } from "./watchlist.js";
 import { log } from "./log.js";
@@ -80,6 +82,67 @@ app.post("/pull/price-targets", makePullRoute("price_targets", pullPriceTargets)
 app.post("/pull/insider", makePullRoute("insider", pullInsider));
 // mna's endpoint is market-wide; `symbols` is the watchlist to match deals against.
 app.post("/pull/mna", makePullRoute("mna", pullMna));
+
+// ---- Manual news flow (issue #59): pull market-wide FMP news into staging,
+// list it in the dashboard, then a human selects rows to push to alpha. ----
+
+function newsWindow(days: number): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 3600 * 1000);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+// Pull (no symbol filter, bounded by window + page cap) -> stage in news_items.
+// Does NOT deliver to alpha — that's the separate /news/notify step.
+app.post("/news/pull", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const days = Number(body.days ?? 7);
+    const win = newsWindow(Number.isFinite(days) && days > 0 ? days : 7);
+    const requested = Array.isArray(body.categories) ? (body.categories as string[]) : NEWS_CATEGORIES;
+    const categories = requested.filter((x): x is NewsCategory =>
+      (NEWS_CATEGORIES as string[]).includes(x),
+    );
+    if (categories.length === 0) {
+      return c.json(fail("bad_request", `categories must be a subset of ${NEWS_CATEGORIES.join(", ")}`), 400);
+    }
+    const maxPages = Number(body.maxPages ?? 5);
+    const args = {
+      from: (body.from as string) ?? win.from,
+      to: (body.to as string) ?? win.to,
+      maxPages: Number.isFinite(maxPages) && maxPages > 0 ? maxPages : 5,
+      categories,
+    };
+    log.info("news.pull.start", { from: args.from, to: args.to, maxPages: args.maxPages, categories });
+    const { items, byCategory } = await pullNewsFeed(args);
+    const staged = await stageNews(items);
+    log.info("news.pull.done", { ...staged, byCategory });
+    return c.json(ok({ ...staged, byCategory }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("news.pull.failed", { error: msg });
+    return c.json(fail("news_pull_failed", msg), 500);
+  }
+});
+
+// Push selected staged news rows to alpha (one notification per resolved symbol).
+app.post("/news/notify", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const ids = Array.isArray(body.ids) ? (body.ids as unknown[]).map(String) : [];
+    if (ids.length === 0) return c.json(fail("bad_request", "ids required"), 400);
+    const symbolOverride =
+      body.symbolOverride && typeof body.symbolOverride === "object"
+        ? (body.symbolOverride as Record<string, string>)
+        : {};
+    const res = await notifyNews(ids, symbolOverride);
+    return c.json(ok(res));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("news.notify.failed", { error: msg });
+    return c.json(fail("news_notify_failed", msg), 500);
+  }
+});
 
 app.post("/internal/redeliver", async (c) => {
   try {

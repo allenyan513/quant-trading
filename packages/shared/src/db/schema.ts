@@ -223,6 +223,44 @@ export const notifications = pgTable(
   ],
 );
 
+// ---- News inbox (manual FMP news flow — staging, data-owned) ----
+
+// Staging area for the MANUAL news flow (see issue #59): a human clicks "pull"
+// in the dashboard, data fetches market-wide FMP news here (NOT into `events`),
+// the page lists them newest-first, and a human selects rows to notify alpha.
+// Only on "notify" are selected rows materialized into `events` + delivered as
+// notifications (reusing the normal outbox). Kept separate from `events` so the
+// auto `/pull/*` pipeline is untouched and un-actioned/symbol-less articles
+// never pollute it. Written only by data.
+export const newsItems = pgTable(
+  "news_items",
+  {
+    id: text("id").primaryKey(),
+    // Which FMP feed it came from: press_release | general | fmp_article | stock.
+    category: text("category").notNull(),
+    // Normalized stable id within a category — the article url. Dedups re-pulls.
+    externalId: text("external_id").notNull(),
+    // Article's own ticker if any (null for macro/general news). NOT a dedup key.
+    symbol: text("symbol"),
+    title: text("title"),
+    text: text("text"), // body/snippet (HTML stripped for fmp_article)
+    url: text("url"),
+    site: text("site"),
+    image: text("image"),
+    // PIT: source publish time (ET wall-clock -> UTC via easternToUtcIso), not now().
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    raw: jsonb("raw"), // full original row, for replay
+    // new | notified — whether a human has pushed it to alpha yet.
+    status: text("status").default("new").notNull(),
+    pulledAt: timestamp("pulled_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    uniqueIndex("uq_news_category_external").on(t.category, t.externalId),
+    index("idx_news_published").on(t.publishedAt),
+    index("idx_news_status").on(t.status),
+  ],
+);
+
 // ---- Trading signals (alpha output) ----
 
 export const tradingSignals = pgTable(

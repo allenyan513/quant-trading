@@ -56,8 +56,10 @@ export const SUBSYSTEMS: Subsystem[] = [
       "analyst_estimates",
       "events",
       "notifications",
+      "news_items",
     ],
     pages: [
+      { href: "/data/news", label: "News" },
       { href: "/data/events", label: "Events" },
       { href: "/data/notifications", label: "Notifications" },
       { href: "/data/candidates", label: "Candidates" },
