@@ -11,6 +11,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
+    "kill-ports": "lsof -ti:8081,8082,8084,3001 -sTCP:LISTEN 2>/dev/null | xargs kill -9 2>/dev/null; exit 0",
+    "predev": "pnpm kill-ports",
     "dev": "pnpm -r --parallel --if-present dev",
     "dev:data": "pnpm --filter @qt/data dev",
     "dev:alpha": "pnpm --filter @qt/alpha dev",
