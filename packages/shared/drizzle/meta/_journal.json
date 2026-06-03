@@ -71,6 +71,13 @@
       "when": 1780290923426,
       "tag": "0009_smiling_risque",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780489239713,
+      "tag": "0010_awesome_black_knight",
+      "breakpoints": true
     }
   ]
 }
