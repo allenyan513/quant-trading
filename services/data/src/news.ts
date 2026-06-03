@@ -18,6 +18,13 @@ import { log } from "./log.js";
 
 const { newsItems } = dbSchema;
 
+/** Parse to a Date, or null if absent/unparseable — never an Invalid Date. */
+function toValidDate(s: string | null): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export interface StageResult {
   pulled: number;
   inserted: number;
@@ -42,7 +49,10 @@ export async function stageNews(items: NewsItemRow[], batchSize = 50): Promise<S
           url: it.url,
           site: it.site,
           image: it.image,
-          publishedAt: it.published_at ? new Date(it.published_at) : null,
+          // Guard against an unparseable date string reaching the timestamp column:
+          // `new Date("garbage")` is an Invalid Date and would crash the whole batch
+          // insert with "invalid input syntax for type timestamp". Drop to null.
+          publishedAt: toValidDate(it.published_at),
           raw: it.raw,
         })),
       )

@@ -16,6 +16,7 @@
  */
 import { fmpGet } from "@qt/shared";
 import { easternToUtcIso } from "./news.js";
+import { log } from "../log.js";
 
 /** FMP feed -> { REST path, wire shape }. Base url already ends in /stable. */
 const CATEGORY_DEFS = {
@@ -204,8 +205,13 @@ export async function pullNewsFeed(
       const rows = await fetchCategory(category, args);
       byCategory[category] = rows.length;
       items.push(...rows);
-    } catch {
-      byCategory[category] = 0; // isolate: a failed feed contributes nothing
+    } catch (err) {
+      // isolate: a failed feed contributes nothing, but don't swallow it silently
+      log.warn("news.pull.category.failed", {
+        category,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      byCategory[category] = 0;
     }
   }
   return { items, byCategory };

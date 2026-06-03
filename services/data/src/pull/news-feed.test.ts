@@ -72,7 +72,7 @@ describe("normalizeArticle", () => {
       url: "https://fmp/x",
       symbol: "DOCN",
       text: "point",
-      published_at: "2026-06-03T02:16:27.000Z", // EDT -04:00
+      published_at: "2026-06-02T22:16:27.000Z", // fmp-articles date is naive UTC (no ET shift)
     });
   });
 });
