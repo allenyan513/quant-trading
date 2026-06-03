@@ -63,7 +63,7 @@ let queue: Promise<void> = Promise.resolve();
 let warnedOnce = false;
 
 const INSERT_SQL = `
-  INSERT INTO logs (id, ts, level, service, event, symbol, external_id, notification_id, signal_id, fields)
+  INSERT INTO system_logs (id, ts, level, service, event, symbol, external_id, notification_id, signal_id, fields)
   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 `;
 

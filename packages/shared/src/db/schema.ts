@@ -28,7 +28,7 @@ import { sql } from "drizzle-orm";
  * `universe` — every stock the system knows about, plus its profile metadata.
  * The catalog. `watchlist` is the active subset we actually pull/track for.
  */
-export const universe = pgTable("universe", {
+export const universe = pgTable("data_universe", {
   symbol: text("symbol").primaryKey(),
   name: text("name"),
   sector: text("sector"),
@@ -40,7 +40,7 @@ export const universe = pgTable("universe", {
 });
 
 /** `watchlist` — the symbols we actively observe (drives the /pull/* endpoints). */
-export const watchlist = pgTable("watchlist", {
+export const watchlist = pgTable("data_watchlist", {
   symbol: text("symbol").primaryKey(),
   addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
   // How the symbol entered the universe: 'manual' (seeded) | 'discovery' (promoted
@@ -57,7 +57,7 @@ export const watchlist = pgTable("watchlist", {
  * alpha — promotion is the gate. Owned (written) only by data.
  */
 export const candidates = pgTable(
-  "candidates",
+  "data_candidates",
   {
     symbol: text("symbol").primaryKey(),
     source: text("source").notNull(), // scanner name, e.g. "earnings_surprise"
@@ -74,7 +74,7 @@ export const candidates = pgTable(
 // ---- Prices ----
 
 export const dailyPrices = pgTable(
-  "daily_prices",
+  "data_daily_prices",
   {
     symbol: text("symbol").notNull(),
     tradeDate: date("trade_date").notNull(),
@@ -103,25 +103,25 @@ const statementCols = {
 };
 
 export const incomeStatement = pgTable(
-  "income_statement",
+  "data_income_statement",
   statementCols,
   (t) => [primaryKey({ columns: [t.symbol, t.period, t.fiscalDate] })],
 );
 
 export const balanceSheet = pgTable(
-  "balance_sheet",
+  "data_balance_sheet",
   statementCols,
   (t) => [primaryKey({ columns: [t.symbol, t.period, t.fiscalDate] })],
 );
 
 export const cashFlow = pgTable(
-  "cash_flow",
+  "data_cash_flow",
   statementCols,
   (t) => [primaryKey({ columns: [t.symbol, t.period, t.fiscalDate] })],
 );
 
 export const financialRatios = pgTable(
-  "financial_ratios",
+  "data_financial_ratios",
   {
     symbol: text("symbol").notNull(),
     period: text("period").notNull(),
@@ -133,7 +133,7 @@ export const financialRatios = pgTable(
 );
 
 export const analystEstimates = pgTable(
-  "analyst_estimates",
+  "data_analyst_estimates",
   {
     symbol: text("symbol").notNull(),
     period: text("period").notNull(),
@@ -146,7 +146,7 @@ export const analystEstimates = pgTable(
 
 // ---- Reference valuation (System A) ----
 
-export const valuationSnapshots = pgTable("valuation_snapshots", {
+export const valuationSnapshots = pgTable("alpha_valuation_snapshots", {
   snapshotId: text("snapshot_id").primaryKey(),
   symbol: text("symbol").notNull(),
   asOf: date("as_of").notNull(),
@@ -162,7 +162,7 @@ export const valuationSnapshots = pgTable("valuation_snapshots", {
 // ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(
-  "events",
+  "data_events",
   {
     id: text("id").primaryKey(),
     source: text("source").notNull(),
@@ -197,7 +197,7 @@ export const events = pgTable(
 // external_ids, so a crash-retry that regroups the same set hits the unique
 // (source, batch_key) and re-delivers the existing row instead of duplicating.
 export const notifications = pgTable(
-  "notifications",
+  "data_notifications",
   {
     id: text("id").primaryKey(),
     source: text("source").notNull(),
@@ -233,7 +233,7 @@ export const notifications = pgTable(
 // auto `/pull/*` pipeline is untouched and un-actioned/symbol-less articles
 // never pollute it. Written only by data.
 export const newsItems = pgTable(
-  "news_items",
+  "data_news_items",
   {
     id: text("id").primaryKey(),
     // Which FMP feed it came from: press_release | general | fmp_article | stock.
@@ -264,7 +264,7 @@ export const newsItems = pgTable(
 // ---- Trading signals (alpha output) ----
 
 export const tradingSignals = pgTable(
-  "trading_signals",
+  "alpha_trading_signals",
   {
     id: text("id").primaryKey(),
     // The aggregated notification this signal was repriced from (one signal per
@@ -306,7 +306,7 @@ export const tradingSignals = pgTable(
 // Full LLM audit trail for a signal (T1) — written once by alpha, read rarely
 // (replay / "why did the model decide this"). Kept off `trading_signals` so the
 // hot table stays lean (a signal list never drags the full prompt/response).
-export const signalAudits = pgTable("signal_audits", {
+export const signalAudits = pgTable("alpha_signal_audits", {
   signalId: text("signal_id").primaryKey(),
   model: text("model"), // actual served model id (resp.model)
   promptVersion: text("prompt_version"),
@@ -327,7 +327,7 @@ export const signalAudits = pgTable("signal_audits", {
 // filled by a later task. Sizing inputs are snapshotted (sizing_params) and the
 // sector at entry is frozen, mirroring PIT/replayability conventions elsewhere.
 export const positions = pgTable(
-  "positions",
+  "portfolio_positions",
   {
     signalId: text("signal_id").primaryKey(),
     symbol: text("symbol").notNull(),
@@ -356,7 +356,7 @@ export const positions = pgTable(
 // ---- Signal delivery outbox (alpha -> portfolio) ----
 
 export const signalDeliveries = pgTable(
-  "signal_deliveries",
+  "alpha_signal_deliveries",
   {
     signalId: text("signal_id").primaryKey(),
     deliveryStatus: text("delivery_status").default("pending").notNull(),
@@ -374,7 +374,7 @@ export const signalDeliveries = pgTable(
 // columns so the dashboard can filter and join logs to the pipeline timeline;
 // everything else stays in `fields`. Written only when LOG_DB=on.
 export const logs = pgTable(
-  "logs",
+  "system_logs",
   {
     id: text("id").primaryKey(),
     ts: timestamp("ts", { withTimezone: true }).default(sql`now()`).notNull(),
