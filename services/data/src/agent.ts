@@ -104,7 +104,10 @@ const TOOLS: Anthropic.Tool[] = [
 
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: config.anthropicApiKey() });
+  // maxRetries above the SDK default (2): triage runs several agents concurrently
+  // and can momentarily exceed the per-minute input-token rate limit (429); the
+  // SDK's exponential backoff rides out the burst instead of failing the item.
+  if (!_client) _client = new Anthropic({ apiKey: config.anthropicApiKey(), maxRetries: 5 });
   return _client;
 }
 
