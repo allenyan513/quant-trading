@@ -35,15 +35,18 @@ paths:
 
 ## 边界
 
-- data 无 LLM，只做确定性拉取/落库/投递。也含**选股发现 scanner**(`/scan/*`):市场级确定性扫描 → 产 `data_candidates`(**绝不直送 alpha**);人工/cron 把候选 `promote` 进 `data_watchlist`(带 `source='discovery'` + TTL),之后才被 `/pull/*` 深拉。`expire-watchlist` 按 TTL 清理 discovery 项。LLM 分诊(将来 T18)放 alpha,不放这里。
-- 真正的 agent 逻辑只在 alpha（见 `.claude/rules/alpha-agent.md`）——也是系统里**唯一**用 LLM 的服务。
+- **摄入是 news 驱动**(issue #59):`/news/pull` 拉市场新闻入 `data_news_items` staging → `/news/triage` 处理 → 人工在仪表板选 → `/news/notify` 投 alpha。旧的 6 个 `/pull/*` per-source 触发器已删（同一真实事件被多源重复触发）。
+- data 含**一处轻量 LLM**——news 分诊 agent(`src/agent.ts`，跑最便宜的 `config.triageModel()`/Haiku)。**两层**:先过确定性**规则管道**硬筛(`src/screening/`,市值≥$1B 等客观门槛,`runScreen` 短路+记 `screen_failed_rule`),过筛者再交 agent 判**材料性/优先级**(不判方向——那是 alpha 的活)并调 fetch tool **预热**该 symbol 的 marketdata 缓存(ratings/insider/price_targets/statements/prices)。其余仍是确定性拉取/落库/投递。
+- 也含**选股发现 scanner**(`/scan/*`):市场级确定性扫描 → 产 `data_candidates`(**绝不直送 alpha**);人工/cron 把候选 `promote` 进 `data_watchlist`(带 `source='discovery'` + TTL)。`expire-watchlist` 按 TTL 清理 discovery 项。
+- 真正 agentic 的**定价/决策** agent 只在 alpha（多轮 tool-use 重定价,见 `.claude/rules/alpha-agent.md`）。data 的分诊 agent 只做轻量筛选/路由+缓存预热,不出交易决策。两者都用 plain Messages API + 手写 tool loop（**不用** Agent SDK `query()`）。
 - portfolio 无 LLM：信号入场时对 `portfolio_positions` 做开仓 / 再决策平仓 / 结算平仓，独占该表。
 
 ## 状态归属（单一 owner 写，T12 铁律）
 
 每张表的**创建写**只有一个 owner，其它服务只读（表名按 owner 加前缀，见 `database.md`「表命名」）：
 
-- `data_events` / `data_notifications` / `data_candidates` / `data_watchlist`（及其余 `data_*` 拉取表）← **data**。
+- `data_events` / `data_notifications` / `data_candidates` / `data_watchlist` / `data_news_items`（及其余 `data_*` 拉取表）← **data**。
+- marketdata 读穿缓存（`data_daily_prices` / `data_income_statement` / `data_balance_sheet` / `data_cash_flow` / `data_financial_ratios` / `data_analyst_estimates` / `data_ratings` / `data_insider` / `data_price_targets` / `data_marketdata_fetches`）经 `@qt/shared/marketdata` 写入 ← 逻辑上归 **data**（data 的分诊 agent 主动预热；alpha 命中热缓存,miss 时同一读穿层回填——这是允许的共享 read-through,非乱写）。
 - `alpha_trading_signals` / `alpha_valuation_snapshots` / `alpha_signal_audits` / `alpha_signal_deliveries` ← **alpha**（alpha 投递前必已写入 `alpha_trading_signals`；portfolio **绝不 insert** 它）。
 - `portfolio_positions` ← **portfolio**。portfolio 拥有持仓生命周期，并把它**镜像**到 `alpha_trading_signals.status`（开→平/止损/止盈/到期）——这是唯一允许的"非 owner 写"，且只写 `status` 一列。
 - 例外（既有设计，非违规）：`data_events` / `data_notifications` 的**双状态**——生产者侧 `delivery_status`（data）与消费者侧 `status`（alpha 推进 `pending|processing|done|noise`）各管一列。

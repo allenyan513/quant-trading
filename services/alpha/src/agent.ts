@@ -23,15 +23,18 @@ import { log } from "./log.js";
 
 const SYSTEM_PROMPT = `You are an event-driven pricing analyst inside an automated trading-signal service. Given a NOTIFICATION — one or more related market EVENTS of the same type (earnings, rating change, price-target change, insider, M&A) for a single company — plus FACTS about the company (current price plus a slow, financials-based reference fair value), decide the trade NOW.
 
-Critical: the reference fair value is just ONE input — it lags (quarterly data) and has NOT moved on today's events. Your job is to REPRICE from the events themselves, weighing them together: read what changed, optionally pull fundamentals/technicals, then translate into a SINGLE actionable signal for the symbol. If the events are immaterial, return direction "hold".
+Critical: the reference fair value is just ONE input — it lags (quarterly data) and has NOT moved on today's events. Your job is to REPRICE from the events themselves, weighing them together: read what changed, optionally pull supporting context, then translate into a SINGLE actionable signal for the symbol. If the events are immaterial, return direction "hold".
 
-Workflow: (1) optionally call get_fundamentals / get_technicals; (2) call emit_signal exactly once with your decision.
+You can pull recent supporting context for the symbol: get_fundamentals (annual ratios), get_technicals (recent prices), get_ratings (analyst grade changes), get_insider (Form-4 open-market buys/sells), get_price_targets (analyst targets). Use them to corroborate or temper the event — e.g. a downgrade weighs more if it follows other bearish analyst action or insider selling.
+
+Workflow: (1) optionally call any of the read tools; (2) call emit_signal exactly once with your decision.
 
 Always emit: direction (buy/sell/hold); absolute target_price and stop_loss; horizon in days; conviction (low/medium/high — notification priority only, NOT position size); and a one-paragraph thesis that explicitly references the events. Position sizing is out of scope.`;
 
 // Bump whenever SYSTEM_PROMPT (or the tool/loop contract) changes — lets us bucket
 // signal performance by prompt version (T1 auditability).
-const PROMPT_VERSION = "1";
+// v2: added get_ratings / get_insider / get_price_targets context tools.
+const PROMPT_VERSION = "2";
 
 /** Full LLM provenance for one generated signal — persisted for replay/audit. */
 export interface SignalAudit {
@@ -70,6 +73,21 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_ratings",
+    description: "Recent analyst grade changes (upgrades/downgrades) for a symbol.",
+    input_schema: { type: "object", properties: { symbol: { type: "string" } }, required: ["symbol"] },
+  },
+  {
+    name: "get_insider",
+    description: "Recent insider (Form 4) open-market buys/sells for a symbol.",
+    input_schema: { type: "object", properties: { symbol: { type: "string" } }, required: ["symbol"] },
+  },
+  {
+    name: "get_price_targets",
+    description: "Recent analyst price-target changes for a symbol.",
+    input_schema: { type: "object", properties: { symbol: { type: "string" } }, required: ["symbol"] },
+  },
+  {
     name: "emit_signal",
     description: "Emit the final structured trading signal for this notification. Call exactly once.",
     input_schema: {
@@ -106,6 +124,23 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<st
       // Read-through marketdata cache → daily_prices. Return recent closes.
       const rows = await marketdata.getDailyPrices(String(input.symbol), 60);
       return JSON.stringify(rows.map((r) => ({ d: r.tradeDate, c: r.close }))).slice(0, 4000);
+    }
+    case "get_ratings": {
+      // Read-through cache → data_ratings (warmed by data's triage agent; we
+      // refill on miss). Recent analyst grade changes.
+      const rows = await marketdata.getRatings(String(input.symbol), 10);
+      // `at` after the spread so a raw `at` field can't clobber the PIT ts.
+      return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
+    }
+    case "get_insider": {
+      const rows = await marketdata.getInsider(String(input.symbol), 10);
+      // `at` after the spread so a raw `at` field can't clobber the PIT ts.
+      return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
+    }
+    case "get_price_targets": {
+      const rows = await marketdata.getPriceTargets(String(input.symbol), 10);
+      // `at` after the spread so a raw `at` field can't clobber the PIT ts.
+      return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
     }
     default:
       return `unknown tool: ${name}`;
