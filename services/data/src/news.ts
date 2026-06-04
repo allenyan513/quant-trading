@@ -28,12 +28,14 @@ function toValidDate(s: string | null): Date | null {
 export interface StageResult {
   pulled: number;
   inserted: number;
+  /** Ids of the rows actually inserted this run (dedup-survivors) — the set to triage. */
+  insertedIds: string[];
 }
 
-/** Upsert staged news rows (idempotent on category+external_id). Returns counts. */
+/** Upsert staged news rows (idempotent on category+external_id). Returns counts + new ids. */
 export async function stageNews(items: NewsItemRow[], batchSize = 50): Promise<StageResult> {
-  if (items.length === 0) return { pulled: 0, inserted: 0 };
-  let inserted = 0;
+  if (items.length === 0) return { pulled: 0, inserted: 0, insertedIds: [] };
+  const insertedIds: string[] = [];
   for (let i = 0; i < items.length; i += batchSize) {
     const chunk = items.slice(i, i + batchSize);
     const rows = await db()
@@ -58,9 +60,9 @@ export async function stageNews(items: NewsItemRow[], batchSize = 50): Promise<S
       )
       .onConflictDoNothing({ target: [newsItems.category, newsItems.externalId] })
       .returning({ id: newsItems.id });
-    inserted += rows.length;
+    for (const r of rows) insertedIds.push(r.id);
   }
-  return { pulled: items.length, inserted };
+  return { pulled: items.length, inserted: insertedIds.length, insertedIds };
 }
 
 export interface NotifyResult {

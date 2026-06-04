@@ -17,10 +17,12 @@
 CRON_TZ=America/New_York
 
 # ---- News ingestion (the sole entry trigger) ----
-# Mon–Fri intraday: stage the last day's news, then triage a few minutes later
-# so triage runs against freshly-staged rows.
+# Mon–Fri intraday: /news/pull stages the last day's news AND auto-triages the
+# freshly-staged rows in the background. The hourly /news/triage tick is just a
+# retry sweep — it re-triages anything left untriaged (e.g. a background run that
+# died, or items that hit the LLM rate limit); a no-op (considered:0) when clear.
 0  9-17  * * 1-5  flock -n /tmp/cron-news-pull.lock    cron-tick.sh /news/pull '{"days":1}'
-10 9-17  * * 1-5  flock -n /tmp/cron-news-triage.lock  cron-tick.sh /news/triage
+30 9-17  * * 1-5  flock -n /tmp/cron-news-triage.lock  cron-tick.sh /news/triage
 
 # ---- Discovery + housekeeping ----
 0  22    * * 1-5  flock -n /tmp/cron-scan.lock      cron-tick.sh /scan/earnings

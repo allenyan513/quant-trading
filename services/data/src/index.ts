@@ -58,9 +58,19 @@ app.post("/news/pull", async (c) => {
     };
     log.info("news.pull.start", { from: args.from, to: args.to, maxPages: args.maxPages, categories });
     const { items, byCategory } = await pullNewsFeed(args);
-    const staged = await stageNews(items);
-    log.info("news.pull.done", { ...staged, byCategory });
-    return c.json(ok({ ...staged, byCategory }));
+    const { pulled, inserted, insertedIds } = await stageNews(items);
+    // Async ACK: hand the freshly-staged rows straight to triage in the
+    // background and return now — triage is a slow LLM loop, so blocking the
+    // pull on it would stall the request (and risk a gateway timeout). Failures
+    // leave rows untriaged for the /news/triage cron sweep to retry. Mirrors
+    // alpha's intake→background-process split.
+    if (insertedIds.length > 0) {
+      void triageNewsItems(insertedIds).catch((err) =>
+        log.error("news.pull.triage_failed", { error: err instanceof Error ? err.message : String(err) }),
+      );
+    }
+    log.info("news.pull.done", { pulled, inserted, byCategory });
+    return c.json(ok({ pulled, inserted, queued: insertedIds.length, byCategory }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error("news.pull.failed", { error: msg });

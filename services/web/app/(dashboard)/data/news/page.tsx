@@ -71,7 +71,7 @@ function PullBar() {
       });
       const j = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
-        data?: { pulled: number; inserted: number; byCategory: Record<string, number> };
+        data?: { pulled: number; inserted: number; queued: number; byCategory: Record<string, number> };
         error?: string;
       };
       if (!res.ok || !j.ok) {
@@ -82,7 +82,7 @@ function PullBar() {
       const by = Object.entries(d.byCategory)
         .map(([k, v]) => `${k}:${v}`)
         .join(" · ");
-      alert(`拉取 ${d.pulled} 条，新入库 ${d.inserted} 条\n${by}`);
+      alert(`拉取 ${d.pulled} 条，新入库 ${d.inserted} 条，已自动排队分诊 ${d.queued} 条\n${by}`);
       await refreshNews();
     } finally {
       setBusy(false);

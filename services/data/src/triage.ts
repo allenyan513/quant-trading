@@ -14,6 +14,7 @@ import { and, eq, isNull, inArray } from "drizzle-orm";
 import { db, dbSchema, mapLimit, marketdata } from "@qt/shared";
 import { buildScreenContext, runScreen, SCREENING_VERSION, type ProfileLoader } from "./screening/index.js";
 import { runTriageAgent } from "./agent.js";
+import { warmSymbol } from "./warm.js";
 import { log } from "./log.js";
 
 const { newsItems } = dbSchema;
@@ -21,7 +22,7 @@ const { newsItems } = dbSchema;
 // Bounded concurrency: each item is an LLM loop + several FMP calls, so a serial
 // run risks a cron-tick timeout on a big batch; unbounded would hammer FMP/LLM
 // rate limits. fmpGet throttles globally underneath, so a small fan-out is safe.
-const TRIAGE_CONCURRENCY = 4;
+const TRIAGE_CONCURRENCY = 2;
 
 type ItemOutcome = "triaged" | "screenedOut" | "failed";
 
@@ -80,6 +81,7 @@ export async function triageNewsItems(ids?: string[]): Promise<TriageRunResult> 
       const screen = runScreen(ctx);
 
       if (!screen.passed) {
+        // Screened out → lowest priority (not a separate state) and no LLM spend.
         await db()
           .update(newsItems)
           .set({
@@ -87,11 +89,18 @@ export async function triageNewsItems(ids?: string[]): Promise<TriageRunResult> 
             screenFailedRule: screen.failedRule ?? null,
             screenDetail: { reason: screen.reason ?? null, ...(screen.detail ?? {}) },
             screeningVersion: SCREENING_VERSION,
+            triagePriority: "low",
+            triageMaterial: false,
             triagedAt: now,
           })
           .where(eq(newsItems.id, row.id));
         return "screenedOut";
       }
+
+      // Passed the screen: deterministically warm the symbol's backing caches
+      // (3 statements / ratios / estimates / prices / ratings / insider / pt) so
+      // the LLM ranks against complete data and alpha reads warm downstream.
+      await warmSymbol(ctx.symbol!);
 
       const verdict = await runTriageAgent({
         symbol: ctx.symbol!, // require_symbol guarantees non-null past the screen
