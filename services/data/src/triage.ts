@@ -11,12 +11,19 @@
  * `ids` to (re)triage specific rows.
  */
 import { and, eq, isNull, inArray } from "drizzle-orm";
-import { db, dbSchema, marketdata } from "@qt/shared";
+import { db, dbSchema, mapLimit, marketdata } from "@qt/shared";
 import { buildScreenContext, runScreen, SCREENING_VERSION, type ProfileLoader } from "./screening/index.js";
 import { runTriageAgent } from "./agent.js";
 import { log } from "./log.js";
 
 const { newsItems } = dbSchema;
+
+// Bounded concurrency: each item is an LLM loop + several FMP calls, so a serial
+// run risks a cron-tick timeout on a big batch; unbounded would hammer FMP/LLM
+// rate limits. fmpGet throttles globally underneath, so a small fan-out is safe.
+const TRIAGE_CONCURRENCY = 4;
+
+type ItemOutcome = "triaged" | "screenedOut" | "failed";
 
 export interface TriageRunResult {
   /** Rows considered this run. */
@@ -30,11 +37,17 @@ export interface TriageRunResult {
 }
 
 /**
- * Screen + triage staged news. With no `ids`, processes untriaged `new` rows.
- * Processed sequentially to stay gentle on FMP / LLM rate limits; the per-symbol
- * profile fetch is memoized so a symbol with several items hits FMP once.
+ * Screen + triage staged news. With no `ids`, processes untriaged `new` rows; an
+ * explicit empty `ids` array is a no-op (never a full-queue sweep — that would be
+ * an accidental, expensive LLM run). Bounded concurrency keeps a large batch under
+ * the cron timeout; the per-symbol profile fetch is memoized so a symbol with
+ * several items hits FMP once.
  */
 export async function triageNewsItems(ids?: string[]): Promise<TriageRunResult> {
+  // An explicit `[]` means "these specific rows" = none. Guard before the
+  // falsy-length fallthrough so a buggy caller can't trigger a triage-all.
+  if (ids && ids.length === 0) return { considered: 0, triaged: 0, screenedOut: 0, failed: 0 };
+
   const rows = ids?.length
     ? await db().select().from(newsItems).where(inArray(newsItems.id, ids))
     : await db()
@@ -42,19 +55,26 @@ export async function triageNewsItems(ids?: string[]): Promise<TriageRunResult> 
         .from(newsItems)
         .where(and(eq(newsItems.status, "new"), isNull(newsItems.triagedAt)));
 
-  // Memoize profile lookups within the run (getProfile is a pass-through FMP call).
+  // Memoize profile lookups within the run (getProfile is a pass-through FMP
+  // call). A failed lookup is cached as null and degrades gracefully — the
+  // min_market_cap rule rejects "unknown" cap — instead of failing+retrying the
+  // item forever.
   const profileCache = new Map<string, Record<string, unknown> | null>();
   const loadProfile: ProfileLoader = async (symbol) => {
     if (profileCache.has(symbol)) return profileCache.get(symbol)!;
-    const p = await marketdata.getProfile(symbol);
+    let p: Record<string, unknown> | null = null;
+    try {
+      p = await marketdata.getProfile(symbol);
+    } catch (err) {
+      log.warn("news.triage.profile_failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    }
     profileCache.set(symbol, p);
     return p;
   };
 
-  const result: TriageRunResult = { considered: rows.length, triaged: 0, screenedOut: 0, failed: 0 };
   const now = new Date();
 
-  for (const row of rows) {
+  async function processRow(row: typeof rows[number]): Promise<ItemOutcome> {
     try {
       const ctx = await buildScreenContext(row, loadProfile);
       const screen = runScreen(ctx);
@@ -70,8 +90,7 @@ export async function triageNewsItems(ids?: string[]): Promise<TriageRunResult> 
             triagedAt: now,
           })
           .where(eq(newsItems.id, row.id));
-        result.screenedOut++;
-        continue;
+        return "screenedOut";
       }
 
       const verdict = await runTriageAgent({
@@ -98,16 +117,24 @@ export async function triageNewsItems(ids?: string[]): Promise<TriageRunResult> 
           triagedAt: now,
         })
         .where(eq(newsItems.id, row.id));
-      result.triaged++;
+      return "triaged";
     } catch (err) {
       log.warn("news.triage.item_failed", {
         id: row.id,
         symbol: row.symbol,
         error: err instanceof Error ? err.message : String(err),
       });
-      result.failed++;
+      return "failed";
     }
   }
+
+  const outcomes = await mapLimit(rows, TRIAGE_CONCURRENCY, processRow);
+  const result: TriageRunResult = {
+    considered: rows.length,
+    triaged: outcomes.filter((o) => o === "triaged").length,
+    screenedOut: outcomes.filter((o) => o === "screenedOut").length,
+    failed: outcomes.filter((o) => o === "failed").length,
+  };
 
   log.info("news.triage.done", { ...result });
   return result;

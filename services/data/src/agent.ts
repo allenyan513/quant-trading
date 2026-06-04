@@ -108,32 +108,42 @@ function client(): Anthropic {
   return _client;
 }
 
-/** Read-only tool dispatch. Each read warms the corresponding marketdata cache. */
+/**
+ * Read-only tool dispatch. Each read warms the corresponding marketdata cache.
+ * Errors are isolated (cache warming is best-effort): a transient FMP/DB failure
+ * returns an error string to the model rather than aborting the whole triage.
+ * `at` goes AFTER the raw spread so a raw `at` field can't clobber the PIT ts.
+ */
 async function runTool(name: string, input: Record<string, unknown>): Promise<string> {
   const sym = String(input.symbol ?? "");
-  switch (name) {
-    case "get_fundamentals": {
-      const rows = await marketdata.getRatios(sym, "annual", 4);
-      return JSON.stringify(rows.map((r) => r.data)).slice(0, 3000);
+  try {
+    switch (name) {
+      case "get_fundamentals": {
+        const rows = await marketdata.getRatios(sym, "annual", 4);
+        return JSON.stringify(rows.map((r) => r.data)).slice(0, 3000);
+      }
+      case "get_technicals": {
+        const rows = await marketdata.getDailyPrices(sym, 60);
+        return JSON.stringify(rows.map((r) => ({ d: r.tradeDate, c: r.close }))).slice(0, 3000);
+      }
+      case "get_ratings": {
+        const rows = await marketdata.getRatings(sym, 10);
+        return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 3000);
+      }
+      case "get_insider": {
+        const rows = await marketdata.getInsider(sym, 10);
+        return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 3000);
+      }
+      case "get_price_targets": {
+        const rows = await marketdata.getPriceTargets(sym, 10);
+        return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 3000);
+      }
+      default:
+        return `unknown tool: ${name}`;
     }
-    case "get_technicals": {
-      const rows = await marketdata.getDailyPrices(sym, 60);
-      return JSON.stringify(rows.map((r) => ({ d: r.tradeDate, c: r.close }))).slice(0, 3000);
-    }
-    case "get_ratings": {
-      const rows = await marketdata.getRatings(sym, 10);
-      return JSON.stringify(rows.map((r) => ({ at: r.observedAt, ...r.data }))).slice(0, 3000);
-    }
-    case "get_insider": {
-      const rows = await marketdata.getInsider(sym, 10);
-      return JSON.stringify(rows.map((r) => ({ at: r.observedAt, ...r.data }))).slice(0, 3000);
-    }
-    case "get_price_targets": {
-      const rows = await marketdata.getPriceTargets(sym, 10);
-      return JSON.stringify(rows.map((r) => ({ at: r.observedAt, ...r.data }))).slice(0, 3000);
-    }
-    default:
-      return `unknown tool: ${name}`;
+  } catch (err) {
+    log.warn("triage.agent.tool_failed", { tool: name, symbol: sym, error: err instanceof Error ? err.message : String(err) });
+    return `error calling ${name}: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
 
