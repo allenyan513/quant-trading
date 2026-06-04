@@ -243,13 +243,12 @@ export const notifications = pgTable(
 
 // ---- News inbox (manual FMP news flow — staging, data-owned) ----
 
-// Staging area for the MANUAL news flow (see issue #59): a human clicks "pull"
-// in the dashboard, data fetches market-wide FMP news here (NOT into `events`),
-// the page lists them newest-first, and a human selects rows to notify alpha.
-// Only on "notify" are selected rows materialized into `events` + delivered as
-// notifications (reusing the normal outbox). Kept separate from `events` so the
-// auto `/pull/*` pipeline is untouched and un-actioned/symbol-less articles
-// never pollute it. Written only by data.
+// Staging area for the news flow (see issue #59) — the sole entry trigger: data
+// fetches market-wide FMP news here (NOT into `events`), triage screens/enriches
+// per symbol, the dashboard lists them newest-first, and a human selects rows to
+// notify alpha. Only on "notify" are selected rows materialized into `events` +
+// delivered as notifications (reusing the normal outbox). Kept separate from
+// `events` so un-actioned/symbol-less articles never pollute it. Written only by data.
 export const newsItems = pgTable(
   "data_news_items",
   {

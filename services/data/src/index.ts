@@ -1,103 +1,29 @@
 /**
- * Data service — the sole receiver of external info. v1: scheduled pull
- * only. Cloud Scheduler hits /pull/* on a cron; each pulled item becomes an
- * event, persisted (dedup) and delivered to alpha with outbox fallback.
+ * Data service — the sole receiver of external info. News-driven: `/news/pull`
+ * stages market-wide FMP news; `/news/triage` screens + enriches per symbol;
+ * a human promotes rows via `/news/notify`, which delivers an event to alpha
+ * with outbox fallback. Plus the deterministic discovery scanner (`/scan/*`).
  */
 import { serve } from "@hono/node-server";
-import { Hono, type Context } from "hono";
-import { ok, fail, config, type EventPayload } from "@qt/shared";
-import { ingestAndNotifyAll, redeliverPending } from "./deliver.js";
-import { pullEarnings } from "./pull/earnings.js";
-import { pullRatings } from "./pull/ratings.js";
-import { pullNews } from "./pull/news.js";
-import { pullPriceTargets } from "./pull/price-target.js";
-import { pullInsider } from "./pull/insider.js";
-import { pullMna } from "./pull/mna.js";
+import { Hono } from "hono";
+import { ok, fail, config } from "@qt/shared";
+import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
 import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
-import { getWatchlistSymbols } from "./watchlist.js";
-import { resolveWindow, advanceWatermark } from "./watermark.js";
 import { log } from "./log.js";
 
 const app = new Hono();
 
 app.get("/healthz", (c) => c.json(ok({ service: "data", status: "up" })));
 
-// Fallback window for explicit/partial overrides and the scanner. Steady-state
-// /pull/* uses the per-source watermark (resolveWindow) instead — see #4.
+// Fallback window for explicit/partial overrides and the scanner.
 function defaultWindow(): { from: string; to: string } {
   const to = new Date();
   const from = new Date(to.getTime() - 3 * 24 * 3600 * 1000); // last 3 days
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
-
-interface PullArgs {
-  from: string;
-  to: string;
-  symbols: string[];
-  limit?: number;
-}
-type Puller = (args: PullArgs) => Promise<EventPayload[]>;
-
-/**
- * Build a /pull/* handler. All six pulls share the same shape: parse body →
- * default `symbols` to the watchlist (fail-fast on empty, so we never pull
- * market-wide by accident) → resolve the window → run the puller → persist +
- * deliver aggregated notifications → return counts. Only the puller and the
- * log/error `name` (snake_case id, e.g. "price_targets") differ, so behavior
- * changes (skipped counting, ET day boundaries, …) happen in ONE place.
- */
-function makePullRoute(name: string, puller: Puller) {
-  return async (c: Context) => {
-    try {
-      const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-      const symbols = (body.symbols as string[] | undefined) ?? (await getWatchlistSymbols());
-      if (symbols.length === 0) {
-        return c.json(fail("empty_watchlist", "seed the watchlist first (pnpm seed:watchlist)"), 400);
-      }
-      // An explicit from/to is a manual backfill: use it as-is (default the missing
-      // side) and DON'T touch the steady-state cursor. Otherwise resume from the
-      // per-source watermark and advance it after a successful pull (#4).
-      const hasExplicit = body.from !== undefined || body.to !== undefined;
-      const win = hasExplicit ? defaultWindow() : await resolveWindow(name);
-      const args: PullArgs = {
-        from: (body.from as string) ?? win.from,
-        to: (body.to as string) ?? win.to,
-        symbols,
-        limit: body.limit as number | undefined,
-      };
-      log.info(`pull.${name}.start`, { from: args.from, to: args.to, symbols: symbols.length });
-      const payloads = await puller(args);
-      log.info(`pull.${name}.fetched`, { events: payloads.length });
-      const res = await ingestAndNotifyAll(payloads);
-      if (!hasExplicit) {
-        // Best-effort: the pull already persisted+delivered; a failed advance just
-        // re-pulls the overlap next run (dedup-safe), so never fail the request.
-        try {
-          await advanceWatermark(name, payloads);
-        } catch (e) {
-          log.warn(`pull.${name}.watermark_failed`, { error: e instanceof Error ? e.message : String(e) });
-        }
-      }
-      log.info(`pull.${name}.done`, { pulled: payloads.length, ...res });
-      return c.json(ok({ pulled: payloads.length, ...res }));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.error(`pull.${name}.failed`, { error: msg });
-      return c.json(fail(`pull_${name}_failed`, msg), 500);
-    }
-  };
-}
-
-app.post("/pull/earnings", makePullRoute("earnings", pullEarnings));
-app.post("/pull/ratings", makePullRoute("ratings", pullRatings));
-app.post("/pull/news", makePullRoute("news", pullNews));
-app.post("/pull/price-targets", makePullRoute("price_targets", pullPriceTargets));
-app.post("/pull/insider", makePullRoute("insider", pullInsider));
-// mna's endpoint is market-wide; `symbols` is the watchlist to match deals against.
-app.post("/pull/mna", makePullRoute("mna", pullMna));
 
 // ---- Manual news flow (issue #59): pull market-wide FMP news into staging,
 // list it in the dashboard, then a human selects rows to push to alpha. ----

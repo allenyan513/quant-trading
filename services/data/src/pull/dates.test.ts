@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { easternToUtcIso } from "./news.js";
+import { easternToUtcIso } from "./dates.js";
 
 describe("easternToUtcIso (FMP news publishedDate is naive US-Eastern)", () => {
   it("converts EDT (summer, -04:00) to UTC", () => {
