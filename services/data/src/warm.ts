@@ -13,8 +13,12 @@
  * it (alpha's own read-through is the backstop), it only moves the FMP latency
  * off the hot path.
  */
-import { marketdata } from "@qt/shared";
+import { marketdata, mapLimit } from "@qt/shared";
 import { log } from "./log.js";
+
+/** Max getters in flight per symbol — bounds the fan-out so a symbol doesn't
+ *  burst all datasets at once (fmpGet still throttles globally underneath). */
+const WARM_CONCURRENCY = 3;
 
 /** The datasets we pre-fill for a screened-in symbol: 3 statements + ratios +
  *  estimates + daily prices + the sporadic event records. */
@@ -33,13 +37,11 @@ const WARMERS: Array<[string, (s: string) => Promise<unknown>]> = [
 /** Warm all backing caches for one symbol. Per-dataset failures are logged, not thrown. */
 export async function warmSymbol(symbol: string): Promise<void> {
   const sym = symbol.toUpperCase();
-  await Promise.all(
-    WARMERS.map(async ([name, fn]) => {
-      try {
-        await fn(sym);
-      } catch (err) {
-        log.warn("news.triage.warm_failed", { symbol: sym, dataset: name, error: err instanceof Error ? err.message : String(err) });
-      }
-    }),
-  );
+  await mapLimit(WARMERS, WARM_CONCURRENCY, async ([name, fn]) => {
+    try {
+      await fn(sym);
+    } catch (err) {
+      log.warn("news.triage.warm_failed", { symbol: sym, dataset: name, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
 }
