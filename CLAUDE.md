@@ -3,7 +3,7 @@
 事件驱动的分布式量化交易系统。三个独立 HTTP 服务：
 
 ```
-外部源 → data → (event) → alpha → (signal) → portfolio (sizing + 开/平仓结算)
+新闻源 → data (初筛+分诊+缓存预热) → (event) → alpha (重定价) → (signal) → portfolio (sizing + 开/平仓结算)
 ```
 
 栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic SDK（Messages API，非 Agent SDK）。pnpm workspaces 单仓库。
@@ -37,8 +37,8 @@ pnpm down
 ## 仓库结构
 
 - `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被各服务作为 `@qt/shared` workspace 依赖引用。
-- `services/data` —— 外部数据唯一接收者（定时 `/pull/*` 拉 watchlist），无 LLM；含**选股发现 scanner**(`/scan/*` → `data_candidates` 队列 → 人工 `promote` 进 `data_watchlist` 带 TTL)。
-- `services/alpha` —— **唯一的真 LLM agent**：事件 → 交易信号。
+- `services/data` —— 外部数据唯一接收者，**news 驱动**(issue #59)：`/news/pull` 拉市场新闻入 staging → `/news/triage` 处理 → 人工选 → `/news/notify` 投 alpha。含**一处轻量 LLM**——news 分诊 agent（先确定性规则管道硬筛市值等，过筛者交 Haiku agent 判材料性/优先级 + 预热该 symbol 的 marketdata 缓存）；其余确定性。也含**选股发现 scanner**(`/scan/*` → `data_candidates` → 人工 `promote` 进 `data_watchlist` 带 TTL)。
+- `services/alpha` —— **唯一的定价/决策 LLM agent**：事件 → 重定价 → 交易信号（读 data 预热的缓存）。
 - `services/portfolio` —— **`portfolio_positions` 账本唯一 owner**，无 LLM：接收 alpha 的信号 → 记录 + 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓。`services/web` 仪表盘只读这套数据。
 
 ## 全局铁律（细则见 `.claude/rules/`）
@@ -75,4 +75,4 @@ pnpm down
 
 ## 当前阶段
 
-闭环已打通：data 拉取/聚合投递 → alpha 重定价出信号 → portfolio sizing 开仓 + `/jobs/track` 结算平仓；`services/web` 只读仪表盘。进行中的工作与路线图见 **GitHub issues**（v2 总览 #48，架构讨论 #44）。
+闭环已打通：data news 摄入 → 初筛+分诊+缓存预热 → alpha 重定价出信号 → portfolio sizing 开仓 + `/jobs/track` 结算平仓；`services/web` 只读仪表盘 + 人工分诊审核。进行中的工作与路线图见 **GitHub issues**（v2 总览 #48，架构讨论 #44，news 驱动 #59）。

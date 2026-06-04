@@ -12,6 +12,7 @@ export async function GET(req: Request) {
       symbol: param(req, "symbol"),
       status: param(req, "status"),
       category: param(req, "category"),
+      priority: param(req, "priority"),
     }),
   );
 }

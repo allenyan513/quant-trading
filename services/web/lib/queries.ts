@@ -151,6 +151,7 @@ interface ListOpts {
   deliveryStatus?: string;
   eventType?: string;
   category?: string;
+  priority?: string; // news triage priority: low | med | high
 }
 
 export async function listEvents(opts: ListOpts = {}) {
@@ -189,6 +190,7 @@ export async function listNews(opts: ListOpts = {}) {
   if (opts.symbol) conds.push(eq(newsItems.symbol, opts.symbol));
   if (opts.status) conds.push(eq(newsItems.status, opts.status));
   if (opts.category) conds.push(eq(newsItems.category, opts.category));
+  if (opts.priority) conds.push(eq(newsItems.triagePriority, opts.priority));
   return db()
     .select()
     .from(newsItems)
