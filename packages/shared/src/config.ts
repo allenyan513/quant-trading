@@ -19,6 +19,9 @@ export const config = {
 
   anthropicApiKey: () => requireEnv("ANTHROPIC_API_KEY"),
   signalModel: () => optionalEnv("SIGNAL_MODEL", "claude-opus-4-8"),
+  /** Model for data's lightweight news-triage agent. Cheap by default (Haiku):
+   *  triage only screens/enriches — the pricing decision stays on signalModel. */
+  triageModel: () => optionalEnv("TRIAGE_MODEL", "claude-haiku-4-5-20251001"),
   /** Knowledge cutoff of the current signal model — signals pricing events after
    *  this date are out-of-sample (look-ahead-safe). Bump alongside SIGNAL_MODEL. */
   modelCutoff: () => new Date(optionalEnv("MODEL_CUTOFF", "2026-01-01")),

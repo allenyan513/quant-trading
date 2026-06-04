@@ -345,3 +345,8 @@ export async function getPeers(symbol: string, max = 6): Promise<PeerMultiples[]
   });
   return out.filter((p): p is PeerMultiples => p !== null);
 }
+
+// Sporadic per-symbol event-record caches (ratings / insider / price targets).
+// Re-exported at the bottom: records.ts imports easternToUtc back from here, so
+// keeping this after that definition makes the cycle's eval order obvious.
+export * from "./records.js";

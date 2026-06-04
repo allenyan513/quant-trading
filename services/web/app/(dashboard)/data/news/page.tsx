@@ -15,6 +15,14 @@ interface NewsRow {
   site: string | null;
   status: string;
   publishedAt: string | null;
+  // Triage (data-prep agent, issue #59)
+  screenPassed: boolean | null;
+  screenFailedRule: string | null;
+  triageSymbol: string | null;
+  triageMaterial: boolean | null;
+  triagePriority: string | null;
+  triageRationale: string | null;
+  triagedAt: string | null;
 }
 
 const CATEGORIES = [
@@ -24,6 +32,12 @@ const CATEGORIES = [
   { value: "fmp_article", label: "FMP" },
 ];
 
+const PRIORITIES = [
+  { value: "high", label: "High" },
+  { value: "med", label: "Med" },
+  { value: "low", label: "Low" },
+];
+
 const catColor: Record<string, string> = {
   stock: "#58a6ff",
   general: "#8a97ab",
@@ -31,11 +45,18 @@ const catColor: Record<string, string> = {
   fmp_article: "#3fb950",
 };
 
+const prioColor: Record<string, string> = {
+  high: "#f85149",
+  med: "#d29922",
+  low: "#8a97ab",
+};
+
 function refreshNews() {
   return mutate((k) => typeof k === "string" && k.startsWith("/api/news"));
 }
 
-/** Top control: pull market-wide FMP news into staging (does not touch alpha). */
+/** Top control: pull market-wide FMP news into staging, then screen + triage it
+ * (deterministic rule pipeline → Haiku triage agent). Neither touches alpha. */
 function PullBar() {
   const [days, setDays] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -68,6 +89,31 @@ function PullBar() {
     }
   }
 
+  async function triage() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/news/triage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        data?: { considered: number; triaged: number; screenedOut: number; failed: number };
+        error?: string;
+      };
+      if (!res.ok || !j.ok) {
+        alert(`triage failed: ${j.error ?? res.status}`);
+        return;
+      }
+      const d = j.data!;
+      alert(`分诊 ${d.considered} 条：通过 ${d.triaged} · 初筛淘汰 ${d.screenedOut} · 失败 ${d.failed}`);
+      await refreshNews();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
       <label style={{ fontSize: 13, color: "var(--muted)" }}>
@@ -85,6 +131,9 @@ function PullBar() {
       <button onClick={pull} disabled={busy} style={primaryBtn(busy)}>
         {busy ? "拉取中…" : "拉取新闻"}
       </button>
+      <button onClick={triage} disabled={busy} style={ghostBtn(busy)}>
+        {busy ? "处理中…" : "分诊未处理"}
+      </button>
     </div>
   );
 }
@@ -93,12 +142,14 @@ export default function NewsPage() {
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
   const [symbol, setSymbol] = useState("");
+  const [priority, setPriority] = useState("");
   const [busy, setBusy] = useState(false);
 
   const qs = new URLSearchParams();
   if (category) qs.set("category", category);
   if (status) qs.set("status", status);
   if (symbol) qs.set("symbol", symbol.toUpperCase());
+  if (priority) qs.set("priority", priority);
   qs.set("limit", "200");
   const url = `/api/news?${qs}`;
 
@@ -131,18 +182,21 @@ export default function NewsPage() {
   }
 
   function notifyOne(r: NewsRow) {
-    if (!r.symbol) {
+    // Prefer the triage agent's resolved symbol over the article's raw tag.
+    const sym = r.triageSymbol ?? r.symbol;
+    if (!sym) {
       const s = window.prompt("该新闻没有股票代码，输入要通知 alpha 的 symbol（留空取消）:")?.trim();
       if (!s) return;
       void postNotify([r.id], { [r.id]: s.toUpperCase() });
       return;
     }
-    void postNotify([r.id]);
+    // Pass the resolved symbol as an override so notify uses triage's pick.
+    void postNotify([r.id], { [r.id]: sym.toUpperCase() });
   }
 
   return (
     <div>
-      <PageTitle subsystem="data" sub="手动拉取 FMP 市场新闻 → 选择 → 打包通知 alpha（无定时任务前的人工链路 · issue #59）">
+      <PageTitle subsystem="data" sub="拉取 FMP 市场新闻 → 初筛+LLM 分诊（优先级/材料性）→ 人工选择 → 通知 alpha（issue #59）">
         News
       </PageTitle>
 
@@ -165,6 +219,14 @@ export default function NewsPage() {
             </option>
           ))}
         </select>
+        <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
+          <option value="">Priority: all</option>
+          {PRIORITIES.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
         <input placeholder="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} style={inputStyle} />
         <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted)" }}>
           {isLoading ? "loading…" : `${rows.length} rows · live 5s`}
@@ -181,7 +243,8 @@ export default function NewsPage() {
               <th style={{ ...thStyle, width: 80 }}>Feed</th>
               <th style={{ ...thStyle, width: 80 }}>Symbol</th>
               <th style={thStyle}>Title</th>
-              <th style={{ ...thStyle, width: 140 }}>Site</th>
+              <th style={{ ...thStyle, width: 150 }}>Triage</th>
+              <th style={{ ...thStyle, width: 120 }}>Site</th>
               <th style={{ ...thStyle, width: 80 }}>Status</th>
               <th style={{ ...thStyle, width: 110 }}>Action</th>
             </tr>
@@ -189,7 +252,7 @@ export default function NewsPage() {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, color: "var(--muted)" }}>
+                <td colSpan={8} style={{ ...tdStyle, color: "var(--muted)" }}>
                   No staged news — click 拉取新闻.
                 </td>
               </tr>
@@ -214,6 +277,9 @@ export default function NewsPage() {
                     (r.title ?? "—")
                   )}
                 </td>
+                <td style={tdStyle}>
+                  <TriageCell r={r} />
+                </td>
                 <td style={{ ...tdStyle, color: "var(--muted)" }}>{r.site ?? "—"}</td>
                 <td style={tdStyle}>
                   <StatusBadge status={r.status} />
@@ -233,6 +299,27 @@ export default function NewsPage() {
   );
 }
 
+/** Triage verdict cell: priority badge + materiality, or the screen-out reason
+ * / "untriaged". Rationale shows on hover. */
+function TriageCell({ r }: { r: NewsRow }) {
+  if (!r.triagedAt) return <span style={{ color: "var(--muted)" }}>—</span>;
+  if (r.screenPassed === false) {
+    return (
+      <span style={{ color: "var(--muted)", fontSize: 12 }} title={r.screenFailedRule ?? ""}>
+        screened out{r.screenFailedRule ? ` · ${r.screenFailedRule}` : ""}
+      </span>
+    );
+  }
+  return (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }} title={r.triageRationale ?? ""}>
+      {r.triagePriority && <Badge color={prioColor[r.triagePriority] ?? "#8a97ab"}>{r.triagePriority}</Badge>}
+      <span style={{ fontSize: 12, color: r.triageMaterial ? "#3fb950" : "var(--muted)" }}>
+        {r.triageMaterial ? "material" : "immaterial"}
+      </span>
+    </span>
+  );
+}
+
 const inputStyle: React.CSSProperties = {
   background: "var(--panel-2)",
   border: "1px solid var(--border)",
@@ -247,6 +334,18 @@ const primaryBtn = (busy: boolean): React.CSSProperties => ({
   background: "#1f6feb",
   border: "1px solid #388bfd",
   color: "#fff",
+  borderRadius: 8,
+  padding: "6px 14px",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: busy ? "default" : "pointer",
+  opacity: busy ? 0.5 : 1,
+});
+
+const ghostBtn = (busy: boolean): React.CSSProperties => ({
+  background: "transparent",
+  border: "1px solid var(--border)",
+  color: "var(--text)",
   borderRadius: 8,
   padding: "6px 14px",
   fontSize: 13,
