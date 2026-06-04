@@ -1,6 +1,6 @@
 # data — external cron contract (#23)
 
-The data service has no in-process scheduler. Its `/pull/*`, `/scan/*` and
+The data service has no in-process scheduler. Its `/news/*`, `/scan/*` and
 `/internal/*` endpoints are the canonical job definitions; an **external cron**
 drives them on a schedule. This was a deliberate choice:
 
@@ -9,9 +9,9 @@ drives them on a schedule. This was a deliberate choice:
 - Cloud Run scales to zero, where in-process timers are unreliable; an external
   scheduler hitting HTTP works for both persistent (docker-compose/VM) and
   scale-to-zero deploys.
-- Since #4, every pull dedups on `(source, external_id)` and resumes from a
-  per-source **watermark**, so ticks are idempotent and resilient to gaps — a
-  missed or double-fired tick neither loses nor duplicates events.
+- News ingestion is the sole entry trigger (the per-source `/pull/*` triggers
+  were removed). Staging dedups on `(category, external_id)`, so ticks are
+  idempotent — a missed or double-fired tick neither loses nor duplicates rows.
 
 ## The contract
 
@@ -21,22 +21,17 @@ fail-loud `curl` wrapper each line calls.
 
 | Endpoint | Cadence (ET) | Why |
 |---|---|---|
-| `POST /pull/earnings` | 17:30 & 21:30, Mon–Fri | after-close (amc) earnings land in the evening |
-| `POST /pull/ratings` | 18:00, Mon–Fri | analyst grade changes |
-| `POST /pull/price-targets` | 18:00, Mon–Fri | price-target changes |
-| `POST /pull/insider` | 18:00, Mon–Fri | insider trades |
-| `POST /pull/mna` | 18:15, Mon–Fri | M&A activity |
-| `POST /pull/news` | hourly 09–17, Mon–Fri | per-symbol news (auto flow) |
+| `POST /news/pull` | hourly 09–17, Mon–Fri | stage market-wide FMP news (sole entry trigger) |
+| `POST /news/triage` | hourly 09:10–17:10, Mon–Fri | screen + enrich freshly-staged news per symbol |
 | `POST /scan/earnings` | 22:00, Mon–Fri | discovery scanner → candidates |
 | `POST /internal/expire-watchlist` | 06:00 daily | TTL sweep of discovery entries |
 | `POST /internal/redeliver` | every 5 min | outbox retry of pending notifications |
 
-All POST with an empty body `{}`: symbols default to the watchlist, the window
-comes from the watermark. Override per tick if needed (e.g. a manual backfill
-`cron-tick.sh /pull/earnings '{"from":"2026-01-01","to":"2026-03-01"}'` — an
-explicit window does NOT move the steady-state cursor).
+`/news/pull` takes `{"days":N}` (default 7); `/news/triage` takes an empty body
+(triages all untriaged staged rows). `/scan/earnings` and `/internal/*` POST an
+empty body `{}`.
 
-`flock` per job makes a slow pull skip rather than stack the next tick. Cadence
+`flock` per job makes a slow tick skip rather than stack the next one. Cadence
 is a starting point — tune the crontab to taste.
 
 ## Wiring it up
@@ -78,10 +73,10 @@ Scheduler honors a timezone directly, so the same ET cadence applies. Example:
 DATA_URL="https://data-XXXX.run.app"   # deployed data service
 TZ="America/New_York"
 
-gcloud scheduler jobs create http data-pull-earnings \
-  --schedule="30 17,21 * * 1-5" --time-zone="$TZ" \
-  --uri="$DATA_URL/pull/earnings" --http-method=POST \
-  --headers="Content-Type=application/json" --message-body='{}' \
+gcloud scheduler jobs create http data-news-pull \
+  --schedule="0 9-17 * * 1-5" --time-zone="$TZ" \
+  --uri="$DATA_URL/news/pull" --http-method=POST \
+  --headers="Content-Type=application/json" --message-body='{"days":1}' \
   --oidc-service-account-email="$CRON_SA"   # see #24 (service-to-service auth)
 
 gcloud scheduler jobs create http data-redeliver \

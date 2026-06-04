@@ -2,13 +2,13 @@
 # Idempotent cron tick for the data service's external cron contract (#23).
 #
 # POSTs one data endpoint with an (optional) JSON body and surfaces ok/fail so
-# the cron log and any monitoring see failures. Safe to fire repeatedly: the
-# pulls dedup on (source, external_id) and resume from the per-source watermark
-# (#4), so a double-fire or a retried tick never duplicates or loses events.
+# the cron log and any monitoring see failures. Safe to fire repeatedly: news
+# staging dedups on (category, external_id), so a double-fire or a retried tick
+# never duplicates rows.
 #
 # Usage:   cron-tick.sh <endpoint-path> [json-body]
-# Example: cron-tick.sh /pull/earnings
-#          cron-tick.sh /pull/news '{"days":1}'
+# Example: cron-tick.sh /news/pull '{"days":1}'
+#          cron-tick.sh /news/triage
 #
 # Env:
 #   DATA_BASE_URL   base URL of the data service (default http://localhost:8081)

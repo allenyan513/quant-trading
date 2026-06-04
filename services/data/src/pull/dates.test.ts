@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { easternToUtcIso } from "./news.js";
+import { easternToUtcIso } from "./dates.js";
 
 describe("easternToUtcIso (FMP news publishedDate is naive US-Eastern)", () => {
   it("converts EDT (summer, -04:00) to UTC", () => {
@@ -16,6 +16,13 @@ describe("easternToUtcIso (FMP news publishedDate is naive US-Eastern)", () => {
 
   it("handles missing seconds", () => {
     expect(easternToUtcIso("2026-05-30 03:30")).toBe("2026-05-30T07:30:00.000Z");
+  });
+
+  it("handles ET midnight without drifting a day (h23, not h24)", () => {
+    // 00:00 EDT == 04:00 UTC same day — must not land on the previous day.
+    expect(easternToUtcIso("2026-05-30 00:00:00")).toBe("2026-05-30T04:00:00.000Z");
+    // 00:00 EST (winter) == 05:00 UTC same day.
+    expect(easternToUtcIso("2026-01-15 00:00:00")).toBe("2026-01-15T05:00:00.000Z");
   });
 
   it("returns null for unparseable input", () => {

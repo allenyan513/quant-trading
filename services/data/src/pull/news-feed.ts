@@ -1,8 +1,7 @@
 /**
- * Market-wide FMP news fetch + normalization for the MANUAL news flow (issue #59).
+ * Market-wide FMP news fetch + normalization — the sole entry trigger (issue #59).
  *
- * Unlike pull/news.ts (per-symbol, auto-aggregated into the alpha pipeline), this
- * pulls the market-wide "latest" feeds with NO symbol filter, normalizes the
+ * Pulls the market-wide "latest" feeds with NO symbol filter, normalizes the
  * differing per-feed shapes into one row type, and returns them for staging in
  * `news_items` (NOT `events`). Bounded by design: paginate newest-first and stop
  * once a page falls entirely before the `from` window or `maxPages` is hit —
@@ -15,7 +14,7 @@
  *     image, site.
  */
 import { fmpGet } from "@qt/shared";
-import { easternToUtcIso } from "./news.js";
+import { easternToUtcIso } from "./dates.js";
 import { log } from "../log.js";
 
 /** FMP feed -> { REST path, wire shape }. Base url already ends in /stable. */

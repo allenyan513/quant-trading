@@ -5,25 +5,22 @@
 # for persistent deploys, Cloud Scheduler for Cloud Run scale-to-zero) drives
 # them. See README.md for how to wire each target.
 #
-# Times are US Eastern — earnings/analyst data follows the US market day (#26).
-# Each line POSTs with an empty body, so symbols default to the watchlist and the
-# window comes from the per-source watermark (#4): ticks are idempotent + resume
-# after any gap. flock makes a slow pull skip (not stack) the next tick — overlap
-# is dedup-safe, just wasteful of FMP quota.
+# Times are US Eastern — news/analyst data follows the US market day (#26).
+# News-driven (the per-source /pull/* triggers were removed): /news/pull stages
+# market-wide FMP news; /news/triage screens + enriches per symbol. A human then
+# promotes rows via the dashboard. flock makes a slow tick skip (not stack) the
+# next one — staging dedups on (category, external_id), so overlap is safe.
 #
 # The cron environment must provide:
 #   DATA_BASE_URL   e.g. http://data:8080 (compose) or http://localhost:8081 (host)
 #   PATH            must find curl, flock, and cron-tick.sh (this dir)
 CRON_TZ=America/New_York
 
-# ---- Source pulls (entry triggers — nothing upstream pushes these) ----
-# Mon–Fri; after-close (amc) earnings land in the evening, so pull twice.
-30 17,21 * * 1-5  flock -n /tmp/cron-earnings.lock  cron-tick.sh /pull/earnings
-0  18    * * 1-5  flock -n /tmp/cron-ratings.lock   cron-tick.sh /pull/ratings
-0  18    * * 1-5  flock -n /tmp/cron-ptargets.lock  cron-tick.sh /pull/price-targets
-0  18    * * 1-5  flock -n /tmp/cron-insider.lock   cron-tick.sh /pull/insider
-15 18    * * 1-5  flock -n /tmp/cron-mna.lock       cron-tick.sh /pull/mna
-0  9-17  * * 1-5  flock -n /tmp/cron-news.lock      cron-tick.sh /pull/news
+# ---- News ingestion (the sole entry trigger) ----
+# Mon–Fri intraday: stage the last day's news, then triage a few minutes later
+# so triage runs against freshly-staged rows.
+0  9-17  * * 1-5  flock -n /tmp/cron-news-pull.lock    cron-tick.sh /news/pull '{"days":1}'
+10 9-17  * * 1-5  flock -n /tmp/cron-news-triage.lock  cron-tick.sh /news/triage
 
 # ---- Discovery + housekeeping ----
 0  22    * * 1-5  flock -n /tmp/cron-scan.lock      cron-tick.sh /scan/earnings
