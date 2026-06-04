@@ -15,6 +15,9 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { fmpGet } from "../fmp.js";
+// easternToUtc lives in ./index.js, which re-exports this file — a cycle that's
+// safe here: it's a hoisted function decl, called only at runtime (not load).
+import { easternToUtc } from "./index.js";
 
 // Re-fetch a symbol's records at most once per TTL. Records land throughout the
 // US market day, so a few hours keeps intraday triage fresh without re-hitting
@@ -94,6 +97,11 @@ export function mapGradeRecords(sym: string, rows: FmpGrade[]): RecordRowInput[]
  * Insider trades → records. Keeps only open-market buys/sells (P-/S-), dropping
  * gifts/awards/option-exercises/tax noise. `observed_at` = filing moment (the
  * disclosure), falling back to the transaction date.
+ *
+ * PIT: `filingDate` is a naive US-Eastern wall-clock with an intraday time
+ * ("2026-05-15 18:30:00") — parse it ET→UTC (easternToUtc), NOT dayToUtc, or the
+ * disclosure would look knowable ~22h before it actually filed (look-ahead bias).
+ * `transactionDate` is date-only, so dayToUtc (UTC midnight) is right for it.
  */
 export function mapInsiderRecords(sym: string, rows: FmpInsider[]): RecordRowInput[] {
   const out: RecordRowInput[] = [];
@@ -105,7 +113,7 @@ export function mapInsiderRecords(sym: string, rows: FmpInsider[]): RecordRowInp
     out.push({
       symbol: sym,
       externalId: `insider:${sym}:${t.transactionDate ?? when.slice(0, 10)}:${t.reportingCik ?? t.reportingName ?? "?"}:${t.transactionType}:${t.securitiesTransacted ?? "?"}`,
-      observedAt: dayToUtc(when),
+      observedAt: t.filingDate ? easternToUtc(t.filingDate) : dayToUtc(t.transactionDate ?? when),
       data: t as Record<string, unknown>,
     });
   }
