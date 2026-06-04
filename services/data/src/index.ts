@@ -11,6 +11,7 @@ import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
 import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
+import { triageNewsItems } from "./triage.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
 import { log } from "./log.js";
 
@@ -64,6 +65,24 @@ app.post("/news/pull", async (c) => {
     const msg = err instanceof Error ? err.message : String(err);
     log.error("news.pull.failed", { error: msg });
     return c.json(fail("news_pull_failed", msg), 500);
+  }
+});
+
+// Screen + LLM-triage staged news (issue #59): deterministic rule pipeline first
+// (market cap etc.), then the triage agent on survivors — it judges materiality/
+// priority and warms the symbol's marketdata caches. Writes suggestions back onto
+// the rows for human review. Empty body triages all untriaged `new` rows; pass
+// `{ ids: [...] }` to (re)triage specific rows.
+app.post("/news/triage", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const ids = Array.isArray(body.ids) ? (body.ids as unknown[]).map(String) : undefined;
+    const res = await triageNewsItems(ids);
+    return c.json(ok(res));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("news.triage.failed", { error: msg });
+    return c.json(fail("news_triage_failed", msg), 500);
   }
 });
 

@@ -327,11 +327,30 @@ export const newsItems = pgTable(
     // new | notified — whether a human has pushed it to alpha yet.
     status: text("status").default("new").notNull(),
     pulledAt: timestamp("pulled_at", { withTimezone: true }).default(sql`now()`).notNull(),
+
+    // ---- Triage (data-prep agent, issue #59) ----
+    // Deterministic screen (rule pipeline, code-side hard gates): did it pass,
+    // and if not, which rule rejected it + supporting detail + the rule-set version.
+    screenPassed: boolean("screen_passed"),
+    screenFailedRule: text("screen_failed_rule"),
+    screenDetail: jsonb("screen_detail"),
+    screeningVersion: text("screening_version"),
+    // LLM triage (only run when the screen passed): the agent's read on the news.
+    // No direction — bullish/bearish is alpha's repricing job, not triage's.
+    triageSymbol: text("triage_symbol"),
+    triageMaterial: boolean("triage_material"),
+    triagePriority: text("triage_priority"), // low | med | high
+    triageRationale: text("triage_rationale"),
+    triageModel: text("triage_model"), // resp.model (provenance)
+    triagePromptVersion: text("triage_prompt_version"),
+    triagedAt: timestamp("triaged_at", { withTimezone: true }),
   },
   (t) => [
     uniqueIndex("uq_news_category_external").on(t.category, t.externalId),
     index("idx_news_published").on(t.publishedAt),
     index("idx_news_status").on(t.status),
+    index("idx_news_triage_priority").on(t.triagePriority),
+    index("idx_news_screen_passed").on(t.screenPassed),
   ],
 );
 
