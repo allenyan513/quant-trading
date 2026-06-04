@@ -20,6 +20,9 @@ import { createLogger } from "../log.js";
 
 const log = createLogger("marketdata");
 
+// Sporadic per-symbol event-record caches (ratings / insider / price targets).
+export * from "./records.js";
+
 /** Max peer `ratios` requests in flight at once (caps fan-out; fmpGet still throttles globally). */
 const PEER_FETCH_CONCURRENCY = 10;
 

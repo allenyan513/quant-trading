@@ -162,6 +162,63 @@ export const analystEstimates = pgTable(
   (t) => [primaryKey({ columns: [t.symbol, t.period, t.fiscalDate] })],
 );
 
+// ---- Event-record caches (read-through, like statements/prices) ----
+//
+// Sporadic per-symbol records — analyst grade changes, insider (Form 4) trades,
+// analyst price targets. Unlike the periodic statement caches, these have no
+// guaranteed-recent row (a stock may have no grade change for weeks), so the
+// data-prep agent warms them per symbol and alpha reads them as context. `data`
+// is the raw FMP row (replayable); `observed_at` is the PIT moment it became
+// public; `external_id` is the dedup key. Written only by data.
+const recordCols = {
+  symbol: text("symbol").notNull(),
+  externalId: text("external_id").notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  data: jsonb("data").notNull(),
+};
+
+export const ratings = pgTable(
+  "data_ratings",
+  recordCols,
+  (t) => [
+    primaryKey({ columns: [t.symbol, t.externalId] }),
+    index("idx_ratings_symbol_observed").on(t.symbol, t.observedAt),
+  ],
+);
+
+export const insiderTrades = pgTable(
+  "data_insider",
+  recordCols,
+  (t) => [
+    primaryKey({ columns: [t.symbol, t.externalId] }),
+    index("idx_insider_symbol_observed").on(t.symbol, t.observedAt),
+  ],
+);
+
+export const priceTargets = pgTable(
+  "data_price_targets",
+  recordCols,
+  (t) => [
+    primaryKey({ columns: [t.symbol, t.externalId] }),
+    index("idx_price_targets_symbol_observed").on(t.symbol, t.observedAt),
+  ],
+);
+
+// Per-(symbol, dataset) fetch watermark for the record caches. Their freshness
+// can't be inferred from row age (no recent row is the steady state for sporadic
+// feeds), so we track when each (symbol, dataset) was last fetched and gate on a
+// TTL — an empty fetch still advances the watermark, so "nothing happened" is
+// cached, not re-fetched every run. Written only by data.
+export const marketdataFetches = pgTable(
+  "data_marketdata_fetches",
+  {
+    symbol: text("symbol").notNull(),
+    dataset: text("dataset").notNull(), // "ratings" | "insider" | "price_targets"
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.dataset] })],
+);
+
 // ---- Reference valuation (System A) ----
 
 export const valuationSnapshots = pgTable("alpha_valuation_snapshots", {
