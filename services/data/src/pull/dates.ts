@@ -17,10 +17,12 @@ export function easternToUtcIso(naive: string): string | null {
   // Provisional: treat the wall-clock as if it were UTC.
   const wallUtc = Date.UTC(+y!, +mo! - 1, +d!, +h!, +mi!, +(s ?? 0));
   // Render that instant in ET, then read it back as UTC to recover the offset.
+  // hourCycle "h23" forces 00-23 (hour12:false can emit "24" for midnight under
+  // some ICU builds, which would land on the wrong day; h23 sidesteps that).
   const parts: Record<string, string> = {};
   for (const p of new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
-    hour12: false,
+    hourCycle: "h23",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -30,8 +32,7 @@ export function easternToUtcIso(naive: string): string | null {
   }).formatToParts(new Date(wallUtc))) {
     if (p.type !== "literal") parts[p.type] = p.value;
   }
-  const hour = parts.hour === "24" ? "00" : parts.hour!; // Intl may emit "24"
-  const etWall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +hour, +parts.minute!, +parts.second!);
+  const etWall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
   // wallUtc - etWall is how far ET trails UTC at this instant; add it back.
   return new Date(wallUtc + (wallUtc - etWall)).toISOString();
 }
