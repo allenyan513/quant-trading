@@ -30,13 +30,6 @@ export const config = {
   fmpBaseUrl: () => optionalEnv("FMP_BASE_URL", "https://financialmodelingprep.com/stable"),
   fmpRateLimit: () => Number(optionalEnv("FMP_RATE_LIMIT", "250")),
 
-  // ---- Ingest watermark / cursor (#4) ----
-  /** Cold-start backfill window (days) when a pull source has no watermark yet. */
-  pullBackfillDays: () => Number(optionalEnv("PULL_BACKFILL_DAYS", "30")),
-  /** Safety overlap (days) subtracted from the watermark on resume; the
-   *  (source, external_id) dedup absorbs the re-pulled overlap region. */
-  pullOverlapDays: () => Number(optionalEnv("PULL_OVERLAP_DAYS", "2")),
-
   // ---- Discovery / universe selection ----
   /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
   scanEarningsSurprisePct: () => Number(optionalEnv("SCAN_EARNINGS_SURPRISE_PCT", "0.20")),
