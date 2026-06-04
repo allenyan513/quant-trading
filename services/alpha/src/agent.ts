@@ -129,15 +129,18 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<st
       // Read-through cache → data_ratings (warmed by data's triage agent; we
       // refill on miss). Recent analyst grade changes.
       const rows = await marketdata.getRatings(String(input.symbol), 10);
-      return JSON.stringify(rows.map((r) => ({ at: r.observedAt, ...r.data }))).slice(0, 4000);
+      // `at` after the spread so a raw `at` field can't clobber the PIT ts.
+      return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
     }
     case "get_insider": {
       const rows = await marketdata.getInsider(String(input.symbol), 10);
-      return JSON.stringify(rows.map((r) => ({ at: r.observedAt, ...r.data }))).slice(0, 4000);
+      // `at` after the spread so a raw `at` field can't clobber the PIT ts.
+      return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
     }
     case "get_price_targets": {
       const rows = await marketdata.getPriceTargets(String(input.symbol), 10);
-      return JSON.stringify(rows.map((r) => ({ at: r.observedAt, ...r.data }))).slice(0, 4000);
+      // `at` after the spread so a raw `at` field can't clobber the PIT ts.
+      return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
     }
     default:
       return `unknown tool: ${name}`;
