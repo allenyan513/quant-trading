@@ -18,6 +18,7 @@ interface NewsRow {
   // Triage (data-prep agent, issue #59)
   screenPassed: boolean | null;
   screenFailedRule: string | null;
+  screenDetail: Record<string, unknown> | null;
   triageSymbol: string | null;
   triageMaterial: boolean | null;
   triagePriority: string | null;
@@ -45,11 +46,14 @@ const catColor: Record<string, string> = {
   fmp_article: "#3fb950",
 };
 
+// Actionable priorities are colored (red/amber/blue); "ignore" states are gray.
 const prioColor: Record<string, string> = {
   high: "#f85149",
   med: "#d29922",
-  low: "#8a97ab",
+  low: "#58a6ff",
 };
+const NEUTRAL = "#8a97ab"; // noise / pending
+const FAINT = "#6e7681"; // filtered (didn't reach the LLM)
 
 function refreshNews() {
   return mutate((k) => typeof k === "string" && k.startsWith("/api/news"));
@@ -301,21 +305,63 @@ export default function NewsPage() {
 
 /** Triage verdict cell: priority badge + materiality, or the screen-out reason
  * / "untriaged". Rationale shows on hover. */
-function TriageCell({ r }: { r: NewsRow }) {
-  if (!r.triagedAt) return <span style={{ color: "var(--muted)" }}>—</span>;
+/** Compact USD for market cap, e.g. 4.2e8 -> "$420M", 1.2e9 -> "$1.2B". */
+function fmtUsd(n: number): string {
+  if (!Number.isFinite(n)) return "?";
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${Math.round(n / 1e6)}M`;
+  return `$${Math.round(n)}`;
+}
+
+interface TriageLabel {
+  text: string; // primary chip word
+  color: string; // chip color (semantic)
+  sub?: string; // one-line gray "why" under the chip
+  tip?: string; // full detail on hover
+}
+
+/**
+ * Map a news row's triage state to one human-readable chip. Six mutually-
+ * exclusive states; actionable ones (High/Med/Low) are colored, ignore-able ones
+ * (Noise/Filtered/Pending) are gray. Pure — easy to eyeball and reuse.
+ */
+function triageLabel(r: NewsRow): TriageLabel {
+  if (!r.triagedAt) return { text: "Pending", color: NEUTRAL };
+
+  // Filtered by the deterministic screen — never reached the LLM.
   if (r.screenPassed === false) {
-    return (
-      <span style={{ color: "var(--muted)", fontSize: 12 }} title={r.screenFailedRule ?? ""}>
-        screened out{r.screenFailedRule ? ` · ${r.screenFailedRule}` : ""}
-      </span>
-    );
+    const d = (r.screenDetail ?? {}) as { reason?: string; marketCap?: number };
+    const reason = d.reason ?? r.screenFailedRule ?? "";
+    const sub =
+      reason === "no_symbol"
+        ? "No ticker"
+        : reason === "market_cap_below_min"
+          ? `Small cap · ${fmtUsd(d.marketCap ?? NaN)}`
+          : reason === "market_cap_unknown"
+            ? "Market cap unknown"
+            : reason || "screened out";
+    return { text: "Filtered", color: FAINT, sub, tip: `screen: ${reason}` };
   }
+
+  // Passed the screen → LLM verdict.
+  if (r.triageMaterial === false) {
+    return { text: "Noise", color: NEUTRAL, sub: "not a catalyst", tip: r.triageRationale ?? undefined };
+  }
+  const p = r.triagePriority ?? "";
+  const word = p === "high" ? "High" : p === "med" ? "Med" : p === "low" ? "Low" : p || "—";
+  return { text: word, color: prioColor[p] ?? NEUTRAL, tip: r.triageRationale ?? undefined };
+}
+
+function TriageCell({ r }: { r: NewsRow }) {
+  const lbl = triageLabel(r);
   return (
-    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }} title={r.triageRationale ?? ""}>
-      {r.triagePriority && <Badge color={prioColor[r.triagePriority] ?? "#8a97ab"}>{r.triagePriority}</Badge>}
-      <span style={{ fontSize: 12, color: r.triageMaterial ? "#3fb950" : "var(--muted)" }}>
-        {r.triageMaterial ? "material" : "immaterial"}
-      </span>
+    <span
+      title={lbl.tip ?? ""}
+      style={{ display: "inline-flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}
+    >
+      <Badge color={lbl.color}>{lbl.text}</Badge>
+      {lbl.sub && <span style={{ fontSize: 11, color: "var(--muted)" }}>{lbl.sub}</span>}
     </span>
   );
 }
