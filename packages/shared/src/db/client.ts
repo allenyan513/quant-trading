@@ -17,6 +17,21 @@ export function getPool(): pg.Pool {
       connectionString: config.databaseUrl(),
       max: 5,
       ssl: process.env.PGSSL === "disable" ? false : { rejectUnauthorized: false },
+      // Serverless (Cloud Run + Neon) resilience: TCP keepalive detects dead
+      // sockets, and a short idle timeout retires pooled connections before
+      // Neon's pooler / a CPU-throttled instance silently kills them — which
+      // otherwise surfaces as "Connection terminated unexpectedly" on the next
+      // query (esp. background work running after the HTTP response returned).
+      keepAlive: true,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
+    });
+    // pg emits 'error' on an IDLE client whose connection drops. With no
+    // listener Node treats it as unhandled and crashes the process. Swallow it
+    // (console, not the logger — avoids a log -> sink -> client import cycle);
+    // the pool discards the bad client and the next query gets a fresh one.
+    _pool.on("error", (err) => {
+      console.error("[db pool] idle client error (recovered):", err instanceof Error ? err.message : String(err));
     });
   }
   return _pool;
