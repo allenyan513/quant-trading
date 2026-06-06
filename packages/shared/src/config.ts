@@ -27,18 +27,19 @@ export const config = {
   triageModel: () => "claude-haiku-4-5-20251001",
   /** Knowledge cutoff of the current signal model — signals pricing events after
    *  this date are out-of-sample (look-ahead-safe). Bump alongside SIGNAL_MODEL. */
-  modelCutoff: () => new Date(optionalEnv("MODEL_CUTOFF", "2026-01-01")),
+  /** Look-ahead cutoff, coupled to signalModel — bump both together (code change). */
+  modelCutoff: () => new Date("2026-01-01"),
 
   fmpApiKey: () => requireEnv("FMP_API_KEY"),
   // Constant: the API surface is tied to the code, not a deploy knob.
   fmpBaseUrl: () => "https://financialmodelingprep.com/stable",
   fmpRateLimit: () => Number(optionalEnv("FMP_RATE_LIMIT", "250")),
 
-  // ---- Discovery / universe selection ----
+  // ---- Discovery / universe selection (tuning constants, not deploy knobs) ----
   /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
-  scanEarningsSurprisePct: () => Number(optionalEnv("SCAN_EARNINGS_SURPRISE_PCT", "0.20")),
+  scanEarningsSurprisePct: () => 0.2,
   /** TTL (days) for a discovery-promoted watchlist entry before it expires out. */
-  discoveryTtlDays: () => Number(optionalEnv("DISCOVERY_TTL_DAYS", "30")),
+  discoveryTtlDays: () => 30,
 
   /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
   riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),
