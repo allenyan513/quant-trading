@@ -1,4 +1,4 @@
-# Build from repo root: docker build -f services/alpha/Dockerfile .
+# Build from repo root: docker build -f Dockerfile.alpha .
 FROM node:20-slim AS base
 RUN corepack enable
 WORKDIR /app

@@ -15,6 +15,27 @@ see "Hardening").
 
 ---
 
+## Build path: CLI or Cloud Console (GUI)
+
+The Dockerfiles live at the **repo root** (`Dockerfile.data` / `.alpha` /
+`.portfolio` / `.web`) on purpose: Cloud Run's "deploy from a repository" wizard
+uses the Dockerfile's **directory** as the build context, but these images need
+the repo root (they `COPY packages/shared` + the lockfile). Root Dockerfiles make
+the wizard's context = repo root — otherwise the build fails at
+`COPY pnpm-workspace.yaml ... file does not exist`.
+
+**Cloud Console (GUI):** Cloud Run → Create service → *Continuously deploy from a
+repository* → connect GitHub, branch `^main$` → Build type **Dockerfile**,
+Dockerfile location **`/Dockerfile.<service>`** (e.g. `/Dockerfile.portfolio`).
+Then set: container port **8080**, **Allow unauthenticated**, Min instances **1**,
+"CPU is always allocated" for data + alpha, and the env vars from §3/§4. Repeat
+per service in order **portfolio → alpha → data → web** so each callee URL exists
+before you set `PORTFOLIO_URL`/`ALPHA_URL`/`DATA_URL` (edit env + deploy a new
+revision if you go out of order). Cloud Build runs amd64, so no `--platform`
+needed. You still run migrations (§1) and create Scheduler jobs (§5) yourself.
+
+**CLI:** the rest of this doc.
+
 ## 0. Prereqs
 
 - `gcloud` CLI authed; a GCP project with billing.
@@ -61,7 +82,7 @@ lockfile). `.dockerignore` keeps node_modules/.next out.
 
 ```bash
 for svc in data alpha portfolio web; do
-  docker build --platform linux/amd64 -f services/$svc/Dockerfile -t $IMG/$svc:latest .
+  docker build --platform linux/amd64 -f Dockerfile.$svc -t $IMG/$svc:latest .
   docker push $IMG/$svc:latest
 done
 ```
@@ -144,7 +165,7 @@ gcloud run services logs read data --region=$REGION --limit=50
 
 ```bash
 svc=data   # or alpha / portfolio / web
-docker build --platform linux/amd64 -f services/$svc/Dockerfile -t $IMG/$svc:latest . && docker push $IMG/$svc:latest
+docker build --platform linux/amd64 -f Dockerfile.$svc -t $IMG/$svc:latest . && docker push $IMG/$svc:latest
 gcloud run deploy $svc --image=$IMG/$svc:latest --region=$REGION
 ```
 
