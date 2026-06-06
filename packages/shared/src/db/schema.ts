@@ -447,7 +447,7 @@ export const signalDeliveries = pgTable(
 // Best-effort sink for the structured logger (see ../log-sink.ts). Common trace
 // keys (symbol/external_id/notification_id/signal_id) are promoted to indexed
 // columns so the dashboard can filter and join logs to the pipeline timeline;
-// everything else stays in `fields`. Written only when LOG_DB=on.
+// everything else stays in `fields`. Written by the log sink (on except under test).
 export const logs = pgTable(
   "system_logs",
   {

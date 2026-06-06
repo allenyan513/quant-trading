@@ -54,7 +54,7 @@ export function createLogger(service: string): Logger {
   function emit(level: Level, event: string, fields?: LogFields): void {
     if (ORDER[level] < threshold) return;
     const ts = new Date().toISOString();
-    // Best-effort DB persistence for the observability dashboard (opt-in via LOG_DB=on).
+    // Best-effort DB persistence for the observability dashboard (on except under test).
     sinkLog({ ts, level, service, event, fields });
     const sink = level === "error" || level === "warn" ? console.error : console.log;
     if (asJson) {

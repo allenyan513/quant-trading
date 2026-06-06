@@ -1,7 +1,8 @@
 /**
  * Logs DB sink — best-effort, non-blocking persistence of structured logs.
  *
- * Opt-in via `LOG_DB=on` (default off, so unit tests never touch the DB).
+ * Always on except under test (the dashboard reads `system_logs` for heartbeats
+ * + recent errors); vitest stays off so unit tests never touch the DB.
  * Used by `log.ts`: after writing to stdout, log lines are fire-and-forget
  * enqueued here. Writes go through a bounded serial queue (one INSERT at a
  * time) so we never exhaust the pg pool (max 5), and every error is swallowed
@@ -15,8 +16,11 @@ import type { LogFields } from "./log.js";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
+// Constant (no env knob): on everywhere except tests. vitest sets VITEST=true
+// (and NODE_ENV=test); guard on both so a stray NODE_ENV can't enable the sink
+// mid-test and hit the DB.
 function sinkEnabled(): boolean {
-  return (process.env.LOG_DB ?? "").toLowerCase() === "on";
+  return !process.env.VITEST && process.env.NODE_ENV !== "test";
 }
 
 export function isSinkEnabled(): boolean {
