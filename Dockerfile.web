@@ -1,4 +1,4 @@
-# Build from repo root: docker build -f services/web/Dockerfile -t web .
+# Build from repo root: docker build -f Dockerfile.web -t web .
 # Next.js standalone output (output: "standalone") → self-contained Node server.
 FROM node:20-slim AS build
 RUN corepack enable
