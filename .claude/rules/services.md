@@ -9,7 +9,7 @@ paths:
 
 ## 端点
 
-- 每个服务都有 `GET /healthz` → `c.json(ok({ service, status: "up" }))`。
+- 每个服务都有 `GET /health` → `c.json(ok({ service, status: "up" }))`。
 - 响应一律走 envelope：成功 `c.json(ok(data))`；失败 `c.json(fail(code, message), httpStatus)`。**不要**返回裸对象。
 - 解析 body：`await c.req.json()`，用 `.catch(() => ({}))` 或 try/catch 兜住非法 JSON，返回 `fail("bad_request", ...)` 400。
 - 端点内 `try/catch` 包住业务逻辑，异常转成 `fail(...)` + 5xx，错误码用 snake_case（如 `pull_earnings_failed`）。
