@@ -72,8 +72,9 @@ export function createLogger(service: string): Logger {
       if (fields) for (const [k, v] of Object.entries(fields)) safe[k] = v instanceof Error ? v.message : v;
       // `severity` + `message` are the fields Cloud Logging reads from a JSON
       // payload (for the entry's level + summary line); `event`/`ts` stay for
-      // grep/other aggregators.
-      sink(JSON.stringify({ severity: SEVERITY[level], message: event, ts, service, event, ...safe }));
+      // grep/other aggregators. Spread `...safe` FIRST so a stray caller field
+      // (e.g. one literally named `severity`) can't clobber the system metadata.
+      sink(JSON.stringify({ ...safe, severity: SEVERITY[level], message: event, ts, service, event }));
       return;
     }
     sink(`${ts.slice(11, 23)} [${service}] ${level.toUpperCase().padEnd(5)} ${event}${fmtFields(fields)}`);
