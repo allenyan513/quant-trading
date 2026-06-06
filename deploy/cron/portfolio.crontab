@@ -1,0 +1,15 @@
+# portfolio service — external cron contract (#23/#24). THIS FILE IS THE CONTRACT.
+#
+# portfolio opens positions when alpha delivers a signal, but CLOSING them
+# (stop-loss / take-profit / expiry) is driven by /jobs/track polling current
+# prices. WITHOUT this cron, open positions never settle. In prod each line is a
+# Cloud Scheduler job hitting the deployed portfolio URL (see README.md + DEPLOY.md).
+#
+# The cron environment must provide:
+#   BASE_URL  e.g. https://portfolio-XXXX.run.app (Cloud Run) or http://localhost:8084 (host)
+#   PATH      must find curl, flock, and cron-tick.sh (this dir)
+CRON_TZ=America/New_York
+
+# Mark-to-market open positions and close on stop/target/expiry. Every 30 min
+# during market hours (prices only move then); flock so a slow run skips, not stacks.
+*/30 9-16 * * 1-5  flock -n /tmp/cron-portfolio-track.lock  cron-tick.sh /jobs/track

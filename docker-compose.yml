@@ -1,53 +1,66 @@
-# Local distributed run. Each service is an independent container,
-# mirroring the Cloud Run deployment (one image per service).
+# Local full-stack run — mirrors the Cloud Run deployment (one image per service).
+#   pnpm up        # build + start data/alpha/portfolio/web
+#   pnpm down
+#
+# Secrets/config come from .env (env_file). Each service's `environment:` only
+# sets what differs from .env: the in-network service hostnames (override .env's
+# localhost dev URLs) and PORT. Model names / FMP base / log sink are code
+# constants now — not env. Healthchecks gate startup order (data waits for alpha,
+# alpha for portfolio, web for data).
+x-healthcheck: &healthz
+  test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 15s
+
 services:
-  data:
-    build:
-      context: .
-      dockerfile: services/data/Dockerfile
+  portfolio:
+    build: { context: ., dockerfile: services/portfolio/Dockerfile }
+    env_file: .env
     environment:
       - PORT=8080
-      - DATABASE_URL=${DATABASE_URL}
-      - FMP_API_KEY=${FMP_API_KEY}
-      - FMP_BASE_URL=${FMP_BASE_URL:-https://financialmodelingprep.com/stable}
-      - ALPHA_URL=http://alpha:8080
-    ports:
-      - "8081:8080"
-    depends_on:
-      - alpha
+    ports: ["8084:8080"]
+    healthcheck: *healthz
+    restart: unless-stopped
 
   alpha:
-    build:
-      context: .
-      dockerfile: services/alpha/Dockerfile
+    build: { context: ., dockerfile: services/alpha/Dockerfile }
+    env_file: .env
     environment:
       - PORT=8080
-      - DATABASE_URL=${DATABASE_URL}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - SIGNAL_MODEL=${SIGNAL_MODEL:-claude-opus-4-8}
-      - FMP_API_KEY=${FMP_API_KEY}
-      - FMP_BASE_URL=${FMP_BASE_URL:-https://financialmodelingprep.com/stable}
       - PORTFOLIO_URL=http://portfolio:8080
-    ports:
-      - "8082:8080"
+    ports: ["8082:8080"]
     depends_on:
-      - portfolio
+      portfolio: { condition: service_healthy }
+    healthcheck: *healthz
+    restart: unless-stopped
 
-  portfolio:
-    build:
-      context: .
-      dockerfile: services/portfolio/Dockerfile
+  data:
+    build: { context: ., dockerfile: services/data/Dockerfile }
+    env_file: .env
     environment:
       - PORT=8080
-      - DATABASE_URL=${DATABASE_URL}
-      - FMP_API_KEY=${FMP_API_KEY}
-      - FMP_BASE_URL=${FMP_BASE_URL:-https://financialmodelingprep.com/stable}
-      - PORTFOLIO_CAPITAL=${PORTFOLIO_CAPITAL:-100000}
-      - SIZE_LOW=${SIZE_LOW:-0.01}
-      - SIZE_MED=${SIZE_MED:-0.02}
-      - SIZE_HIGH=${SIZE_HIGH:-0.03}
-      - MAX_POSITIONS=${MAX_POSITIONS:-20}
-      - MAX_WEIGHT_PER_NAME=${MAX_WEIGHT_PER_NAME:-0.05}
-      - MAX_SECTOR_WEIGHT=${MAX_SECTOR_WEIGHT:-0.30}
-    ports:
-      - "8084:8080"
+      - ALPHA_URL=http://alpha:8080
+    ports: ["8081:8080"]
+    depends_on:
+      alpha: { condition: service_healthy }
+    healthcheck: *healthz
+    restart: unless-stopped
+
+  web:
+    build: { context: ., dockerfile: services/web/Dockerfile }
+    env_file: .env
+    environment:
+      - PORT=8080
+      - DATA_URL=http://data:8080
+    ports: ["3000:8080"]
+    depends_on:
+      data: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped

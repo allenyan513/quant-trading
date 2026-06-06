@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
+  // Self-host on Cloud Run: emit a self-contained Node server (.next/standalone)
+  // so the runtime image needs no pnpm/workspace — just `node server.js`.
+  output: "standalone",
+  // Monorepo: trace deps from the repo root (two levels up from services/web)
+  // so the standalone bundle includes the workspace @qt/shared + hoisted deps.
+  outputFileTracingRoot: path.join(process.cwd(), "../.."),
   // @qt/shared ships raw TS source; let Next compile it.
   transpilePackages: ["@qt/shared"],
   // @qt/shared/db transitively imports `pg` (we never call it — we use the

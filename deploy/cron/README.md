@@ -91,8 +91,16 @@ When the endpoints get service-to-service auth (#24), the in-network sidecar and
 the Cloud Scheduler OIDC token both attach the same credential; the contract
 (endpoints + cadence) is unchanged.
 
-## Not in this cut
+## All three services
 
-Per-service cron for **alpha** (`/internal/reprocess`, `/internal/redeliver`)
-and **portfolio** (`/jobs/track`) follows the same pattern and is a deliberate
-follow-up — this first cut covers data only.
+Each backend service has its own crontab contract, driven the same way (sidecar
+crontab for VMs, Cloud Scheduler for Cloud Run — set `BASE_URL` per service):
+
+| Contract | Endpoints | Why |
+|---|---|---|
+| [`data.crontab`](./data.crontab) | `/news/pull`, `/news/triage`, `/scan/earnings`, `/internal/expire-watchlist`, `/internal/redeliver` | ingest + triage + discovery + outbox retry |
+| [`alpha.crontab`](./alpha.crontab) | `/internal/reprocess`, `/internal/redeliver` | recover stuck notifications + signal-outbox retry (background work is at-least-once) |
+| [`portfolio.crontab`](./portfolio.crontab) | `/jobs/track` | **close open positions** on stop/target/expiry — without it positions never settle |
+
+On Cloud Run, see [`DEPLOY.md`](../../DEPLOY.md) for the `gcloud scheduler jobs
+create http` commands that wire each line to the deployed service URL.

@@ -18,23 +18,28 @@ export const config = {
   databaseUrl: () => requireEnv("DATABASE_URL"),
 
   anthropicApiKey: () => requireEnv("ANTHROPIC_API_KEY"),
-  signalModel: () => optionalEnv("SIGNAL_MODEL", "claude-opus-4-8"),
-  /** Model for data's lightweight news-triage agent. Cheap by default (Haiku):
-   *  triage only screens/enriches — the pricing decision stays on signalModel. */
-  triageModel: () => optionalEnv("TRIAGE_MODEL", "claude-haiku-4-5-20251001"),
+  // Models are code constants, not per-deploy knobs: a model is coupled to the
+  // prompt contract + the look-ahead cutoff, so changing one is a code change
+  // (bump the agent's PROMPT_VERSION, and MODEL_CUTOFF for the signal model).
+  signalModel: () => "claude-opus-4-8",
+  /** Model for data's lightweight news-triage agent. Cheap (Haiku): triage only
+   *  screens/enriches — the pricing decision stays on signalModel. */
+  triageModel: () => "claude-haiku-4-5-20251001",
   /** Knowledge cutoff of the current signal model — signals pricing events after
    *  this date are out-of-sample (look-ahead-safe). Bump alongside SIGNAL_MODEL. */
-  modelCutoff: () => new Date(optionalEnv("MODEL_CUTOFF", "2026-01-01")),
+  /** Look-ahead cutoff, coupled to signalModel — bump both together (code change). */
+  modelCutoff: () => new Date("2026-01-01"),
 
   fmpApiKey: () => requireEnv("FMP_API_KEY"),
-  fmpBaseUrl: () => optionalEnv("FMP_BASE_URL", "https://financialmodelingprep.com/stable"),
+  // Constant: the API surface is tied to the code, not a deploy knob.
+  fmpBaseUrl: () => "https://financialmodelingprep.com/stable",
   fmpRateLimit: () => Number(optionalEnv("FMP_RATE_LIMIT", "250")),
 
-  // ---- Discovery / universe selection ----
+  // ---- Discovery / universe selection (tuning constants, not deploy knobs) ----
   /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
-  scanEarningsSurprisePct: () => Number(optionalEnv("SCAN_EARNINGS_SURPRISE_PCT", "0.20")),
+  scanEarningsSurprisePct: () => 0.2,
   /** TTL (days) for a discovery-promoted watchlist entry before it expires out. */
-  discoveryTtlDays: () => Number(optionalEnv("DISCOVERY_TTL_DAYS", "30")),
+  discoveryTtlDays: () => 30,
 
   /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
   riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),
