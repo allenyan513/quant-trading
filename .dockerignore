@@ -1,0 +1,21 @@
+# Keep the build context small and avoid copying stale local artifacts into the
+# image. The Dockerfiles install deps + build fresh, so never ship these:
+**/node_modules
+**/.next
+**/dist
+**/*.tsbuildinfo
+
+# Secrets never go in an image
+.env
+.env.local
+**/.env
+
+# VCS / tooling / docs not needed at build or runtime
+.git
+.gitignore
+.github
+.claude
+.agents
+docs
+**/*.md
+.DS_Store

@@ -1,0 +1,37 @@
+# Build from repo root: docker build -f services/web/Dockerfile -t web .
+# Next.js standalone output (output: "standalone") → self-contained Node server.
+FROM node:20-slim AS build
+RUN corepack enable
+WORKDIR /app
+
+# Install deps (workspace-aware). Mirror the backend Dockerfiles: copy the
+# manifests web needs, install, then the source.
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY packages/shared/package.json packages/shared/package.json
+COPY services/web/package.json services/web/package.json
+RUN pnpm install --frozen-lockfile=false
+
+COPY tsconfig.base.json ./
+COPY packages/shared packages/shared
+COPY services/web services/web
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter @qt/web build
+
+# ---- runtime: only the standalone server + static assets ----
+FROM node:20-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+# Next standalone binds localhost by default; Cloud Run needs 0.0.0.0. PORT is
+# injected by Cloud Run and read by the standalone server.
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# The standalone bundle preserves the monorepo layout (server.js lives under
+# services/web/). Static assets aren't bundled — copy them into place.
+COPY --from=build /app/services/web/.next/standalone ./
+COPY --from=build /app/services/web/.next/static ./services/web/.next/static
+# (no public/ dir in this app — add a COPY for it if one is introduced)
+
+EXPOSE 8080
+CMD ["node", "services/web/server.js"]
