@@ -8,8 +8,9 @@
  *  - Carry a trace key in `fields` (`external_id` for events, `signal` for signals)
  *    so one item can be grepped end-to-end across all three services.
  *
- * Env: LOG_LEVEL=debug|info|warn|error (default info); LOG_FORMAT=json for
- * machine-parseable lines (Cloud Run / log aggregators).
+ * Env: LOG_LEVEL=debug|info|warn|error (default info). Format: JSON in
+ * production (NODE_ENV=production, e.g. containers) so Cloud Logging reads the
+ * severity; human-readable text in dev. Force either with LOG_FORMAT=json|text.
  */
 import { sinkLog } from "./log-sink.js";
 
@@ -17,7 +18,15 @@ type Level = "debug" | "info" | "warn" | "error";
 
 const ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 const threshold = ORDER[(process.env.LOG_LEVEL as Level) ?? "info"] ?? ORDER.info;
-const asJson = process.env.LOG_FORMAT === "json";
+// Cloud Logging's recognized severity enum (NOTE: "warn" -> "WARNING"). Emitted
+// as the `severity` JSON field so Cloud Run tags the level correctly — it does
+// NOT parse the level word out of a plain-text line (everything would be DEFAULT).
+const SEVERITY: Record<Level, string> = { debug: "DEBUG", info: "INFO", warn: "WARNING", error: "ERROR" };
+// JSON in production (containers → Cloud Logging); readable text in local dev.
+// LOG_FORMAT=json|text overrides either way.
+const asJson =
+  process.env.LOG_FORMAT === "json" ||
+  (process.env.LOG_FORMAT !== "text" && process.env.NODE_ENV === "production");
 
 export type LogFields = Record<string, unknown>;
 
@@ -61,7 +70,10 @@ export function createLogger(service: string): Logger {
       // Normalize Error fields so they don't serialize to "{}".
       const safe: LogFields = {};
       if (fields) for (const [k, v] of Object.entries(fields)) safe[k] = v instanceof Error ? v.message : v;
-      sink(JSON.stringify({ ts, level, service, event, ...safe }));
+      // `severity` + `message` are the fields Cloud Logging reads from a JSON
+      // payload (for the entry's level + summary line); `event`/`ts` stay for
+      // grep/other aggregators.
+      sink(JSON.stringify({ severity: SEVERITY[level], message: event, ts, service, event, ...safe }));
       return;
     }
     sink(`${ts.slice(11, 23)} [${service}] ${level.toUpperCase().padEnd(5)} ${event}${fmtFields(fields)}`);
