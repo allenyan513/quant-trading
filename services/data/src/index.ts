@@ -17,7 +17,7 @@ import { log } from "./log.js";
 
 const app = new Hono();
 
-app.get("/healthz", (c) => c.json(ok({ service: "data", status: "up" })));
+app.get("/health", (c) => c.json(ok({ service: "data", status: "up" })));
 
 // Fallback window for explicit/partial overrides and the scanner.
 function defaultWindow(): { from: string; to: string } {

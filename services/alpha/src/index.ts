@@ -11,7 +11,7 @@ import { log } from "./log.js";
 
 const app = new Hono();
 
-app.get("/healthz", (c) => c.json(ok({ service: "alpha", status: "up" })));
+app.get("/health", (c) => c.json(ok({ service: "alpha", status: "up" })));
 
 app.post("/notifications", async (c) => {
   let payload: NotificationPayload;

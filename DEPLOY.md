@@ -154,7 +154,7 @@ mkjob portfolio-track  "*/30 9-16 * * 1-5" "$PORTFOLIO_URL" /jobs/track
 ## 6. Verify
 
 ```bash
-curl -s $DATA_URL/healthz; curl -s $ALPHA_URL/healthz; curl -s $PORTFOLIO_URL/healthz
+curl -s $DATA_URL/health; curl -s $ALPHA_URL/health; curl -s $PORTFOLIO_URL/health
 open $WEB_URL                          # log in with DASHBOARD_PASSWORD
 curl -s -X POST $DATA_URL/news/pull -H 'content-type: application/json' -d '{"days":1}'
 # → watch data logs: news.pull.done then triage.agent.* (background)

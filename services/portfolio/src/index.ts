@@ -17,7 +17,7 @@ import { log } from "./log.js";
 
 const app = new Hono();
 
-app.get("/healthz", (c) => c.json(ok({ service: "portfolio", status: "up" })));
+app.get("/health", (c) => c.json(ok({ service: "portfolio", status: "up" })));
 
 // Intake: act on a delivered signal against the book (open / close / hold /
 // reject). A non-open outcome (e.g. reject, held) is normal, not an error.
