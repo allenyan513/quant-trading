@@ -234,7 +234,7 @@ function ModelCard({ m }: { m: Model }) {
 export default function ValuationPage() {
   const params = useParams<{ symbol: string }>();
   const symbol = (params.symbol ?? "").toUpperCase();
-  const { data, error } = useLive<Snapshot | null>(`/api/symbol/${symbol}/valuation`);
+  const { data, error } = useLive<Snapshot | null>(`/api/data/valuation/${symbol}`);
 
   return (
     <div>
