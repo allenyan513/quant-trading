@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { mutate } from "swr";
 import { LiveTable, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
@@ -29,6 +30,7 @@ function AddBar() {
   const [sym, setSym] = useState("");
   const [busy, setBusy] = useState(false);
   async function add() {
+    if (busy) return; // guard against double-submit (Enter spam while in flight)
     const symbol = sym.trim().toUpperCase();
     if (!symbol) return;
     setBusy(true);
@@ -110,9 +112,9 @@ const columns: Column<WatchRow>[] = [
     key: "symbol",
     header: "Symbol",
     render: (r) => (
-      <a href={`/symbol/${r.symbol}`} style={{ textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
+      <Link href={`/symbol/${r.symbol}`} style={{ textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
         <Badge>{r.symbol}</Badge>
-      </a>
+      </Link>
     ),
     width: 90,
   },

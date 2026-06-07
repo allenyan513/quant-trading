@@ -418,7 +418,13 @@ export async function listWatchlistOverview() {
       };
     })
     // Most undervalued first; symbols without a valuation sink to the bottom.
-    .sort((a, b) => (b.upsidePct ?? -Infinity) - (a.upsidePct ?? -Infinity));
+    // Compare explicitly: two nulls would make (-Infinity)-(-Infinity)=NaN,
+    // which yields an unstable sort.
+    .sort((a, b) => {
+      const av = a.upsidePct ?? -Infinity;
+      const bv = b.upsidePct ?? -Infinity;
+      return av === bv ? 0 : bv - av;
+    });
 }
 
 /** Full cross-pipeline trace for one symbol, joined with its logs. */
