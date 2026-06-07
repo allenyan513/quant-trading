@@ -22,10 +22,17 @@ export async function listWatchlist() {
 /** Manually add a symbol (source=manual, never expires). Idempotent. */
 export async function addToWatchlist(symbol: string): Promise<{ added: boolean }> {
   const sym = symbol.trim().toUpperCase();
+  // A manual add is permanent. If the symbol was previously auto-added by
+  // discovery (source="discovery" + a TTL), promote it: flip source to manual
+  // and clear expiresAt so the expiry sweep won't reap it. onConflictDoNothing
+  // would leave the stale discovery TTL in place — a latent silent removal.
   const rows = await db()
     .insert(watchlist)
     .values({ symbol: sym, source: "manual", expiresAt: null })
-    .onConflictDoNothing({ target: watchlist.symbol })
+    .onConflictDoUpdate({
+      target: watchlist.symbol,
+      set: { source: "manual", expiresAt: null },
+    })
     .returning({ symbol: watchlist.symbol });
   return { added: rows.length > 0 };
 }
