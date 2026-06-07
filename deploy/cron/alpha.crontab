@@ -15,3 +15,6 @@ CRON_TZ=America/New_York
 */5 *    * * *    flock -n /tmp/cron-alpha-reprocess.lock  cron-tick.sh /internal/reprocess
 # Retry the signal outbox (alpha → portfolio deliveries left pending).
 */5 *    * * *    flock -n /tmp/cron-alpha-redeliver.lock   cron-tick.sh /internal/redeliver
+# Refresh reference valuations for the whole watchlist (buy-zone view). Daily
+# after the US close; cheap re-run (snapshots reuse within the TTL).
+0 18    * * 1-5  flock -n /tmp/cron-alpha-valsweep.lock   cron-tick.sh /internal/valuation-sweep

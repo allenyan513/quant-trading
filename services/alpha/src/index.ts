@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { ok, fail, config, type NotificationPayload } from "@qt/shared";
 import { intakeNotification, processNotification, reprocessStuck } from "./pipeline.js";
 import { redeliverPendingSignals } from "./deliver.js";
+import { sweepWatchlistValuations } from "./valuation/sweep.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -77,6 +78,18 @@ app.post("/internal/reprocess", async (c) => {
   } catch (err) {
     log.error("reprocess.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("reprocess_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Refresh the reference valuation for every watchlist symbol so the dashboard's
+// buy-zone view always has a fresh fair_value vs price. Cron-triggered (daily).
+app.post("/internal/valuation-sweep", async (c) => {
+  try {
+    const res = await sweepWatchlistValuations();
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("valuation.sweep.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("valuation_sweep_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 

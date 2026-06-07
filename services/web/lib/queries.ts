@@ -6,6 +6,7 @@
 import { and, count, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import {
   db,
+  universe,
   events,
   notifications,
   newsItems,
@@ -359,6 +360,65 @@ export async function getDataFreshness() {
     lastBalanceKnownAt: bm[s.symbol] ?? null,
     lastCashFlowKnownAt: cm[s.symbol] ?? null,
   }));
+}
+
+/**
+ * Watchlist "home base": each symbol joined with its latest reference valuation
+ * (fair value / price / upside / verdict — the buy-zone signal), whether we hold
+ * it, and its sector. Sorted most-undervalued first. Drives /data/watchlist.
+ */
+export async function listWatchlistOverview() {
+  const wl = await db().select().from(watchlist).orderBy(watchlist.symbol);
+  if (wl.length === 0) return [];
+  const syms = wl.map((w) => w.symbol);
+
+  const [vals, pos, uni] = await Promise.all([
+    // Latest snapshot per symbol (DISTINCT ON keyed by symbol, newest first).
+    db()
+      .selectDistinctOn([valuationSnapshots.symbol], {
+        symbol: valuationSnapshots.symbol,
+        fairValue: valuationSnapshots.fairValuePerShare,
+        price: valuationSnapshots.currentPrice,
+        upsidePct: valuationSnapshots.upsidePct,
+        verdict: valuationSnapshots.verdict,
+        asOf: valuationSnapshots.asOf,
+      })
+      .from(valuationSnapshots)
+      .where(inArray(valuationSnapshots.symbol, syms))
+      .orderBy(valuationSnapshots.symbol, desc(valuationSnapshots.createdAt)),
+    db()
+      .select({ symbol: positions.symbol, shares: positions.shares, entryPrice: positions.entryPrice })
+      .from(positions)
+      .where(and(eq(positions.status, "open"), inArray(positions.symbol, syms))),
+    db().select({ symbol: universe.symbol, sector: universe.sector }).from(universe).where(inArray(universe.symbol, syms)),
+  ]);
+
+  const vBy = new Map(vals.map((v) => [v.symbol, v]));
+  const pBy = new Map(pos.map((p) => [p.symbol, p]));
+  const uBy = new Map(uni.map((u) => [u.symbol, u]));
+
+  return wl
+    .map((w) => {
+      const v = vBy.get(w.symbol);
+      const p = pBy.get(w.symbol);
+      return {
+        symbol: w.symbol,
+        source: w.source,
+        addedAt: w.addedAt,
+        expiresAt: w.expiresAt,
+        sector: uBy.get(w.symbol)?.sector ?? null,
+        fairValue: v?.fairValue ?? null,
+        price: v?.price ?? null,
+        upsidePct: v?.upsidePct ?? null,
+        verdict: v?.verdict ?? null,
+        asOf: v?.asOf ?? null,
+        held: !!p,
+        shares: p?.shares ?? null,
+        entryPrice: p?.entryPrice ?? null,
+      };
+    })
+    // Most undervalued first; symbols without a valuation sink to the bottom.
+    .sort((a, b) => (b.upsidePct ?? -Infinity) - (a.upsidePct ?? -Infinity));
 }
 
 /** Full cross-pipeline trace for one symbol, joined with its logs. */

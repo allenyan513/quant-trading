@@ -13,6 +13,7 @@ import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-fe
 import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
+import { addToWatchlist, removeFromWatchlist } from "./watchlist.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -171,6 +172,34 @@ app.post("/candidates/dismiss", async (c) => {
   } catch (err) {
     log.error("candidate.dismiss.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("dismiss_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Manual watchlist management (data owns the table, T12). Reads stay in web
+// (it queries the DB directly with the valuation/position join).
+app.post("/watchlist", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  try {
+    const res = await addToWatchlist(symbol);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("watchlist.add.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("watchlist_add_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+app.delete("/watchlist/:symbol", async (c) => {
+  const symbol = c.req.param("symbol").trim();
+  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  try {
+    const res = await removeFromWatchlist(symbol);
+    if (!res.removed) return c.json(fail("not_found", `not on watchlist: ${symbol.toUpperCase()}`), 404);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("watchlist.remove.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("watchlist_remove_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
