@@ -1,5 +1,7 @@
 /** Tiny display helpers (UI-only; raw values stay numeric in the DB). */
 
+import { VERDICT_THRESHOLD } from "./constants";
+
 export function fmtNum(v: number | null | undefined, digits = 2): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
   return v.toLocaleString("en-US", { maximumFractionDigits: digits });
@@ -84,4 +86,66 @@ export function fmtFull(ts: string | Date | null | undefined): string {
     hour12: false,
     timeZoneName: "short",
   }).format(d);
+}
+
+// ============================================================
+// Valuation-display helpers (ported from value-scope's lib/format.ts).
+// The valuation detail page + its component closure depend on these exact names.
+// ============================================================
+
+/** Format a number with T/B/M abbreviations (e.g., $1.2T, $1.2B, $1.2M). */
+export function formatLargeNumber(
+  n: number,
+  opts?: { prefix?: string; decimals?: number; includeK?: boolean },
+): string {
+  const { prefix = "$", decimals = 1, includeK = false } = opts ?? {};
+  if (Math.abs(n) >= 1e12) return `${prefix}${(n / 1e12).toFixed(decimals)}T`;
+  if (Math.abs(n) >= 1e9) return `${prefix}${(n / 1e9).toFixed(decimals)}B`;
+  if (Math.abs(n) >= 1e6) return `${prefix}${(n / 1e6).toFixed(decimals)}M`;
+  if (includeK && Math.abs(n) >= 1e3) return `${prefix}${(n / 1e3).toFixed(decimals)}K`;
+  return `${prefix}${n.toLocaleString()}`;
+}
+
+/** Format a number as locale-aware USD currency (e.g., $1,234.56). */
+export function formatCurrency(n: number): string {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Format a number in millions (e.g., 125000000 → "125,000"). */
+export function formatMillions(n: number): string {
+  const inMillions = n / 1e6;
+  return inMillions.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+/** Return a Tailwind text-color class based on upside percentage. */
+export function getUpsideColor(upside: number): string {
+  if (upside > VERDICT_THRESHOLD) return "text-green-400";
+  if (upside < -VERDICT_THRESHOLD) return "text-red-400";
+  return "text-foreground";
+}
+
+/** Format a signed percentage (e.g., +12.3% or -5.1%). */
+export function formatPercent(n: number): string {
+  const sign = n >= 0 ? "+" : "";
+  return `${sign}${n.toFixed(1)}%`;
+}
+
+/** Format a decimal ratio as a percentage (e.g., 0.152 → "15.2%"). No sign prefix. */
+export function formatRatio(v: number): string {
+  return `${(v * 100).toFixed(1)}%`;
+}
+
+/** Format an ISO timestamp as "Apr 6, 2026 01:55" (date + time to the minute). */
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  return (
+    d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) +
+    " " +
+    d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+  );
 }
