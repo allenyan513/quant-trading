@@ -147,6 +147,7 @@ mkjob data-redeliver   "*/5 * * * *"     "$DATA_URL" /internal/redeliver
 # alpha
 mkjob alpha-reprocess  "*/5 * * * *"     "$ALPHA_URL" /internal/reprocess
 mkjob alpha-redeliver  "*/5 * * * *"     "$ALPHA_URL" /internal/redeliver
+mkjob alpha-valsweep   "0 18 * * 1-5"    "$ALPHA_URL" /internal/valuation-sweep   # watchlist buy-zone fair values
 # portfolio — without this, open positions never close on stop/target/expiry
 mkjob portfolio-track  "*/30 9-16 * * 1-5" "$PORTFOLIO_URL" /jobs/track
 ```
