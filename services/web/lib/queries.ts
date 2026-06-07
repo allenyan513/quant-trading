@@ -273,6 +273,17 @@ export async function listValuations(opts: ListOpts = {}) {
     .limit(limit);
 }
 
+/** Latest reference-valuation snapshot for a symbol (with full per-model `detail`). */
+export async function getLatestValuation(symbol: string) {
+  const rows = await db()
+    .select()
+    .from(valuationSnapshots)
+    .where(eq(valuationSnapshots.symbol, symbol))
+    .orderBy(desc(valuationSnapshots.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 /** Discovery review queue. Defaults to the pending candidates, highest score first. */
 export async function listCandidates(opts: ListOpts = {}) {
   const limit = Math.min(opts.limit ?? 200, 500);
