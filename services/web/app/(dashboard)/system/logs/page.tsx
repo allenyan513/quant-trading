@@ -87,7 +87,7 @@ export default function LogsPage() {
             <span style={{ color: "var(--muted)", width: 86 }}>[{r.service}]</span>
             <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{r.event}</span>
             {r.symbol && (
-              <Link href={`/symbol/${r.symbol}`}>
+              <Link href={`/data/symbol/${r.symbol}/overall`}>
                 <Badge>{r.symbol}</Badge>
               </Link>
             )}

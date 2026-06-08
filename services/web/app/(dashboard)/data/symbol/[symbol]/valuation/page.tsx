@@ -45,13 +45,6 @@ export default function ValuationPage() {
 
   return (
     <div className="val-page">
-      <div className="mb-2">
-        <a href="/data/watchlist" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Watchlist
-        </a>
-      </div>
-      <h1 className="text-2xl font-bold mb-1">{symbol} · Valuation</h1>
-
       {error && <p className="text-red-400">Error: {String(error.message ?? error)}</p>}
       {data === null && (
         <p className="text-muted-foreground">

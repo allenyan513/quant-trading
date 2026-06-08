@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
   // @qt/shared/db transitively imports `pg` (we never call it — we use the
   // neon-http driver). Keep it external so Next doesn't try to bundle it.
   serverExternalPackages: ["pg"],
+  // Per-symbol pages consolidated under /data/symbol/[symbol]/*. Keep the old
+  // entry points working (the activity timeline lives on the Overall tab now).
+  async redirects() {
+    return [
+      { source: "/data/valuation/:symbol", destination: "/data/symbol/:symbol/valuation", permanent: false },
+      { source: "/symbol/:symbol", destination: "/data/symbol/:symbol/overall", permanent: false },
+    ];
+  },
   typescript: {
     // We run `tsc --noEmit` separately in CI; don't double-fail the build.
     ignoreBuildErrors: false,

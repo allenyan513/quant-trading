@@ -1,6 +1,11 @@
 "use client";
 
-import { useParams } from "next/navigation";
+/**
+ * Unified per-symbol activity timeline (events / notifications / signals /
+ * positions / valuations / logs). Extracted from the old /symbol/[symbol] page
+ * so it can live on the Overall tab. Fetches the heavy trace on its own SWR key.
+ */
+
 import { useLive } from "@/components/live";
 import { Badge, Card, Grid, JsonView, Stat, StatusBadge, statusColor } from "@/components/ui";
 import { fmtMoney, fmtPct, fmtFull } from "@/lib/format";
@@ -34,9 +39,7 @@ interface Trace {
 
 type Entry = { ts: string; kind: string; color: string; node: React.ReactNode };
 
-export default function SymbolPage() {
-  const params = useParams<{ symbol: string }>();
-  const symbol = (params.symbol ?? "").toUpperCase();
+export function SymbolTimeline({ symbol }: { symbol: string }) {
   const { data, error } = useLive<Trace>(`/api/symbol/${symbol}`);
 
   if (error) return <div style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</div>;
@@ -89,9 +92,6 @@ export default function SymbolPage() {
         </>
       ),
     });
-  // Portfolio segment: surface each position's open/close as its own event so
-  // the portfolio subsystem is visible on the timeline, not just nested in the
-  // signal that spawned it.
   const POS = "#f0883e";
   for (const s of data.signals) {
     const p = s.position;
@@ -156,8 +156,6 @@ export default function SymbolPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{symbol}</h1>
-
       <Grid min={170}>
         <Stat label="events" value={data.events.length} />
         <Stat label="notifications" value={data.notifications.length} />

@@ -22,7 +22,7 @@ function priceCell(d: string | null) {
 }
 
 const columns: Column<FreshRow>[] = [
-  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link> },
+  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> },
   { key: "lastPriceDate", header: "Latest price", render: (r) => priceCell(r.lastPriceDate) },
   { key: "lastIncomeKnownAt", header: "Income known_at", render: (r) => <TimeText ts={r.lastIncomeKnownAt} /> },
   { key: "lastBalanceKnownAt", header: "Balance known_at", render: (r) => <TimeText ts={r.lastBalanceKnownAt} /> },
