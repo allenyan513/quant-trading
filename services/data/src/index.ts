@@ -9,11 +9,12 @@ import { Hono } from "hono";
 import { ok, fail, config } from "@qt/shared";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
-import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
+import { pullNewsFeed, pullSymbolNews, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
 import { addToWatchlist, removeFromWatchlist } from "./watchlist.js";
+import { warmSymbol } from "./warm.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -200,6 +201,36 @@ app.delete("/watchlist/:symbol", async (c) => {
   } catch (err) {
     log.error("watchlist.remove.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("watchlist_remove_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// On-demand cache warming for the per-symbol detail page. web is read-only and
+// can't reach FMP, so the "刷新数据" button forwards here. Deterministically
+// read-through fills the symbol's marketdata caches (statements/ratios/prices/
+// ratings/insider/pt) so the Chart/Financials tabs populate. Synchronous (a few
+// FMP calls) — the caller shows a spinner. Reuses the triage warmer.
+app.post("/warm", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  try {
+    await warmSymbol(symbol);
+    // Also pull this symbol's recent news (market-wide /news/pull leaves single
+    // tickers stale). Isolated: a news failure must not fail the marketdata warm.
+    let newsPulled = 0;
+    let newsInserted = 0;
+    try {
+      const items = await pullSymbolNews(symbol, { days: 30 });
+      newsPulled = items.length;
+      const staged = await stageNews(items);
+      newsInserted = staged.inserted;
+    } catch (err) {
+      log.warn("warm.news_failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    }
+    return c.json(ok({ symbol: symbol.toUpperCase(), warmed: true, newsPulled, newsInserted }));
+  } catch (err) {
+    log.error("warm.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("warm_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
