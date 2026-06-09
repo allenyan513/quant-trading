@@ -101,8 +101,14 @@ function RefreshButton({ symbol }: { symbol: string }) {
         alert(`刷新失败: ${j.error ?? res.status}`);
         return;
       }
-      // Revalidate shell/overview/financials/prices for this symbol.
-      await mutate((k) => typeof k === "string" && k.startsWith(`/api/data/symbol/${symbol}/`));
+      // Revalidate shell/overview/financials/prices for this symbol. Match both
+      // raw and URL-encoded keys (symbols like BRK/B encode the slash).
+      const enc = encodeURIComponent(symbol);
+      await mutate(
+        (k) =>
+          typeof k === "string" &&
+          (k.startsWith(`/api/data/symbol/${symbol}/`) || k.startsWith(`/api/data/symbol/${enc}/`)),
+      );
     } catch (e) {
       alert(`刷新失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {

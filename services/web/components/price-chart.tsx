@@ -19,6 +19,8 @@ import {
   LineStyle,
   ColorType,
   type IChartApi,
+  type ISeriesApi,
+  type IPriceLine,
 } from "lightweight-charts";
 
 export interface Bar {
@@ -41,12 +43,19 @@ const isBar = (b: Bar): b is Bar & { open: number; high: number; low: number; cl
 
 export function PriceChart({ bars, fairValue }: { bars: Bar[]; fairValue: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const fvLineRef = useRef<IPriceLine | null>(null);
 
+  // Init once: create chart, series, resize observer. Recreating on every data
+  // change (range switch) would flicker — instead the data effect below calls
+  // setData on the existing series.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const chart: IChartApi = createChart(el, {
+    const chart = createChart(el, {
       width: el.clientWidth,
       height: 420,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: MUTED, fontSize: 11 },
@@ -55,19 +64,42 @@ export function PriceChart({ bars, fairValue }: { bars: Bar[]; fairValue: number
       timeScale: { borderColor: BORDER, timeVisible: false },
       crosshair: { mode: 0 },
     });
-
-    const candle = chart.addSeries(CandlestickSeries, {
+    chartRef.current = chart;
+    candleRef.current = chart.addSeries(CandlestickSeries, {
       upColor: UP,
       downColor: DOWN,
       borderVisible: false,
       wickUpColor: UP,
       wickDownColor: DOWN,
     });
+    volRef.current = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume" });
+    chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w && w > 0) chart.applyOptions({ width: w });
+    });
+    ro.observe(el);
+
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+      candleRef.current = null;
+      volRef.current = null;
+      fvLineRef.current = null;
+    };
+  }, []);
+
+  // Update data + fair-value line in place when inputs change.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const candle = candleRef.current;
+    const vol = volRef.current;
+    if (!chart || !candle || !vol) return;
+
     const valid = bars.filter(isBar);
     candle.setData(valid.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
-
-    const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "" });
-    chart.priceScale("").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     vol.setData(
       valid.map((b) => ({
         time: b.time,
@@ -76,8 +108,12 @@ export function PriceChart({ bars, fairValue }: { bars: Bar[]; fairValue: number
       })),
     );
 
+    if (fvLineRef.current) {
+      candle.removePriceLine(fvLineRef.current);
+      fvLineRef.current = null;
+    }
     if (fairValue != null && Number.isFinite(fairValue)) {
-      candle.createPriceLine({
+      fvLineRef.current = candle.createPriceLine({
         price: fairValue,
         color: FV,
         lineWidth: 1,
@@ -88,14 +124,6 @@ export function PriceChart({ bars, fairValue }: { bars: Bar[]; fairValue: number
     }
 
     chart.timeScale().fitContent();
-
-    const ro = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
-    ro.observe(el);
-
-    return () => {
-      ro.disconnect();
-      chart.remove();
-    };
   }, [bars, fairValue]);
 
   return <div ref={ref} style={{ width: "100%", height: 420 }} />;

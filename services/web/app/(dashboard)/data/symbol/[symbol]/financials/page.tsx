@@ -73,9 +73,15 @@ function fmtKind(kind: Kind, v: number | null): string {
   }
 }
 
+// Strict last-two CHRONOLOGICAL periods (the series is oldest→newest). Don't
+// drop nulls: YoY must compare consecutive years, and a missing latest year must
+// read "—" rather than silently showing a stale earlier value. (div() below
+// returns null when either point is null, so YoY just blanks out.)
 function lastTwo(values: (number | null)[]): { latest: number | null; prev: number | null } {
-  const nn = values.filter((v): v is number => v != null);
-  return { latest: nn.at(-1) ?? null, prev: nn.length >= 2 ? nn[nn.length - 2]! : null };
+  return {
+    latest: values.at(-1) ?? null,
+    prev: values.length >= 2 ? (values.at(-2) ?? null) : null,
+  };
 }
 
 export default function FinancialsTab() {
