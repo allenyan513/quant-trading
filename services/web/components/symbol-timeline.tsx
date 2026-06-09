@@ -177,7 +177,7 @@ export function SymbolTimeline({ symbol }: { symbol: string }) {
               style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "6px 0", borderLeft: `2px solid ${e.color}`, paddingLeft: 12, marginLeft: 4 }}
             >
               <span style={{ color: "var(--muted)", whiteSpace: "nowrap", fontSize: 12, minWidth: 210 }}>{fmtFull(e.ts)}</span>
-              <span style={{ fontSize: 13 }}>{e.node}</span>
+              <span style={{ fontSize: 13, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{e.node}</span>
             </div>
           ))}
         </div>
