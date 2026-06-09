@@ -19,6 +19,10 @@ import {
   balanceSheet,
   cashFlow,
   financialRatios,
+  analystEstimates,
+  ratings,
+  priceTargets,
+  insiderTrades,
   watchlist,
   candidates,
   logs,
@@ -289,7 +293,7 @@ export async function getLatestValuation(symbol: string) {
  * requires) + the latest fair value for the overlay line. DB-only. */
 export async function getPrices(symbol: string, opts: { days?: number } = {}) {
   const days = Math.min(opts.days ?? 800, 2000);
-  const [rows, val] = await Promise.all([
+  const [rows, val, fvRows] = await Promise.all([
     db()
       .select({
         time: dailyPrices.tradeDate,
@@ -304,13 +308,46 @@ export async function getPrices(symbol: string, opts: { days?: number } = {}) {
       .orderBy(desc(dailyPrices.tradeDate))
       .limit(days),
     getLatestValuation(symbol),
+    // Fair-value history: one point per valuation snapshot (asOf date), for the
+    // "buy zone over time" overlay. Oldest→newest, deduped per asOf (keep latest
+    // createdAt) so lightweight-charts gets unique ascending times.
+    db()
+      .select({ asOf: valuationSnapshots.asOf, fv: valuationSnapshots.fairValuePerShare, createdAt: valuationSnapshots.createdAt })
+      .from(valuationSnapshots)
+      .where(eq(valuationSnapshots.symbol, symbol))
+      .orderBy(valuationSnapshots.asOf, valuationSnapshots.createdAt),
   ]);
+  const fvByDate = new Map<string, number>();
+  for (const r of fvRows) {
+    if (r.asOf && typeof r.fv === "number" && Number.isFinite(r.fv)) fvByDate.set(r.asOf, r.fv);
+  }
+  const fvHistory = [...fvByDate.entries()].map(([time, value]) => ({ time, value }));
   return {
     symbol,
     bars: rows.reverse(), // ascending by tradeDate (YYYY-MM-DD strings)
     fairValue: val?.fairValuePerShare ?? null,
     asOf: val?.createdAt ?? null,
+    fvHistory,
   };
+}
+
+/** Analyst + insider activity for the Analysts tab — surfaces the record caches
+ * warmSymbol already fills (ratings/price targets/insider) plus forward analyst
+ * estimates, none of which were displayed before. Raw FMP `data` jsonb; the UI
+ * reads fields defensively. */
+export async function getAnalystsData(symbol: string) {
+  const [rate, pt, ins, est] = await Promise.all([
+    db().select({ observedAt: ratings.observedAt, data: ratings.data }).from(ratings).where(eq(ratings.symbol, symbol)).orderBy(desc(ratings.observedAt)).limit(25),
+    db().select({ observedAt: priceTargets.observedAt, data: priceTargets.data }).from(priceTargets).where(eq(priceTargets.symbol, symbol)).orderBy(desc(priceTargets.observedAt)).limit(25),
+    db().select({ observedAt: insiderTrades.observedAt, data: insiderTrades.data }).from(insiderTrades).where(eq(insiderTrades.symbol, symbol)).orderBy(desc(insiderTrades.observedAt)).limit(40),
+    db()
+      .select({ fiscalDate: analystEstimates.fiscalDate, data: analystEstimates.data })
+      .from(analystEstimates)
+      .where(and(eq(analystEstimates.symbol, symbol), eq(analystEstimates.period, "annual")))
+      .orderBy(desc(analystEstimates.fiscalDate))
+      .limit(8),
+  ]);
+  return { symbol, ratings: rate, priceTargets: pt, insider: ins, estimates: est.reverse() };
 }
 
 /** Latest financial-ratios row for a symbol (newest filing first). `data` is the
