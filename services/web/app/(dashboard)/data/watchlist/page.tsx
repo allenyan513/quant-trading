@@ -112,7 +112,7 @@ const columns: Column<WatchRow>[] = [
     key: "symbol",
     header: "Symbol",
     render: (r) => (
-      <Link href={`/data/valuation/${r.symbol}`} style={{ textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
+      <Link href={`/data/symbol/${r.symbol}/overall`} style={{ textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
         <Badge>{r.symbol}</Badge>
       </Link>
     ),

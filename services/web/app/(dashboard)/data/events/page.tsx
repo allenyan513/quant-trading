@@ -25,7 +25,7 @@ const columns: Column<EventRow>[] = [
   {
     key: "symbol",
     header: "Symbol",
-    render: (r) => (r.symbol ? <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link> : "—"),
+    render: (r) => (r.symbol ? <Link href={`/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> : "—"),
   },
   { key: "eventType", header: "Type", render: (r) => (r.eventType ? <Badge>{r.eventType}</Badge> : "—") },
   { key: "headline", header: "Headline", render: (r) => r.headline ?? "—" },

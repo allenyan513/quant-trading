@@ -158,7 +158,7 @@ export default function OverviewPage() {
                 <StatusBadge status={e.level} />
                 <span style={{ color: subsystemColor(e.service) }}>[{e.service}]</span>
                 <span style={{ fontWeight: 600 }}>{e.event}</span>
-                {e.symbol && <Link href={`/symbol/${e.symbol}`}><Badge>{e.symbol}</Badge></Link>}
+                {e.symbol && <Link href={`/data/symbol/${e.symbol}/overall`}><Badge>{e.symbol}</Badge></Link>}
                 <span style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {JSON.stringify(e.fields)}
                 </span>

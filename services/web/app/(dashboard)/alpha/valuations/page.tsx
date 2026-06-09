@@ -21,7 +21,7 @@ interface ValRow {
 
 const columns: Column<ValRow>[] = [
   { key: "createdAt", header: "Created", render: (r) => <TimeText ts={r.createdAt} />, width: 128 },
-  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link> },
+  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> },
   { key: "fairValuePerShare", header: "Fair value", render: (r) => fmtMoney(r.fairValuePerShare) },
   { key: "currentPrice", header: "Price", render: (r) => fmtMoney(r.currentPrice) },
   {

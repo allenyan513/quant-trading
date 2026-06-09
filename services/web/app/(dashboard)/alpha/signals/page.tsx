@@ -49,7 +49,7 @@ function dirColor(d: string) {
 
 const columns: Column<SignalRow>[] = [
   { key: "createdAt", header: "Created", render: (r) => <TimeText ts={r.createdAt} />, width: 128 },
-  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link> },
+  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> },
   { key: "direction", header: "Dir", render: (r) => <Badge color={dirColor(r.direction)}>{r.direction}</Badge> },
   { key: "conviction", header: "Conv", render: (r) => (r.conviction ? <Badge>{r.conviction}</Badge> : "—") },
   { key: "entryPrice", header: "Entry", render: (r) => fmtMoney(r.entryPrice) },

@@ -43,15 +43,10 @@ export default function ValuationPage() {
   const symbol = (params.symbol ?? "").toUpperCase();
   const { data, error } = useLive<Snapshot | null>(`/api/data/valuation/${symbol}`);
 
+  if (data === undefined && !error) return <p className="text-muted-foreground">Loading…</p>;
+
   return (
     <div className="val-page">
-      <div className="mb-2">
-        <a href="/data/watchlist" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Watchlist
-        </a>
-      </div>
-      <h1 className="text-2xl font-bold mb-1">{symbol} · Valuation</h1>
-
       {error && <p className="text-red-400">Error: {String(error.message ?? error)}</p>}
       {data === null && (
         <p className="text-muted-foreground">

@@ -25,7 +25,7 @@ const columns: Column<NotifRow>[] = [
   {
     key: "symbol",
     header: "Symbol",
-    render: (r) => <Link href={`/symbol/${r.symbol}`}><Badge>{r.symbol}</Badge></Link>,
+    render: (r) => <Link href={`/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link>,
   },
   { key: "eventType", header: "Type", render: (r) => <Badge>{r.eventType}</Badge> },
   { key: "summary", header: "Summary", render: (r) => r.summary ?? "—" },
