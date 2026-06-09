@@ -22,7 +22,10 @@ const ACCENT = "#58a6ff"; // data subsystem color
 
 export function SymbolTabs() {
   const params = useParams<{ symbol: string }>();
-  const symbol = (params.symbol ?? "").toUpperCase();
+  // Keep the URL's original casing in tab hrefs: changing the [symbol] segment
+  // case (e.g. aapl→AAPL) makes Next treat it as a different route branch and
+  // unmounts the shared layout, defeating cross-tab state preservation.
+  const symbol = params.symbol ?? "";
   const active = useSelectedLayoutSegment() ?? "overall";
 
   return (

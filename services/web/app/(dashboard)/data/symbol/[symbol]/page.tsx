@@ -4,5 +4,6 @@ import { redirect } from "next/navigation";
  * the redirect is safe (no client-tree React #310). */
 export default async function SymbolIndex({ params }: { params: Promise<{ symbol: string }> }) {
   const { symbol } = await params;
-  redirect(`/data/symbol/${symbol}/overall`);
+  // Canonicalize to uppercase (DB symbols are uppercase) on the entry redirect.
+  redirect(`/data/symbol/${symbol.toUpperCase()}/overall`);
 }

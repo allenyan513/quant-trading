@@ -33,6 +33,8 @@ export default function OverallTab() {
   const symbol = (params.symbol ?? "").toUpperCase();
   const { data, error } = useLive<Overview>(`/api/data/symbol/${symbol}/overview`);
 
+  if (!data && !error) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {error && <div style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</div>}
