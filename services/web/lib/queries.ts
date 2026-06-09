@@ -285,6 +285,34 @@ export async function getLatestValuation(symbol: string) {
   return rows[0] ?? null;
 }
 
+/** OHLCV bars for the Chart tab (ascending by date, as lightweight-charts
+ * requires) + the latest fair value for the overlay line. DB-only. */
+export async function getPrices(symbol: string, opts: { days?: number } = {}) {
+  const days = Math.min(opts.days ?? 800, 2000);
+  const [rows, val] = await Promise.all([
+    db()
+      .select({
+        time: dailyPrices.tradeDate,
+        open: dailyPrices.open,
+        high: dailyPrices.high,
+        low: dailyPrices.low,
+        close: dailyPrices.close,
+        volume: dailyPrices.volume,
+      })
+      .from(dailyPrices)
+      .where(eq(dailyPrices.symbol, symbol))
+      .orderBy(desc(dailyPrices.tradeDate))
+      .limit(days),
+    getLatestValuation(symbol),
+  ]);
+  return {
+    symbol,
+    bars: rows.reverse(), // ascending by tradeDate (YYYY-MM-DD strings)
+    fairValue: val?.fairValuePerShare ?? null,
+    asOf: val?.createdAt ?? null,
+  };
+}
+
 /** Latest financial-ratios row for a symbol (newest filing first). `data` is the
  * raw FMP ratios jsonb; callers pick the fields they show. */
 export async function getLatestRatios(symbol: string) {
