@@ -301,7 +301,7 @@ export async function getLatestRatios(symbol: string) {
  * price/verdict/upside. DB-only (no FMP); leans on universe + latest snapshot,
  * falling back to the latest daily close for price when no snapshot exists. */
 export async function getCompanyShell(symbol: string) {
-  const [uni, val, lastPrice] = await Promise.all([
+  const [uni, val, lastPrice, wl] = await Promise.all([
     db().select().from(universe).where(eq(universe.symbol, symbol)).limit(1),
     getLatestValuation(symbol),
     db()
@@ -310,6 +310,7 @@ export async function getCompanyShell(symbol: string) {
       .where(eq(dailyPrices.symbol, symbol))
       .orderBy(desc(dailyPrices.tradeDate))
       .limit(1),
+    db().select({ symbol: watchlist.symbol }).from(watchlist).where(eq(watchlist.symbol, symbol)).limit(1),
   ]);
   const u = uni[0];
   const detail = (val?.detail ?? null) as { company_name?: string } | null;
@@ -323,6 +324,7 @@ export async function getCompanyShell(symbol: string) {
     upsidePct: val?.upsidePct ?? null,
     verdict: val?.verdict ?? null,
     asOf: val?.createdAt ?? null,
+    inWatchlist: wl.length > 0,
   };
 }
 

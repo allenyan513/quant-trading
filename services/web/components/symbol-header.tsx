@@ -7,6 +7,7 @@
  */
 
 import { useState } from "react";
+import { mutate } from "swr";
 import { useLive } from "@/components/live";
 import { StatusBadge } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
@@ -21,48 +22,65 @@ interface Shell {
   upsidePct: number | null;
   verdict: string | null;
   asOf: string | null;
+  inWatchlist: boolean;
 }
 
-function AddToWatchlist({ symbol }: { symbol: string }) {
-  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
-  async function add() {
-    if (state !== "idle") return;
-    setState("busy");
+/** Reflects + toggles watchlist membership. Adds when not in the list, removes
+ * (with confirm) when already in. `added` is server truth (shell.inWatchlist)
+ * with an optimistic local override that holds until the shell revalidates. */
+function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [local, setLocal] = useState<boolean | null>(null);
+  const added = local ?? inWatchlist;
+  const shellKey = `/api/data/symbol/${symbol}/shell`;
+
+  async function toggle() {
+    if (busy) return;
+    setBusy(true);
     try {
-      const res = await fetch("/api/watchlist", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !j.ok) {
-        alert(`add failed: ${j.error ?? res.status}`);
-        setState("idle");
-        return;
+      if (added) {
+        if (!window.confirm(`从 watchlist 移除 ${symbol}？`)) return;
+        const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) return void alert(`remove failed: ${j.error ?? res.status}`);
+        setLocal(false);
+      } else {
+        const res = await fetch("/api/watchlist", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ symbol }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok || !j.ok) return void alert(`add failed: ${j.error ?? res.status}`);
+        setLocal(true);
       }
-      setState("done");
+      mutate(shellKey);
     } catch (e) {
-      alert(`add failed: ${e instanceof Error ? e.message : String(e)}`);
-      setState("idle");
+      alert(`failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
     }
   }
+
   return (
     <button
-      onClick={add}
-      disabled={state !== "idle"}
+      onClick={toggle}
+      disabled={busy}
+      title={added ? "点击从 watchlist 移除" : "加入 watchlist"}
       style={{
-        background: state === "done" ? "transparent" : "#1f6feb",
-        border: `1px solid ${state === "done" ? "var(--border)" : "#388bfd"}`,
-        color: state === "done" ? "var(--muted)" : "#fff",
+        background: added ? "transparent" : "#1f6feb",
+        border: `1px solid ${added ? "var(--border)" : "#388bfd"}`,
+        color: added ? "var(--muted)" : "#fff",
         borderRadius: 8,
         padding: "6px 14px",
         fontSize: 13,
         fontWeight: 600,
-        cursor: state === "idle" ? "pointer" : "default",
+        cursor: busy ? "default" : "pointer",
+        opacity: busy ? 0.6 : 1,
         whiteSpace: "nowrap",
       }}
     >
-      {state === "done" ? "✓ 已加自选" : state === "busy" ? "添加中…" : "+ 加自选"}
+      {busy ? "…" : added ? "✓ 已自选" : "+ 加自选"}
     </button>
   );
 }
@@ -102,7 +120,7 @@ export function SymbolHeader({ symbol }: { symbol: string }) {
             <span style={{ color: upColor, fontWeight: 600 }}>{fmtPct(s?.upsidePct)}</span>
           </div>
         </div>
-        <AddToWatchlist symbol={symbol} />
+        <WatchlistToggle symbol={symbol} inWatchlist={s?.inWatchlist ?? false} />
       </div>
     </div>
   );
