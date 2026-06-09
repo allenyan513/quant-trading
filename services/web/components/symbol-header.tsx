@@ -2,8 +2,9 @@
 
 /**
  * Shared company header for the per-symbol detail layout. Reads the DB-only
- * "company shell" (identity + latest price/verdict/upside) and offers an
- * add-to-watchlist action. Rendered once by the layout, persists across tabs.
+ * "company shell" (identity + latest price/verdict/upside) and offers
+ * add-to-watchlist + a refresh-data action. Rendered once by the layout,
+ * persists across tabs.
  */
 
 import { useState } from "react";
@@ -85,6 +86,52 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
   );
 }
 
+/** Warms this symbol's marketdata caches on demand (forwards to the data
+ * service, which has FMP access). Fills statements/ratios/prices so the Chart &
+ * Financials tabs populate, then revalidates every symbol-scoped SWR key. */
+function RefreshButton({ symbol }: { symbol: string }) {
+  const [busy, setBusy] = useState(false);
+  async function refresh() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/data/symbol/${encodeURIComponent(symbol)}/warm`, { method: "POST" });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !j.ok) {
+        alert(`刷新失败: ${j.error ?? res.status}`);
+        return;
+      }
+      // Revalidate shell/overview/financials/prices for this symbol.
+      await mutate((k) => typeof k === "string" && k.startsWith(`/api/data/symbol/${symbol}/`));
+    } catch (e) {
+      alert(`刷新失败: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button
+      onClick={refresh}
+      disabled={busy}
+      title="从 FMP 拉取并预热该标的的财报/日线缓存（Chart、Financials 用）"
+      style={{
+        background: "transparent",
+        border: "1px solid var(--border)",
+        color: "var(--muted)",
+        borderRadius: 8,
+        padding: "6px 12px",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: busy ? "default" : "pointer",
+        opacity: busy ? 0.6 : 1,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {busy ? "刷新中…" : "⟳ 刷新数据"}
+    </button>
+  );
+}
+
 export function SymbolHeader({ symbol }: { symbol: string }) {
   const { data } = useLive<Shell | null>(`/api/data/symbol/${symbol}/shell`);
   const s = data ?? null;
@@ -120,6 +167,7 @@ export function SymbolHeader({ symbol }: { symbol: string }) {
             <span style={{ color: upColor, fontWeight: 600 }}>{fmtPct(s?.upsidePct)}</span>
           </div>
         </div>
+        <RefreshButton symbol={symbol} />
         <WatchlistToggle symbol={symbol} inWatchlist={s?.inWatchlist ?? false} />
       </div>
     </div>
