@@ -342,6 +342,39 @@ export async function getSymbolOverview(symbol: string) {
   return { symbol, valuation, positions: openPositions, news, ratios };
 }
 
+/** Multi-period statements for the Financials tab. Reads the 4 cached statement
+ * tables directly (raw FMP `data` jsonb), newest-first then reversed to
+ * oldest→newest so the UI can chart trends left-to-right. Annual by default. */
+export async function getFinancials(
+  symbol: string,
+  opts: { period?: "annual" | "quarter"; limit?: number } = {},
+) {
+  const period = opts.period === "quarter" ? "quarter" : "annual";
+  const limit = Math.min(opts.limit ?? 8, 16);
+  const q = (tbl: typeof incomeStatement | typeof cashFlow | typeof balanceSheet | typeof financialRatios) =>
+    db()
+      .select({ fiscalDate: tbl.fiscalDate, data: tbl.data })
+      .from(tbl)
+      .where(and(eq(tbl.symbol, symbol), eq(tbl.period, period)))
+      .orderBy(desc(tbl.fiscalDate))
+      .limit(limit);
+  const [income, cashflow, balance, ratios] = await Promise.all([
+    q(incomeStatement),
+    q(cashFlow),
+    q(balanceSheet),
+    q(financialRatios),
+  ]);
+  // Oldest→newest so the UI charts trends left-to-right.
+  return {
+    symbol,
+    period,
+    income: income.reverse(),
+    cashflow: cashflow.reverse(),
+    balance: balance.reverse(),
+    ratios: ratios.reverse(),
+  };
+}
+
 /** Discovery review queue. Defaults to the pending candidates, highest score first. */
 export async function listCandidates(opts: ListOpts = {}) {
   const limit = Math.min(opts.limit ?? 200, 500);
