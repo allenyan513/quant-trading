@@ -9,7 +9,7 @@ import { Hono } from "hono";
 import { ok, fail, config } from "@qt/shared";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
-import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
+import { pullNewsFeed, pullSymbolNews, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
@@ -215,7 +215,19 @@ app.post("/warm", async (c) => {
   if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
   try {
     await warmSymbol(symbol);
-    return c.json(ok({ symbol: symbol.toUpperCase(), warmed: true }));
+    // Also pull this symbol's recent news (market-wide /news/pull leaves single
+    // tickers stale). Isolated: a news failure must not fail the marketdata warm.
+    let newsPulled = 0;
+    let newsInserted = 0;
+    try {
+      const items = await pullSymbolNews(symbol, { days: 30 });
+      newsPulled = items.length;
+      const staged = await stageNews(items);
+      newsInserted = staged.inserted;
+    } catch (err) {
+      log.warn("warm.news_failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    }
+    return c.json(ok({ symbol: symbol.toUpperCase(), warmed: true, newsPulled, newsInserted }));
   } catch (err) {
     log.error("warm.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("warm_failed", err instanceof Error ? err.message : String(err)), 500);

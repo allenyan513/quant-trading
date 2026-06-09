@@ -215,3 +215,42 @@ export async function pullNewsFeed(
   }
   return { items, byCategory };
 }
+
+/**
+ * Per-symbol news fetch for the detail page's on-demand refresh. The market-wide
+ * `news/*-latest` feeds carry no symbol filter, so a specific ticker is often
+ * stale/absent there; FMP's `news/stock` search accepts `symbols=` and returns
+ * the same row shape (naive-ET dates → easternToUtcIso, as `normalizeNews`
+ * applies). Windowed to the last `days`; downstream `stageNews` dedups by url.
+ */
+export async function pullSymbolNews(
+  symbol: string,
+  opts: { days?: number; limit?: number } = {},
+): Promise<NewsItemRow[]> {
+  const sym = symbol.trim().toUpperCase();
+  if (!sym) return [];
+  const days = opts.days ?? 30;
+  const now = Date.now();
+  const to = new Date(now).toISOString().slice(0, 10);
+  const from = new Date(now - days * 86_400_000).toISOString().slice(0, 10);
+  const fromTs = Date.parse(`${from}T00:00:00Z`);
+
+  const rows = await fmpGet<RawNews[]>(
+    "news/stock",
+    { symbols: sym, from, to, limit: opts.limit ?? 100 },
+    { softFail402: true },
+  );
+  if (!rows?.length) return [];
+
+  const out: NewsItemRow[] = [];
+  for (const r of rows) {
+    const norm = normalizeNews("stock", r);
+    if (!norm.external_id) continue;
+    const t = norm.published_at ? Date.parse(norm.published_at) : NaN;
+    if (!Number.isNaN(t) && t < fromTs) continue; // belt-and-suspenders window filter
+    // We queried by this symbol; tag it even if the article omits the field, so
+    // the per-symbol news tab (filters on symbol) reliably surfaces it.
+    out.push(norm.symbol ? norm : { ...norm, symbol: sym });
+  }
+  return out;
+}

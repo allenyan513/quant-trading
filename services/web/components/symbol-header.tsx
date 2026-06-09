@@ -101,13 +101,17 @@ function RefreshButton({ symbol }: { symbol: string }) {
         alert(`刷新失败: ${j.error ?? res.status}`);
         return;
       }
-      // Revalidate shell/overview/financials/prices for this symbol. Match both
-      // raw and URL-encoded keys (symbols like BRK/B encode the slash).
+      // Revalidate shell/overview/financials/prices (/api/data/symbol/<sym>/…)
+      // AND the news tab (/api/news?symbol=<sym>…), since warm now also pulls
+      // this symbol's news. Match both raw and URL-encoded keys (BRK/B etc.).
       const enc = encodeURIComponent(symbol);
       await mutate(
         (k) =>
           typeof k === "string" &&
-          (k.startsWith(`/api/data/symbol/${symbol}/`) || k.startsWith(`/api/data/symbol/${enc}/`)),
+          (k.startsWith(`/api/data/symbol/${symbol}/`) ||
+            k.startsWith(`/api/data/symbol/${enc}/`) ||
+            k.startsWith(`/api/news?symbol=${symbol}`) ||
+            k.startsWith(`/api/news?symbol=${enc}`)),
       );
     } catch (e) {
       alert(`刷新失败: ${e instanceof Error ? e.message : String(e)}`);
