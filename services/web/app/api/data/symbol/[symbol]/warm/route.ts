@@ -6,8 +6,10 @@ export const runtime = "nodejs";
 // read-only, so it orchestrates two owners (T12): data warms the marketdata
 // caches + pulls news; alpha recomputes the reference valuation. Static
 // process.env.* (Next inlines them).
+// Static access only: Next inlines `process.env.DATA_URL` at build, but a
+// dynamic `process.env[name]` is left undefined at runtime.
 function svcUrl(name: "DATA_URL" | "ALPHA_URL"): string {
-  const u = process.env[name];
+  const u = name === "DATA_URL" ? process.env.DATA_URL : process.env.ALPHA_URL;
   if (!u) throw new Error(`Missing required env var: ${name}`);
   return u;
 }
