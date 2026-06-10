@@ -145,10 +145,12 @@ const ACTION_COLOR: Record<string, string> = {
 };
 function Ratings({ rows }: { rows: Dated[] }) {
   if (rows.length === 0) return null;
+  // Cached full history; we show the most recent slice. Heavily-covered names
+  // (e.g. META) get dozens of actions/year, so this is mostly the last ~year.
   return (
-    <Card title="评级变动">
+    <Card title={`评级变动 · 最近 ${rows.length} 条`}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {rows.slice(0, 15).map((r, i) => {
+        {rows.map((r, i) => {
           const d = r.data;
           const action = (s(d, "action") ?? "").toLowerCase();
           const prev = s(d, "previousGrade");
