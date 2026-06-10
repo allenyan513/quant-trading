@@ -28,12 +28,12 @@ interface Analysts {
   estimates: EstRow[];
 }
 
-const n = (d: Rec, k: string): number | null => {
-  const v = d[k];
+const n = (d: Rec | null | undefined, k: string): number | null => {
+  const v = d?.[k];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 };
-const s = (d: Rec, k: string): string | null => {
-  const v = d[k];
+const s = (d: Rec | null | undefined, k: string): string | null => {
+  const v = d?.[k];
   return typeof v === "string" && v ? v : null;
 };
 
@@ -163,7 +163,7 @@ function Ratings({ rows }: { rows: Dated[] }) {
                 {prev ? `${prev} → ` : ""}
                 <span style={{ color: "var(--text)" }}>{next ?? "—"}</span>
               </span>
-              {action && <Badge color={ACTION_COLOR[action] ?? "#8a97ab"}>{action}</Badge>}
+              {action !== "" && <Badge color={ACTION_COLOR[action] ?? "#8a97ab"}>{action}</Badge>}
             </div>
           );
         })}

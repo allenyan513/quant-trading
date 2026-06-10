@@ -317,9 +317,14 @@ export async function getPrices(symbol: string, opts: { days?: number } = {}) {
       .where(eq(valuationSnapshots.symbol, symbol))
       .orderBy(valuationSnapshots.asOf, valuationSnapshots.createdAt),
   ]);
+  // drizzle `date` is string mode → asOf is already a "YYYY-MM-DD" string. Slice
+  // to be explicit + dedupe per day (lightweight-charts needs unique ascending
+  // day strings, not Date objects).
   const fvByDate = new Map<string, number>();
   for (const r of fvRows) {
-    if (r.asOf && typeof r.fv === "number" && Number.isFinite(r.fv)) fvByDate.set(r.asOf, r.fv);
+    if (r.asOf && typeof r.fv === "number" && Number.isFinite(r.fv)) {
+      fvByDate.set(r.asOf.slice(0, 10), r.fv);
+    }
   }
   const fvHistory = [...fvByDate.entries()].map(([time, value]) => ({ time, value }));
   return {
