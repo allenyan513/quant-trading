@@ -19,6 +19,7 @@ interface Prices {
   bars: Bar[];
   fairValue: number | null;
   asOf: string | null;
+  fvHistory: { time: string; value: number }[];
 }
 
 const RANGES: { key: string; label: string; days: number | null }[] = [
@@ -72,10 +73,11 @@ export default function ChartTab() {
         </span>
       }
     >
-      <PriceChartLazy bars={bars} fairValue={data.fairValue} />
+      <PriceChartLazy bars={bars} fairValue={data.fairValue} fvHistory={data.fvHistory} />
       {data.fairValue != null && (
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
-          <span style={{ color: "#a371f7" }}>— — FV</span> 公允价 {fmtMoney(data.fairValue)}
+          <span style={{ color: "#a371f7" }}>— — FV</span>{" "}
+          {data.fvHistory.length >= 2 ? "公允价（随时间）" : "公允价"} {fmtMoney(data.fairValue)}
           {data.asOf && <span> · 估值于 {fmtFull(data.asOf)}</span>}
         </div>
       )}
