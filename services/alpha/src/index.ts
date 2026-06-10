@@ -8,6 +8,7 @@ import { ok, fail, config, type NotificationPayload } from "@qt/shared";
 import { intakeNotification, processNotification, reprocessStuck } from "./pipeline.js";
 import { redeliverPendingSignals } from "./deliver.js";
 import { sweepWatchlistValuations } from "./valuation/sweep.js";
+import { computeReferenceValuation } from "./valuation/reference.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -90,6 +91,22 @@ app.post("/internal/valuation-sweep", async (c) => {
   } catch (err) {
     log.error("valuation.sweep.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("valuation_sweep_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Per-symbol reference valuation — backs the detail page's "刷新数据" button so
+// a newly-added symbol gets a snapshot on demand (the sweep cron is bulk/daily).
+// forceRefresh: the caller just warmed the marketdata, so recompute from it.
+app.post("/internal/valuation", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  try {
+    const res = await computeReferenceValuation(symbol, { forceRefresh: true });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("valuation.compute.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("valuation_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 

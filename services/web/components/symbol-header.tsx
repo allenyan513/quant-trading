@@ -110,6 +110,8 @@ function RefreshButton({ symbol }: { symbol: string }) {
           typeof k === "string" &&
           (k.startsWith(`/api/data/symbol/${symbol}/`) ||
             k.startsWith(`/api/data/symbol/${enc}/`) ||
+            k.startsWith(`/api/data/valuation/${symbol}`) ||
+            k.startsWith(`/api/data/valuation/${enc}`) ||
             k.startsWith(`/api/news?symbol=${symbol}`) ||
             k.startsWith(`/api/news?symbol=${enc}`)),
       );
