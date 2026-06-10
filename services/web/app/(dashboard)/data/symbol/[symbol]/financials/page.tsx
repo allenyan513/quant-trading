@@ -205,9 +205,19 @@ function Scorecard({ income, cashflow, balance, ratios }: { income: Row[]; cashf
   const lb = bal.get(lastDate) ?? {};
   const lr = rat.get(lastDate) ?? {};
 
-  const revs = income.map((r) => num(r.data, "revenue")).filter((v): v is number => v != null && v > 0);
-  const yrs = income.length - 1;
-  const revCagr = revs.length >= 2 && yrs > 0 ? Math.pow(revs.at(-1)! / revs[0]!, 1 / yrs) - 1 : null;
+  // Annualized growth over the actual year span between the first and last
+  // VALID (non-null, positive) data points — filtering can drop years, so the
+  // exponent must use real calendar years, not income.length.
+  const cagr = (field: string): number | null => {
+    const pts = income
+      .map((r) => ({ year: parseInt(r.fiscalDate.slice(0, 4), 10), val: num(r.data, field) }))
+      .filter((x): x is { year: number; val: number } => x.val != null && x.val > 0);
+    if (pts.length < 2) return null;
+    const span = pts.at(-1)!.year - pts[0]!.year;
+    return span > 0 ? Math.pow(pts.at(-1)!.val / pts[0]!.val, 1 / span) - 1 : null;
+  };
+  const revCagr = cagr("revenue");
+  const dilution = cagr("weightedAverageShsOutDil");
   const fcfYears = income.map((r) => num(cf.get(r.fiscalDate) ?? {}, "freeCashFlow") ?? add(num(cf.get(r.fiscalDate) ?? {}, "operatingCashFlow"), num(cf.get(r.fiscalDate) ?? {}, "capitalExpenditure")));
   const fcfPos = fcfYears.filter((v) => v != null && v > 0).length;
   const fcfTotal = fcfYears.filter((v) => v != null).length;
@@ -215,8 +225,6 @@ function Scorecard({ income, cashflow, balance, ratios }: { income: Row[]; cashf
   const roe = num(lr, "returnOnEquity") ?? div(num(li, "netIncome"), num(lb, "totalStockholdersEquity"));
   const grossMargin = num(lr, "grossProfitMargin") ?? div(num(li, "grossProfit"), num(li, "revenue"));
   const netDebtEbitda = div(num(lb, "netDebt"), num(li, "ebitda"));
-  const shares = income.map((r) => num(r.data, "weightedAverageShsOutDil")).filter((v): v is number => v != null && v > 0);
-  const dilution = shares.length >= 2 && yrs > 0 ? Math.pow(shares.at(-1)! / shares[0]!, 1 / yrs) - 1 : null;
 
   const band = (v: number | null, g: number, o: number, higher = true): Verdict | null => {
     if (v == null) return null;
