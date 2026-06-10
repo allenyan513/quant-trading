@@ -421,18 +421,24 @@ export async function getFinancials(
 ) {
   const period = opts.period === "quarter" ? "quarter" : "annual";
   const limit = Math.min(opts.limit ?? 8, 16);
-  const q = (tbl: typeof incomeStatement | typeof cashFlow | typeof balanceSheet | typeof financialRatios) =>
+  const q = (
+    tbl: typeof incomeStatement | typeof cashFlow | typeof balanceSheet | typeof financialRatios | typeof analystEstimates,
+    rows = limit,
+  ) =>
     db()
       .select({ fiscalDate: tbl.fiscalDate, data: tbl.data })
       .from(tbl)
       .where(and(eq(tbl.symbol, symbol), eq(tbl.period, period)))
       .orderBy(desc(tbl.fiscalDate))
-      .limit(limit);
-  const [income, cashflow, balance, ratios] = await Promise.all([
+      .limit(rows);
+  const [income, cashflow, balance, ratios, estimates] = await Promise.all([
     q(incomeStatement),
     q(cashFlow),
     q(balanceSheet),
     q(financialRatios),
+    // Estimates include future fiscal years → fetch a few extra so the forward
+    // years (newest-first) survive the slice before we reverse to ascending.
+    q(analystEstimates, limit + 4),
   ]);
   // Oldest→newest so the UI charts trends left-to-right.
   return {
@@ -442,6 +448,7 @@ export async function getFinancials(
     cashflow: cashflow.reverse(),
     balance: balance.reverse(),
     ratios: ratios.reverse(),
+    estimates: estimates.reverse(),
   };
 }
 
