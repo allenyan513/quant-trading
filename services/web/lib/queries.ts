@@ -342,7 +342,7 @@ export async function getPrices(symbol: string, opts: { days?: number } = {}) {
  * reads fields defensively. */
 export async function getAnalystsData(symbol: string) {
   const [rate, pt, ins, est] = await Promise.all([
-    db().select({ observedAt: ratings.observedAt, data: ratings.data }).from(ratings).where(eq(ratings.symbol, symbol)).orderBy(desc(ratings.observedAt)).limit(25),
+    db().select({ observedAt: ratings.observedAt, data: ratings.data }).from(ratings).where(eq(ratings.symbol, symbol)).orderBy(desc(ratings.observedAt)).limit(60),
     db().select({ observedAt: priceTargets.observedAt, data: priceTargets.data }).from(priceTargets).where(eq(priceTargets.symbol, symbol)).orderBy(desc(priceTargets.observedAt)).limit(25),
     db().select({ observedAt: insiderTrades.observedAt, data: insiderTrades.data }).from(insiderTrades).where(eq(insiderTrades.symbol, symbol)).orderBy(desc(insiderTrades.observedAt)).limit(40),
     db()
@@ -421,18 +421,24 @@ export async function getFinancials(
 ) {
   const period = opts.period === "quarter" ? "quarter" : "annual";
   const limit = Math.min(opts.limit ?? 8, 16);
-  const q = (tbl: typeof incomeStatement | typeof cashFlow | typeof balanceSheet | typeof financialRatios) =>
+  const q = (
+    tbl: typeof incomeStatement | typeof cashFlow | typeof balanceSheet | typeof financialRatios | typeof analystEstimates,
+    rows = limit,
+  ) =>
     db()
       .select({ fiscalDate: tbl.fiscalDate, data: tbl.data })
       .from(tbl)
       .where(and(eq(tbl.symbol, symbol), eq(tbl.period, period)))
       .orderBy(desc(tbl.fiscalDate))
-      .limit(limit);
-  const [income, cashflow, balance, ratios] = await Promise.all([
+      .limit(rows);
+  const [income, cashflow, balance, ratios, estimates] = await Promise.all([
     q(incomeStatement),
     q(cashFlow),
     q(balanceSheet),
     q(financialRatios),
+    // Estimates include future fiscal years → fetch a few extra so the forward
+    // years (newest-first) survive the slice before we reverse to ascending.
+    q(analystEstimates, limit + 4),
   ]);
   // Oldest→newest so the UI charts trends left-to-right.
   return {
@@ -442,6 +448,7 @@ export async function getFinancials(
     cashflow: cashflow.reverse(),
     balance: balance.reverse(),
     ratios: ratios.reverse(),
+    estimates: estimates.reverse(),
   };
 }
 
