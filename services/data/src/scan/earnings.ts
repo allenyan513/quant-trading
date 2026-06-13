@@ -11,10 +11,21 @@ import { getWatchlistSymbols } from "../watchlist.js";
 import { upsertCandidates, type CandidateInput } from "../candidates.js";
 import { log } from "../log.js";
 
-/** EPS surprise as a fraction of |estimate|; null if not computable. */
+/**
+ * EPS surprise as a signed fraction of the estimate. Two guards against the
+ * distortions of a raw `actual / estimate − 1` (issue #54):
+ *  - numerator is the signed beat/miss `actual − estimate`, so a negative
+ *    estimate (an expected loss) doesn't flip the sign — a narrowing loss, or
+ *    a loss turning into a profit, reads as a beat, not a miss.
+ *  - denominator is |estimate| floored at SURPRISE_DENOM_FLOOR, so a near-zero
+ *    estimate doesn't blow the magnitude up to thousands of percent.
+ * Returns null when actual/estimate is missing, or the estimate is exactly 0
+ * (ambiguous — usually a missing estimate rather than a true zero expectation).
+ */
+const SURPRISE_DENOM_FLOOR = 0.05; // $0.05 EPS — denominator floor for near-zero estimates
 function surprisePct(e: FmpEarning): number | null {
   if (e.epsActual == null || e.epsEstimated == null || e.epsEstimated === 0) return null;
-  return e.epsActual / e.epsEstimated - 1;
+  return (e.epsActual - e.epsEstimated) / Math.max(Math.abs(e.epsEstimated), SURPRISE_DENOM_FLOOR);
 }
 
 /**
