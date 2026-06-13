@@ -9,7 +9,6 @@
 import { config } from "./config.js";
 
 const WINDOW_MS = 60_000;
-const LIMIT = Number(process.env.FMP_RATE_LIMIT ?? 250);
 const timestamps: number[] = [];
 
 function sleep(ms: number): Promise<void> {
@@ -17,9 +16,10 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function throttle(): Promise<void> {
+  const limit = config.fmpRateLimit();
   const now = Date.now();
   while (timestamps.length && now - timestamps[0]! >= WINDOW_MS) timestamps.shift();
-  if (timestamps.length >= LIMIT) {
+  if (timestamps.length >= limit) {
     await sleep(WINDOW_MS - (now - timestamps[0]!));
     return throttle();
   }
