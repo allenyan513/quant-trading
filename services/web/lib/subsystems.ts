@@ -54,6 +54,7 @@ export const SUBSYSTEMS: Subsystem[] = [
       "cash_flow",
       "financial_ratios",
       "analyst_estimates",
+      "valuation_snapshots",
       "events",
       "notifications",
       "news_items",
@@ -73,8 +74,8 @@ export const SUBSYSTEMS: Subsystem[] = [
     port: 8082,
     color: "#a371f7",
     blurb:
-      "系统中唯一的真 LLM agent：把 notifications 重定价为交易信号，并写出估值快照与审计。",
-    tables: ["trading_signals", "valuation_snapshots", "signal_audits"],
+      "系统中唯一的真 LLM agent：把 notifications 重定价为交易信号（读 data 算好的参考估值快照作为输入之一）。",
+    tables: ["trading_signals", "signal_audits"],
     pages: [
       { href: "/alpha/signals", label: "Signals" },
       { href: "/alpha/valuations", label: "Valuations" },

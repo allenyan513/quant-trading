@@ -4,6 +4,9 @@ import { COOKIE_NAME, verifySession } from "@/lib/auth";
 /**
  * Guards every page and API route. Unauthenticated requests are redirected to
  * /login (pages) or rejected with 401 (API). /login and the login API are open.
+ * Service callers (e.g. data's /mcp proxy) authenticate to the read-only /api/*
+ * with an `Authorization: Bearer <JOB_TOKEN>` header instead of the dashboard
+ * cookie.
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -11,6 +14,16 @@ export async function middleware(req: NextRequest) {
   const isLoginPage = pathname === "/login";
   const isLoginApi = pathname === "/api/login";
   if (isLoginPage || isLoginApi) return NextResponse.next();
+
+  // Service-to-service access to the API with the shared job token.
+  const jobToken = process.env.JOB_TOKEN;
+  if (
+    jobToken &&
+    pathname.startsWith("/api/") &&
+    req.headers.get("authorization") === `Bearer ${jobToken}`
+  ) {
+    return NextResponse.next();
+  }
 
   const ok = await verifySession(req.cookies.get(COOKIE_NAME)?.value);
   if (ok) return NextResponse.next();

@@ -6,20 +6,50 @@
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { ok, fail, config } from "@qt/shared";
+import type { MiddlewareHandler } from "hono";
+import { ok, fail, config, isAuthorizedJob } from "@qt/shared";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
-import { pullNewsFeed, pullSymbolNews, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
+import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
 import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
 import { addToWatchlist, removeFromWatchlist } from "./watchlist.js";
-import { warmSymbol } from "./warm.js";
+import { warmAndPullNews, revalue, refreshWatchlist } from "./refresh.js";
+import { computeReferenceValuation } from "./valuation/reference.js";
+import { sweepWatchlistValuations } from "./valuation/sweep.js";
+import { StreamableHTTPTransport } from "@hono/mcp";
+import { buildMcpServer } from "./mcp/server.js";
 import { log } from "./log.js";
 
 const app = new Hono();
 
 app.get("/health", (c) => c.json(ok({ service: "data", status: "up" })));
+
+// Cron/job endpoints (e.g. the daily refresh hit by GitHub Actions) require a
+// bearer matching JOB_TOKEN. Open locally when JOB_TOKEN is unset. /health stays
+// public above this guard.
+const jobAuth: MiddlewareHandler = async (c, next) => {
+  if (!isAuthorizedJob(c.req.header("authorization"))) {
+    return c.json(fail("unauthorized", "invalid or missing job token"), 401);
+  }
+  await next();
+};
+app.use("/jobs/*", jobAuth);
+
+// MCP endpoint (Streamable HTTP) — lets Claude pull a symbol's research bundle via
+// the get_symbol_research tool (proxies web's read-only /api/*). Stateless: a fresh
+// server + transport per request. Open unless MCP_TOKEN is set.
+app.all("/mcp", async (c) => {
+  const tok = config.mcpToken();
+  if (tok && c.req.header("authorization") !== `Bearer ${tok}`) {
+    return c.json(fail("unauthorized", "invalid or missing mcp token"), 401);
+  }
+  const server = buildMcpServer();
+  const transport = new StreamableHTTPTransport();
+  await server.connect(transport);
+  return (await transport.handleRequest(c)) ?? c.body(null, 204);
+});
 
 // Fallback window for explicit/partial overrides and the scanner.
 function defaultWindow(): { from: string; to: string } {
@@ -184,7 +214,13 @@ app.post("/watchlist", async (c) => {
   if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
   try {
     const res = await addToWatchlist(symbol);
-    return c.json(ok(res));
+    // Auto-refresh a newly-added symbol so its detail page / the MCP aren't empty.
+    // Await warm + news (deterministic, a few seconds, fills the caches readers
+    // need); fire the valuation best-effort (the daily sweep is the backstop, and
+    // blocking the add on an LLM repricing would make the button feel stuck).
+    const refresh = await warmAndPullNews(symbol);
+    void revalue(symbol);
+    return c.json(ok({ ...res, refresh }));
   } catch (err) {
     log.error("watchlist.add.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("watchlist_add_failed", err instanceof Error ? err.message : String(err)), 500);
@@ -214,23 +250,60 @@ app.post("/warm", async (c) => {
   const symbol = String(body.symbol ?? "").trim();
   if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
   try {
-    await warmSymbol(symbol);
-    // Also pull this symbol's recent news (market-wide /news/pull leaves single
-    // tickers stale). Isolated: a news failure must not fail the marketdata warm.
-    let newsPulled = 0;
-    let newsInserted = 0;
-    try {
-      const items = await pullSymbolNews(symbol, { days: 30 });
-      newsPulled = items.length;
-      const staged = await stageNews(items);
-      newsInserted = staged.inserted;
-    } catch (err) {
-      log.warn("warm.news_failed", { symbol, error: err instanceof Error ? err.message : String(err) });
-    }
-    return c.json(ok({ symbol: symbol.toUpperCase(), warmed: true, newsPulled, newsInserted }));
+    const res = await warmAndPullNews(symbol);
+    return c.json(ok({ ...res, warmed: true }));
   } catch (err) {
     log.error("warm.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("warm_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Daily refresh (cron, JOB_TOKEN-guarded): full refresh of every watchlist
+// symbol — warm marketdata caches + pull news + recompute valuation — so the
+// dashboard and the MCP serve fresh data each market close. Synchronous; the
+// caller (GitHub Actions) should allow a generous timeout for large watchlists.
+app.post("/jobs/refresh-watchlist", async (c) => {
+  try {
+    const res = await refreshWatchlist();
+    const warmed = res.results.filter((r) => r.warmed).length;
+    const revalued = res.results.filter((r) => r.revalued).length;
+    log.info("refresh.watchlist.done", { scanned: res.scanned, warmed, revalued });
+    return c.json(ok({ scanned: res.scanned, warmed, revalued, results: res.results }));
+  } catch (err) {
+    log.error("refresh.watchlist.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("refresh_watchlist_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Reference valuation (System A) — deterministic, no LLM. Lives in data (moved
+// from alpha): it's computed from data-owned marketdata caches. alpha fetches it
+// over HTTP as one input to its LLM repricing; the dashboard reads the snapshots.
+
+// Per-symbol reference valuation — backs the detail page's "刷新数据" button + the
+// auto-refresh on watchlist add. forceRefresh: the caller just warmed marketdata.
+app.post("/internal/valuation", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  const forceRefresh = body.forceRefresh !== false; // default true (caller just warmed)
+  try {
+    const res = await computeReferenceValuation(symbol, { forceRefresh });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("valuation.compute.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("valuation_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Refresh the reference valuation for every watchlist symbol (cron/daily) so the
+// dashboard's buy-zone view always has a fresh fair_value vs price.
+app.post("/internal/valuation-sweep", async (c) => {
+  try {
+    const res = await sweepWatchlistValuations();
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("valuation.sweep.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("valuation_sweep_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 

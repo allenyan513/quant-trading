@@ -18,7 +18,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, lt, inArray } from "drizzle-orm";
 import { db, dbSchema, config, isOutOfSample, type NotificationPayload, type TradingSignalDTO } from "@qt/shared";
 import { classifyNotification, type NormalizedNotification, type NormalizedEvent } from "./classify.js";
-import { computeReferenceValuation } from "./valuation/reference.js";
+import { fetchReferenceValuation } from "./reference-valuation.js";
 import { generateSignal } from "./agent.js";
 import { deliverSignal, rowToDto } from "./deliver.js";
 import { log } from "./log.js";
@@ -145,7 +145,7 @@ export async function processNotification(
 ): Promise<TradingSignalDTO> {
   // Earnings just changed the financials → force a fresh System A valuation;
   // other event types reuse a recent snapshot (slow fair value barely moves).
-  const ref = await computeReferenceValuation(norm.symbol, {
+  const ref = await fetchReferenceValuation(norm.symbol, {
     forceRefresh: norm.eventType === "earnings",
   });
   log.info("pipeline.reference", {

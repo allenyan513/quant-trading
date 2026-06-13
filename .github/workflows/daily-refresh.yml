@@ -1,0 +1,31 @@
+name: Daily watchlist refresh
+
+# Refreshes every watchlist symbol once a day (warm marketdata caches + pull news
+# + recompute valuation) so the dashboard and the MCP serve fresh data. Triggers
+# the data service's JOB_TOKEN-guarded endpoint on Cloud Run.
+#
+# Required repo secrets:
+#   DATA_SERVICE_URL  — base URL of the deployed data service (no trailing slash)
+#   JOB_TOKEN         — shared secret; must match the data service's JOB_TOKEN env
+
+on:
+  schedule:
+    # 22:00 UTC every weekday — comfortably after the US market close (16:00 ET =
+    # 20:00 UTC in EDT / 21:00 UTC in EST) so FMP's EOD data has settled. GitHub
+    # cron is UTC with no DST, so we run "after close" rather than "at close".
+    # US market holidays aren't excluded; the refresh is idempotent (read-through
+    # caches + valuation reuse), so a no-trading day is a cheap no-op.
+    - cron: "0 22 * * 1-5"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger watchlist refresh
+        run: |
+          curl --fail-with-body --show-error --silent \
+            --max-time 1800 \
+            --retry 2 --retry-delay 30 \
+            -X POST "${{ secrets.DATA_SERVICE_URL }}/jobs/refresh-watchlist" \
+            -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"

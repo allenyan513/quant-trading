@@ -50,6 +50,17 @@ export const config = {
   alphaUrl: () => requireEnv("ALPHA_URL"),
   portfolioUrl: () => requireEnv("PORTFOLIO_URL"),
   dataUrl: () => requireEnv("DATA_URL"),
+  /** Base URL of the web dashboard. data's /mcp proxies web's read-only /api/* so
+   *  the MCP returns exactly the dashboard's data. */
+  webUrl: () => requireEnv("WEB_URL"),
+
+  /** Shared secret guarding cron/job endpoints (e.g. the daily refresh hit by
+   *  GitHub Actions) and authenticating data→web /api/* calls. Empty (local dev)
+   *  = open; set in prod. Partial fix for #24 (full s2s auth is separate). */
+  jobToken: () => optionalEnv("JOB_TOKEN", ""),
+  /** Optional bearer guarding the public /mcp endpoint. Empty = open (read-only
+   *  research data); set to require `Authorization: Bearer <MCP_TOKEN>`. */
+  mcpToken: () => optionalEnv("MCP_TOKEN", ""),
 
   // ---- Portfolio construction (T7) deterministic sizing params ----
   /** Total paper capital (USD). Only scales notional, not weight logic. */
