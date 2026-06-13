@@ -8,6 +8,10 @@ import type { FinancialStatement, Company, AnalystEstimate } from "../types.js";
 
 export interface ClassificationMetrics {
   revenueCAGR: number;
+  /** Recent revenue trajectory (≈2y CAGR). A 5y endpoint CAGR can read "high"
+   *  long after growth has stalled (a former hyper-grower that plateaued); this
+   *  captures whether growth is *still* happening. */
+  recentRevenueGrowth: number;
   netIncomeCAGR: number;
   latestNetMargin: number;
   avgNetMargin: number;
@@ -35,7 +39,7 @@ export function computeClassificationMetrics(
   // Guard: no usable financial data — return zero metrics
   if (sorted.length === 0) {
     return {
-      revenueCAGR: 0, netIncomeCAGR: 0, latestNetMargin: 0, avgNetMargin: 0,
+      revenueCAGR: 0, recentRevenueGrowth: 0, netIncomeCAGR: 0, latestNetMargin: 0, avgNetMargin: 0,
       latestEPS: 0, dividendYield: 0, revenueVolatility: 0, earningsVolatility: 0,
       isCurrentlyProfitable: false, isProfitImproving: false, assetIntensity: 0,
       debtToEquity: 0, fcfYield: 0, analystGrowth: null,
@@ -78,6 +82,15 @@ export function computeClassificationMetrics(
       revGrowths.push((sorted[i].revenue - sorted[i - 1].revenue) / sorted[i - 1].revenue);
     }
   }
+  // Recent trajectory: ≈2y CAGR (last 3 annual points) to smooth a single noisy
+  // year; fall back to the latest YoY, then the long-run CAGR.
+  const recentRevenueGrowth =
+    sorted.length >= 3 && sorted[sorted.length - 3].revenue > 0
+      ? Math.pow(latest.revenue / sorted[sorted.length - 3].revenue, 1 / 2) - 1
+      : revGrowths.length > 0
+        ? revGrowths[revGrowths.length - 1]
+        : revenueCAGR;
+
   const revMean = revGrowths.length > 0 ? revGrowths.reduce((a, b) => a + b, 0) / revGrowths.length : 0;
   const revStd = revGrowths.length > 1
     ? Math.sqrt(revGrowths.reduce((s, g) => s + (g - revMean) ** 2, 0) / (revGrowths.length - 1))
@@ -120,6 +133,7 @@ export function computeClassificationMetrics(
 
   return {
     revenueCAGR,
+    recentRevenueGrowth,
     netIncomeCAGR,
     latestNetMargin,
     avgNetMargin,

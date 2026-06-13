@@ -23,7 +23,11 @@ function determineArchetype(m: ClassificationMetrics): CompanyArchetype {
   if (!m.isCurrentlyProfitable && m.isProfitImproving) return "turnaround";
 
   const effectiveGrowth = m.analystGrowth ?? m.revenueCAGR;
-  if (effectiveGrowth > 0.20 && m.latestNetMargin < 0.10) return "high_growth";
+  // high_growth requires growth to still be happening: a 5y endpoint CAGR can read
+  // ">20%" long after a former hyper-grower has plateaued (e.g. TSLA — ~25% 5y CAGR
+  // but ~flat the last 3 years). Confirm with the recent trajectory so a decelerated
+  // name falls through to cyclical / mature instead.
+  if (effectiveGrowth > 0.20 && m.recentRevenueGrowth > 0.10 && m.latestNetMargin < 0.10) return "high_growth";
 
   if (effectiveGrowth > 0.12 && m.latestNetMargin > 0.05) return "profitable_growth";
   if (effectiveGrowth > 0.08 && m.latestNetMargin > 0.20) return "profitable_growth";
@@ -39,10 +43,15 @@ function determineArchetype(m: ClassificationMetrics): CompanyArchetype {
 function buildTraits(m: ClassificationMetrics): string[] {
   const traits: string[] = [];
 
-  if (m.revenueCAGR > 0.20) traits.push("High revenue growth (>" + (m.revenueCAGR * 100).toFixed(0) + "% CAGR)");
-  else if (m.revenueCAGR > 0.10) traits.push("Moderate growth (~" + (m.revenueCAGR * 100).toFixed(0) + "% CAGR)");
-  else if (m.revenueCAGR > 0) traits.push("Low growth (~" + (m.revenueCAGR * 100).toFixed(0) + "% CAGR)");
-  else traits.push("Revenue declining");
+  // Describe the *current* trajectory (recent ≈2y), not the 5y endpoint CAGR which
+  // can stay high after growth has stalled.
+  const g = m.recentRevenueGrowth;
+  if (g > 0.20) traits.push("High revenue growth (~" + (g * 100).toFixed(0) + "% recent)");
+  else if (g > 0.10) traits.push("Moderate growth (~" + (g * 100).toFixed(0) + "% recent)");
+  else if (g > 0) traits.push("Low/slowing growth (~" + (g * 100).toFixed(0) + "% recent)");
+  else traits.push("Revenue declining (~" + (g * 100).toFixed(0) + "% recent)");
+  // Flag former hyper-growers that have decelerated.
+  if (m.revenueCAGR > 0.20 && g < 0.10) traits.push("Decelerated from ~" + (m.revenueCAGR * 100).toFixed(0) + "% 5y CAGR");
 
   if (m.latestNetMargin > 0.20) traits.push("High profitability (" + (m.latestNetMargin * 100).toFixed(0) + "% net margin)");
   else if (m.latestNetMargin > 0.05) traits.push("Moderate margins (" + (m.latestNetMargin * 100).toFixed(0) + "% net margin)");
