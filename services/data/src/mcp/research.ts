@@ -1,8 +1,12 @@
 /**
  * Symbol research bundle for the MCP tool. Reads the DB directly via the shared
- * read queries (`@qt/shared/research`) — the same shapes the web dashboard serves,
- * with no extra network hop. Each section is best-effort: a failure is reported
- * in `errors` (and logged), not fatal to the whole bundle.
+ * read queries (`@qt/shared/research`) — the same data the dashboard shows — then
+ * COMPACTS each section for an LLM consumer: the dashboard needs the full raw FMP
+ * jsonb + the entire per-model valuation `detail`, but returning all of that here
+ * blows the context (a full bundle was ~500 KB). We keep the decision-relevant
+ * fields and drop the heavy internals (per-model assumptions, valuation pillars,
+ * 400-bar history, raw news bodies). Each section is best-effort: a failure is
+ * reported in `errors` (and logged), not fatal to the whole bundle.
  */
 import { db } from "@qt/shared";
 import {
@@ -17,19 +21,98 @@ import { log } from "../log.js";
 export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts"] as const;
 export type ResearchSection = (typeof RESEARCH_SECTIONS)[number];
 
-function fetchSection(section: ResearchSection, sym: string): Promise<unknown> {
+// ---- compaction helpers ----
+
+type Row = Record<string, unknown>;
+const asRow = (x: unknown): Row => (x && typeof x === "object" ? (x as Row) : {});
+
+/** Copy only the present (non-null) keys from a raw jsonb object. */
+function pick(src: unknown, keys: readonly string[]): Row {
+  const o = asRow(src);
+  const out: Row = {};
+  for (const k of keys) if (o[k] !== undefined && o[k] !== null) out[k] = o[k];
+  return out;
+}
+
+const INCOME_FIELDS = ["fiscalYear", "revenue", "grossProfit", "operatingIncome", "ebitda", "netIncome", "eps", "epsDiluted"];
+const BALANCE_FIELDS = ["fiscalYear", "totalAssets", "totalLiabilities", "totalEquity", "cashAndCashEquivalents", "totalDebt", "netDebt"];
+const CASHFLOW_FIELDS = ["fiscalYear", "operatingCashFlow", "capitalExpenditure", "freeCashFlow", "netDividendsPaid", "stockBasedCompensation"];
+const RATIO_FIELDS = ["fiscalYear", "priceToEarningsRatio", "priceToSalesRatio", "priceToBookRatio", "grossProfitMargin", "operatingProfitMargin", "netProfitMargin", "debtToEquityRatio", "currentRatio", "freeCashFlowPerShare", "dividendYield"];
+const ESTIMATE_FIELDS = ["revenueAvg", "ebitdaAvg", "netIncomeAvg", "epsAvg", "numAnalystsRevenue", "numAnalystsEps"];
+const RATING_FIELDS = ["gradingCompany", "previousGrade", "newGrade", "action"];
+const PT_FIELDS = ["priceTarget", "adjPriceTarget", "analystName", "analystCompany", "publishedDate", "priceWhenPosted"];
+const INSIDER_FIELDS = ["transactionDate", "transactionType", "securitiesTransacted", "price", "typeOfOwner", "reportingName", "acquisitionOrDisposition"];
+const NEWS_FIELDS = ["title", "site", "url", "symbol", "category", "publishedAt"];
+
+type Dated = { fiscalDate: string | null; data: unknown };
+const rows = (xs: Dated[] | undefined, fields: readonly string[], n: number) =>
+  (xs ?? []).slice(-n).map((r) => ({ fiscalDate: r.fiscalDate, ...pick(r.data, fields) }));
+
+function compactValuation(v: Awaited<ReturnType<typeof getLatestValuation>>) {
+  if (!v) return null;
+  const d = asRow(v.detail);
+  const cls = asRow(d.classification);
+  const models = Array.isArray(d.models)
+    ? d.models.map((m) => {
+        const r = asRow(m);
+        return { model: r.model_type, fairValue: r.fair_value, upsidePct: r.upside_percent };
+      })
+    : [];
+  return {
+    symbol: v.symbol,
+    asOf: v.asOf,
+    currentPrice: v.currentPrice,
+    fairValuePerShare: v.fairValuePerShare,
+    upsidePct: v.upsidePct,
+    verdict: v.verdict,
+    archetype: cls.label,
+    archetypeTraits: cls.traits,
+    wacc: d.wacc,
+    consensus: { fairValue: d.consensus_fair_value, low: d.consensus_low, high: d.consensus_high, upsidePct: d.consensus_upside },
+    models,
+  };
+}
+
+function compactFinancials(f: Awaited<ReturnType<typeof getFinancials>>) {
+  return {
+    symbol: f.symbol,
+    period: f.period,
+    income: rows(f.income, INCOME_FIELDS, 4),
+    balance: rows(f.balance, BALANCE_FIELDS, 4),
+    cashflow: rows(f.cashflow, CASHFLOW_FIELDS, 4),
+    ratios: rows(f.ratios, RATIO_FIELDS, 4),
+    estimates: rows(f.estimates, ESTIMATE_FIELDS, 6),
+  };
+}
+
+function compactAnalysts(a: Awaited<ReturnType<typeof getAnalystsData>>) {
+  const obs = (xs: { observedAt: Date | null; data: unknown }[] | undefined, fields: readonly string[], n: number) =>
+    (xs ?? []).slice(0, n).map((r) => ({ observedAt: r.observedAt, ...pick(r.data, fields) }));
+  return {
+    symbol: a.symbol,
+    ratings: obs(a.ratings, RATING_FIELDS, 20),
+    priceTargets: obs(a.priceTargets, PT_FIELDS, 25),
+    insider: obs(a.insider, INSIDER_FIELDS, 15),
+  };
+}
+
+const compactNews = (xs: Row[]) => xs.slice(0, 15).map((r) => pick(r, NEWS_FIELDS));
+
+// ---- bundle ----
+
+async function fetchSection(section: ResearchSection, sym: string): Promise<unknown> {
   const d = db();
   switch (section) {
     case "valuation":
-      return getLatestValuation(d, sym);
+      return compactValuation(await getLatestValuation(d, sym));
     case "financials":
-      return getFinancials(d, sym, { period: "annual", limit: 8 });
+      return compactFinancials(await getFinancials(d, sym, { period: "annual", limit: 4 }));
     case "chart":
-      return getPrices(d, sym, { days: 400 });
+      return getPrices(d, sym, { days: 90 }); // ~1 quarter of bars + fair-value overlay
     case "analysts":
-      return getAnalystsData(d, sym);
+      return compactAnalysts(await getAnalystsData(d, sym));
     case "news":
-      return getSymbolNews(d, sym, 20);
+      return compactNews(await getSymbolNews(d, sym, 15));
   }
 }
 
@@ -39,7 +122,7 @@ export interface SymbolResearch {
   errors?: Record<string, string>;
 }
 
-/** Fetch a symbol's research bundle. `sections` defaults to all (deduped). */
+/** Fetch a symbol's compact research bundle. `sections` defaults to all (deduped). */
 export async function getSymbolResearch(
   symbol: string,
   sections?: ResearchSection[],
