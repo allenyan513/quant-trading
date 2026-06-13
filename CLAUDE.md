@@ -37,8 +37,8 @@ pnpm down
 ## 仓库结构
 
 - `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被各服务作为 `@qt/shared` workspace 依赖引用。
-- `services/data` —— 外部数据唯一接收者，**news 驱动**(issue #59)：`/news/pull` 拉市场新闻入 staging 并**后台自动对新增行跑 triage**；triage 每条先 profile 初筛（市值≥$1B 等，不过 → 标 `low`，不进 LLM）→ 过筛者**确定性预热**该 symbol 的 marketdata 缓存（读穿）→ Haiku agent 定级 high/med/low → 人工在仪表板审核 → `/news/notify` 投 alpha。`/news/triage` 端点保留作重试 sweep。含**一处轻量 LLM**（仅 news 定级）；其余确定性。也含**选股发现 scanner**(`/scan/*` → `data_candidates` → 人工 `promote` 进 `data_watchlist` 带 TTL)。
-- `services/alpha` —— **唯一的定价/决策 LLM agent**：事件 → 重定价 → 交易信号（读 data 预热的缓存）。
+- `services/data` —— 外部数据唯一接收者，**news 驱动**(issue #59)：`/news/pull` 拉市场新闻入 staging 并**后台自动对新增行跑 triage**；triage 每条先 profile 初筛（市值≥$1B 等，不过 → 标 `low`，不进 LLM）→ 过筛者**确定性预热**该 symbol 的 marketdata 缓存（读穿）→ Haiku agent 定级 high/med/low → 人工在仪表板审核 → `/news/notify` 投 alpha。`/news/triage` 端点保留作重试 sweep。含**一处轻量 LLM**（仅 news 定级）；其余确定性。也含**确定性 reference valuation 引擎**(`src/valuation/`，无 LLM，从 marketdata 算 fair value → `data_valuation_snapshots`；`/internal/valuation`)、**选股发现 scanner**(`/scan/*` → `data_candidates` → 人工 `promote` 进 `data_watchlist` 带 TTL)、**MCP 端点**(`/mcp`，向 Claude 吐 per-symbol 调研数据)、**每日 watchlist 刷新 cron**(`/jobs/refresh-watchlist`)。
+- `services/alpha` —— **唯一的定价/决策 LLM agent**：事件 → 重定价 → 交易信号（读 data 预热的缓存；参考估值经 `POST {DATA_URL}/internal/valuation` 取）。
 - `services/portfolio` —— **`portfolio_positions` 账本唯一 owner**，无 LLM：接收 alpha 的信号 → 记录 + 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓。`services/web` 仪表盘只读这套数据。
 
 ## 全局铁律（细则见 `.claude/rules/`）

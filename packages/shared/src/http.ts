@@ -3,6 +3,19 @@
  * outbox row: write the row in the producing transaction, then call deliver();
  * on failure leave the row `pending` for a cron-triggered redelivery.
  */
+import { config } from "./config.js";
+
+/**
+ * Guard for cron/job endpoints: true when the request's `Authorization` bearer
+ * matches `JOB_TOKEN`. When `JOB_TOKEN` is unset (local dev), returns true so the
+ * endpoints stay open locally; set the secret in prod so only the cron can fire.
+ * Framework-agnostic — services wrap it in a tiny Hono middleware.
+ */
+export function isAuthorizedJob(authHeader: string | null | undefined): boolean {
+  const token = config.jobToken();
+  if (!token) return true; // no secret configured → open (local/dev)
+  return authHeader === `Bearer ${token}`;
+}
 
 export interface DeliverResult {
   ok: boolean;

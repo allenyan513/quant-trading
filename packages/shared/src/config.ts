@@ -51,6 +51,14 @@ export const config = {
   portfolioUrl: () => requireEnv("PORTFOLIO_URL"),
   dataUrl: () => requireEnv("DATA_URL"),
 
+  /** Shared secret guarding cron/job endpoints (e.g. the daily refresh hit by
+   *  GitHub Actions). Empty (local dev) = open; set in prod so only the cron can
+   *  trigger jobs. Partial fix for #24 (full service-to-service auth is separate). */
+  jobToken: () => optionalEnv("JOB_TOKEN", ""),
+  /** Optional bearer guarding the public /mcp endpoint. Empty = open (read-only
+   *  research data); set to require `Authorization: Bearer <MCP_TOKEN>`. */
+  mcpToken: () => optionalEnv("MCP_TOKEN", ""),
+
   // ---- Portfolio construction (T7) deterministic sizing params ----
   /** Total paper capital (USD). Only scales notional, not weight logic. */
   portfolioCapital: () => Number(optionalEnv("PORTFOLIO_CAPITAL", "100000")),

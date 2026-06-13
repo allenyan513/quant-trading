@@ -2,7 +2,7 @@ export * from "./types.js";
 export * from "./envelope.js";
 export { config, codeVersion, requireEnv, optionalEnv } from "./config.js";
 export { fmpGet, FmpSoftError } from "./fmp.js";
-export { deliverJson, type DeliverResult } from "./http.js";
+export { deliverJson, isAuthorizedJob, type DeliverResult } from "./http.js";
 export { createLogger, type Logger, type LogFields } from "./log.js";
 export { mapLimit } from "./concurrency.js";
 export * as dbSchema from "./db/schema.js";

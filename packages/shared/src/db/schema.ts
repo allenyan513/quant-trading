@@ -203,7 +203,7 @@ export const marketdataFetches = pgTable(
 
 // ---- Reference valuation (System A) ----
 
-export const valuationSnapshots = pgTable("alpha_valuation_snapshots", {
+export const valuationSnapshots = pgTable("data_valuation_snapshots", {
   snapshotId: text("snapshot_id").primaryKey(),
   symbol: text("symbol").notNull(),
   asOf: date("as_of").notNull(),
