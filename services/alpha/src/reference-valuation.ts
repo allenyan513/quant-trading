@@ -11,10 +11,12 @@ export async function fetchReferenceValuation(
   symbol: string,
   opts: { forceRefresh?: boolean } = {},
 ): Promise<ReferenceValuation> {
-  const resp = await fetch(`${config.dataUrl()}/internal/valuation`, {
+  const url = new URL("/internal/valuation", config.dataUrl()).toString();
+  const resp = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ symbol, forceRefresh: opts.forceRefresh ?? false }),
+    signal: AbortSignal.timeout(15_000), // don't hang the repricing if data is unresponsive
   });
   const json = (await resp.json().catch(() => ({}))) as {
     ok?: boolean;

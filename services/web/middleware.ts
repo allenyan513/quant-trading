@@ -15,12 +15,15 @@ export async function middleware(req: NextRequest) {
   const isLoginApi = pathname === "/api/login";
   if (isLoginPage || isLoginApi) return NextResponse.next();
 
-  // Service-to-service access to the API with the shared job token.
+  // Service-to-service access to the read-only API. With a JOB_TOKEN configured,
+  // require a matching bearer; with none configured, open /api/* in dev only
+  // (stays locked in prod) so a fresh local checkout works without extra setup.
   const jobToken = process.env.JOB_TOKEN;
   if (
-    jobToken &&
     pathname.startsWith("/api/") &&
-    req.headers.get("authorization") === `Bearer ${jobToken}`
+    (jobToken
+      ? req.headers.get("authorization") === `Bearer ${jobToken}`
+      : process.env.NODE_ENV !== "production")
   ) {
     return NextResponse.next();
   }

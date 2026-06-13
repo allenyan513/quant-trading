@@ -5,6 +5,7 @@
  * a failing section is reported in `errors`, not fatal to the whole bundle.
  */
 import { config } from "@qt/shared";
+import { log } from "../log.js";
 
 export const RESEARCH_SECTIONS = [
   "overview",
@@ -35,8 +36,10 @@ function pathFor(section: ResearchSection, sym: string): string {
 }
 
 async function fetchSection(base: string, token: string, path: string): Promise<unknown> {
-  const resp = await fetch(`${base}${path}`, {
+  const url = new URL(path, base).toString();
+  const resp = await fetch(url, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
+    signal: AbortSignal.timeout(10_000), // don't hang the tool if web is unresponsive
   });
   const json = (await resp.json().catch(() => ({}))) as { ok?: boolean; data?: unknown; error?: string };
   if (!resp.ok || !json.ok) throw new Error(json.error ?? `${path} → HTTP ${resp.status}`);
@@ -57,7 +60,8 @@ export async function getSymbolResearch(
   const sym = symbol.trim().toUpperCase();
   const base = config.webUrl();
   const token = config.jobToken();
-  const wanted = sections?.length ? sections : [...RESEARCH_SECTIONS];
+  // Dedupe so a caller passing repeated sections doesn't fan out duplicate fetches.
+  const wanted = Array.from(new Set(sections?.length ? sections : RESEARCH_SECTIONS));
 
   const out: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
@@ -66,7 +70,9 @@ export async function getSymbolResearch(
       try {
         out[s] = await fetchSection(base, token, pathFor(s, sym));
       } catch (err) {
-        errors[s] = err instanceof Error ? err.message : String(err);
+        const msg = err instanceof Error ? err.message : String(err);
+        errors[s] = msg;
+        log.warn("mcp.fetch_section_failed", { symbol: sym, section: s, error: msg });
       }
     }),
   );
