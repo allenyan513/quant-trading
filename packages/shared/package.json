@@ -11,7 +11,8 @@
     "./http": "./src/http.ts",
     "./config": "./src/config.ts",
     "./envelope": "./src/envelope.ts",
-    "./marketdata": "./src/marketdata/index.ts"
+    "./marketdata": "./src/marketdata/index.ts",
+    "./research": "./src/research.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

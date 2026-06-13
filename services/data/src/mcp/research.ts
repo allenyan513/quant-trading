@@ -1,49 +1,36 @@
 /**
- * Symbol research bundle for the MCP tool. Proxies the web dashboard's read-only
- * `/api/*` endpoints (with the JOB_TOKEN bearer) so the MCP returns exactly the
- * data the website shows — no duplicated query logic. Each section is best-effort:
- * a failing section is reported in `errors`, not fatal to the whole bundle.
+ * Symbol research bundle for the MCP tool. Reads the DB directly via the shared
+ * read queries (`@qt/shared/research`) — the same shapes the web dashboard serves,
+ * with no extra network hop. Each section is best-effort: a failure is reported
+ * in `errors` (and logged), not fatal to the whole bundle.
  */
-import { config } from "@qt/shared";
+import { db } from "@qt/shared";
+import {
+  getLatestValuation,
+  getFinancials,
+  getPrices,
+  getAnalystsData,
+  getSymbolNews,
+} from "@qt/shared/research";
 import { log } from "../log.js";
 
-export const RESEARCH_SECTIONS = [
-  "overview",
-  "valuation",
-  "financials",
-  "chart",
-  "news",
-  "analysts",
-] as const;
+export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts"] as const;
 export type ResearchSection = (typeof RESEARCH_SECTIONS)[number];
 
-/** Map a section to the web API path that backs it (same routes the dashboard uses). */
-function pathFor(section: ResearchSection, sym: string): string {
+function fetchSection(section: ResearchSection, sym: string): Promise<unknown> {
+  const d = db();
   switch (section) {
-    case "overview":
-      return `/api/data/symbol/${sym}/overview`;
     case "valuation":
-      return `/api/data/valuation/${sym}`;
+      return getLatestValuation(d, sym);
     case "financials":
-      return `/api/data/symbol/${sym}/financials`;
+      return getFinancials(d, sym, { period: "annual", limit: 8 });
     case "chart":
-      return `/api/data/symbol/${sym}/prices?days=400`;
+      return getPrices(d, sym, { days: 400 });
     case "analysts":
-      return `/api/data/symbol/${sym}/analysts`;
+      return getAnalystsData(d, sym);
     case "news":
-      return `/api/news?symbol=${sym}&limit=20`;
+      return getSymbolNews(d, sym, 20);
   }
-}
-
-async function fetchSection(base: string, token: string, path: string): Promise<unknown> {
-  const url = new URL(path, base).toString();
-  const resp = await fetch(url, {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-    signal: AbortSignal.timeout(10_000), // don't hang the tool if web is unresponsive
-  });
-  const json = (await resp.json().catch(() => ({}))) as { ok?: boolean; data?: unknown; error?: string };
-  if (!resp.ok || !json.ok) throw new Error(json.error ?? `${path} → HTTP ${resp.status}`);
-  return json.data;
 }
 
 export interface SymbolResearch {
@@ -52,15 +39,12 @@ export interface SymbolResearch {
   errors?: Record<string, string>;
 }
 
-/** Fetch a symbol's research bundle. `sections` defaults to all. */
+/** Fetch a symbol's research bundle. `sections` defaults to all (deduped). */
 export async function getSymbolResearch(
   symbol: string,
   sections?: ResearchSection[],
 ): Promise<SymbolResearch> {
   const sym = symbol.trim().toUpperCase();
-  const base = config.webUrl();
-  const token = config.jobToken();
-  // Dedupe so a caller passing repeated sections doesn't fan out duplicate fetches.
   const wanted = Array.from(new Set(sections?.length ? sections : RESEARCH_SECTIONS));
 
   const out: Record<string, unknown> = {};
@@ -68,7 +52,7 @@ export async function getSymbolResearch(
   await Promise.all(
     wanted.map(async (s) => {
       try {
-        out[s] = await fetchSection(base, token, pathFor(s, sym));
+        out[s] = await fetchSection(s, sym);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors[s] = msg;

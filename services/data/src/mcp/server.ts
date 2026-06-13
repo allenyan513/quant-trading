@@ -28,7 +28,7 @@ export function buildMcpServer(): McpServer {
           .array(z.enum(RESEARCH_SECTIONS))
           .optional()
           .describe(
-            "Limit to these sections; defaults to all (overview, valuation, financials, chart, news, analysts).",
+            "Limit to these sections; defaults to all (valuation, financials, chart, news, analysts).",
           ),
       },
     },
