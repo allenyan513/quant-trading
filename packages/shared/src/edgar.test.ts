@@ -1,14 +1,33 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   isQuarterDuration,
   isAnnualDuration,
   selectByEnd,
   mapCompanyFactsToStatements,
+  fetchCompanyFacts,
   type CompanyFacts,
   type XbrlFact,
 } from "./edgar.js";
 
 const fact = (f: Partial<XbrlFact> & Pick<XbrlFact, "end" | "val" | "filed">): XbrlFact => ({ form: "10-Q", ...f });
+
+describe("fetchCompanyFacts collapses concurrent same-CIK calls", () => {
+  afterEach(() => vi.restoreAllMocks());
+  it("issues a single network fetch and shares the result", async () => {
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ facts: {} }), { status: 200 }));
+    // Distinct CIK so a prior test's settled in-flight entry can't interfere.
+    const [a, b, c] = await Promise.all([
+      fetchCompanyFacts(424242),
+      fetchCompanyFacts(424242),
+      fetchCompanyFacts(424242),
+    ]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+  });
+});
 
 describe("isQuarterDuration", () => {
   it("accepts a ~13-week quarter (91 days)", () => {

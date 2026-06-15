@@ -78,14 +78,25 @@ interface TickerRow {
   title: string;
 }
 let tickerMap: Map<string, number> | null = null;
+let tickerMapInFlight: Promise<Map<string, number>> | null = null;
 
 export async function loadTickerMap(): Promise<Map<string, number>> {
   if (tickerMap) return tickerMap;
-  const raw = await secGet<Record<string, TickerRow>>(`${SEC_WWW_BASE}/files/company_tickers.json`);
-  const m = new Map<string, number>();
-  if (raw) for (const row of Object.values(raw)) m.set(row.ticker.toUpperCase(), row.cik_str);
-  tickerMap = m;
-  return m;
+  // Collapse concurrent first-load calls onto one fetch — many symbols warming
+  // at once must not each pull this (large) file. Reset on settle so a transient
+  // failure retries instead of poisoning every future caller.
+  if (!tickerMapInFlight) {
+    tickerMapInFlight = (async () => {
+      const raw = await secGet<Record<string, TickerRow>>(`${SEC_WWW_BASE}/files/company_tickers.json`);
+      const m = new Map<string, number>();
+      if (raw) for (const row of Object.values(raw)) m.set(row.ticker.toUpperCase(), row.cik_str);
+      tickerMap = m;
+      return m;
+    })().finally(() => {
+      tickerMapInFlight = null;
+    });
+  }
+  return tickerMapInFlight;
 }
 
 /** 10-digit zero-padded CIK as the companyfacts path expects. */
@@ -328,7 +339,7 @@ export function mapCompanyFactsToStatements(symbol: string, facts: CompanyFacts,
   const sym = symbol.toUpperCase();
   const { form, duration } = PERIOD_SPEC[period];
   const newestFirst = (rows: Map<string, Row>): Row[] =>
-    [...rows.values()].sort((a, b) => (String(b.date) < String(a.date) ? -1 : 1));
+    [...rows.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
   // Income — duration; add derived EBITDA = operatingIncome + D&A.
   const incomeRows = buildRows(sym, facts, INCOME_CONCEPTS, "duration", period);
@@ -367,9 +378,20 @@ export function mapCompanyFactsToStatements(symbol: string, facts: CompanyFacts,
 
 // ───────────────────────── client ─────────────────────────
 
-/** Fetch a company's full XBRL companyfacts (all concepts, all periods). */
+const factsInFlight = new Map<number, Promise<CompanyFacts | null>>();
+
+/** Fetch a company's full XBRL companyfacts (all concepts, all periods).
+ *  Concurrent calls for the same CIK collapse onto one request — the payload is
+ *  large (often >10 MB) and warming income+balance+cashflow × annual+quarter
+ *  would otherwise pull it up to 6× at once, risking SEC rate limits. */
 export async function fetchCompanyFacts(cik: number): Promise<CompanyFacts | null> {
-  return secGet<CompanyFacts>(`${SEC_DATA_BASE}/api/xbrl/companyfacts/CIK${padCik(cik)}.json`);
+  const existing = factsInFlight.get(cik);
+  if (existing) return existing;
+  const p = secGet<CompanyFacts>(`${SEC_DATA_BASE}/api/xbrl/companyfacts/CIK${padCik(cik)}.json`).finally(() =>
+    factsInFlight.delete(cik),
+  );
+  factsInFlight.set(cik, p);
+  return p;
 }
 
 /** Resolve ticker → CIK → companyfacts → FMP-shaped statements for `period`

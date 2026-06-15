@@ -194,25 +194,38 @@ const EDGAR_STATEMENT_KINDS = { income: true, balance: true, cashflow: true } as
 type EdgarStatementKind = keyof typeof EDGAR_STATEMENT_KINDS;
 const isEdgarKind = (k: StatementKind): k is EdgarStatementKind => k in EDGAR_STATEMENT_KINDS;
 
+const edgarInFlight = new Map<string, Promise<void>>();
+
 /** Fetch SEC EDGAR statements for `period` and persist all three (immutable PIT,
  *  known_at = filing date). Best-effort: any failure logs and is swallowed so
- *  the read-through degrades to whatever cache exists (mirrors FMP soft-fail). */
+ *  the read-through degrades to whatever cache exists (mirrors FMP soft-fail).
+ *  Concurrent calls for the same (symbol, period) collapse onto one run so the
+ *  three statement getters firing together don't each re-map + re-insert. The
+ *  underlying companyfacts fetch is additionally deduped per-CIK in edgar.ts, so
+ *  even annual+quarter share a single network pull. */
 async function populateEdgar(sym: string, period: StatementPeriod): Promise<void> {
-  try {
-    const stmts = await fetchStatements(sym, period);
-    if (!stmts) return;
-    const writes: Array<[StatementTable, FmpStatement[]]> = [
-      [STATEMENT_SOURCES.income.table, stmts.income as FmpStatement[]],
-      [STATEMENT_SOURCES.balance.table, stmts.balance as FmpStatement[]],
-      [STATEMENT_SOURCES.cashflow.table, stmts.cashflow as FmpStatement[]],
-    ];
-    for (const [table, raw] of writes) {
-      const rows = mapStatementRows(sym, period, raw);
-      if (rows.length) await db().insert(table).values(rows).onConflictDoNothing();
+  const key = `${sym}:${period}`;
+  const existing = edgarInFlight.get(key);
+  if (existing) return existing;
+  const run = (async () => {
+    try {
+      const stmts = await fetchStatements(sym, period);
+      if (!stmts) return;
+      const writes: Array<[StatementTable, FmpStatement[]]> = [
+        [STATEMENT_SOURCES.income.table, stmts.income as FmpStatement[]],
+        [STATEMENT_SOURCES.balance.table, stmts.balance as FmpStatement[]],
+        [STATEMENT_SOURCES.cashflow.table, stmts.cashflow as FmpStatement[]],
+      ];
+      for (const [table, raw] of writes) {
+        const rows = mapStatementRows(sym, period, raw);
+        if (rows.length) await db().insert(table).values(rows).onConflictDoNothing();
+      }
+    } catch (err) {
+      log.warn("marketdata.edgar.failed", { symbol: sym, period, error: err instanceof Error ? err.message : String(err) });
     }
-  } catch (err) {
-    log.warn("marketdata.edgar.failed", { symbol: sym, period, error: err instanceof Error ? err.message : String(err) });
-  }
+  })().finally(() => edgarInFlight.delete(key));
+  edgarInFlight.set(key, run);
+  return run;
 }
 
 async function getStatement(
