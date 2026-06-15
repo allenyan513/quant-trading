@@ -1,0 +1,35 @@
+name: Sync IBKR holdings
+
+# Pulls the live IBKR Flex statement into the data service's data_holdings_*
+# tables (daily NAV → base-100 index, executed trades, current positions) so the
+# /data/holdings dashboard tracks the real brokerage account. Triggers the data
+# service's JOB_TOKEN-guarded endpoint (same secrets as daily-refresh.yml).
+#
+# Required repo secrets:
+#   DATA_SERVICE_URL  — base URL of the deployed data service (no trailing slash)
+#   JOB_TOKEN         — shared secret; must match the data service's JOB_TOKEN env
+
+on:
+  schedule:
+    # 13:00 UTC daily — ~08:00 EST / 09:00 EDT, after IBKR's overnight batch has
+    # finalized the prior trading day's NAV/positions and before the US open
+    # (09:30 ET), so we capture a fully-settled end-of-day snapshot. Runs every
+    # day (incl. weekends) on purpose: the sync is idempotent (NAV upserts on
+    # (account_id, date), trades dedup per broker trade id) and the Flex query is
+    # a rolling window, so a weekend tick is a cheap no-op that still surfaces
+    # Friday's settled close by Saturday with no stale gap. GitHub cron is UTC
+    # with no DST. Intraday refresh stays on-demand via the dashboard button.
+    - cron: "0 13 * * *"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger IBKR holdings sync
+        run: |
+          curl --fail-with-body --show-error --silent \
+            --max-time 600 \
+            --retry 2 --retry-delay 30 \
+            -X POST "${{ secrets.DATA_SERVICE_URL }}/jobs/sync-holdings" \
+            -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"
