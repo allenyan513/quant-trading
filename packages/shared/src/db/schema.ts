@@ -216,6 +216,106 @@ export const valuationSnapshots = pgTable("data_valuation_snapshots", {
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
 }, (t) => [index("idx_valsnap_symbol").on(t.symbol)]);
 
+// ---- Holdings — live IBKR account mirror (Flex sync, single account) ----
+//
+// The maintainer's REAL brokerage account, synced from IBKR Flex by data's
+// `/jobs/sync-holdings`. Distinct from `portfolio_positions` (the system's
+// SIMULATED signal-driven paper book) — these mirror what's actually held.
+// `account_id` is a constant label (config.holdingsAccountId(), default "me");
+// kept as a column so the schema generalizes if a second account is ever added.
+// Money stored raw (repo convention); `nav_index`/`daily_return` are derived for
+// the NAV-vs-SPY chart + performance metrics. SPY benchmark reuses
+// `data_daily_prices` (no separate benchmark table). Written only by data.
+
+// Holdings (IBKR) connection credentials, one row per account. Single-user today
+// (account_id = config.holdingsAccountId(), default "me"); the table shape
+// generalizes to multi-user (one row per user) with no migration. The Flex
+// token is stored PLAINTEXT by explicit choice — keep `DATABASE_URL` pointed at
+// a trusted role and don't expose this table to the web read role's queries
+// (web reads a masked status only). Written only by data (POST /holdings/credentials).
+export const holdingsAccounts = pgTable("data_holdings_accounts", {
+  accountId: text("account_id").primaryKey(),
+  flexToken: text("flex_token").notNull(),
+  flexQueryId: text("flex_query_id").notNull(),
+  label: text("label"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+// Daily NAV: one row per (account, date). `daily_return` (TWR) compounds into a
+// base-100 `nav_index` for the chart; `ending_nav` keeps the raw $ for the KPI row.
+export const holdingsNavHistory = pgTable(
+  "data_holdings_nav_history",
+  {
+    accountId: text("account_id").notNull(),
+    date: date("date").notNull(),
+    dailyReturn: doublePrecision("daily_return").notNull(),
+    navIndex: doublePrecision("nav_index").notNull(), // base = 100 at inception
+    endingNav: doublePrecision("ending_nav"), // raw $ end-of-day NAV
+    deposits: doublePrecision("deposits").default(0).notNull(),
+    withdrawals: doublePrecision("withdrawals").default(0).notNull(),
+    knownAt: timestamp("known_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.date] })],
+);
+
+// Executed fills: one row per (account, broker-native trade id). Trades are
+// immutable once executed, so re-pulling the same day is idempotent via the PK.
+export const holdingsTrades = pgTable(
+  "data_holdings_trades",
+  {
+    accountId: text("account_id").notNull(),
+    externalTradeId: text("external_trade_id").notNull(),
+    tradeDate: date("trade_date"),
+    symbol: text("symbol").notNull(),
+    assetClass: text("asset_class").notNull(),
+    action: text("action"), // BUY|SELL
+    quantity: doublePrecision("quantity").notNull(),
+    price: doublePrecision("price"),
+    optionType: text("option_type"), // CALL|PUT|null
+    strike: doublePrecision("strike"),
+    expiry: date("expiry"),
+    knownAt: timestamp("known_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.accountId, t.externalTradeId] }),
+    index("idx_holdings_trades_symbol").on(t.symbol),
+    index("idx_holdings_trades_date").on(t.tradeDate),
+  ],
+);
+
+// Current holdings snapshot per (account, as_of_date, symbol, option contract).
+// option_type/strike/expiry are NOT-NULL with sentinels ('' / 0 / 1970-01-01)
+// so the composite PK upsert matches for equities too (Postgres treats NULLs as
+// distinct, which would break ON CONFLICT). `position_value` bakes in the 100x
+// option multiplier; `weight_pct` is computed by us (IBKR's percentOfNAV is
+// unreliable for options). A synthetic CASH row is upserted alongside.
+export const holdingsPositions = pgTable(
+  "data_holdings_positions",
+  {
+    accountId: text("account_id").notNull(),
+    asOfDate: date("as_of_date").notNull(),
+    symbol: text("symbol").notNull(),
+    optionType: text("option_type").default("").notNull(),
+    strike: doublePrecision("strike").default(0).notNull(),
+    expiry: date("expiry").default("1970-01-01").notNull(),
+    assetClass: text("asset_class").notNull(),
+    quantity: doublePrecision("quantity").notNull(),
+    avgPrice: doublePrecision("avg_price"),
+    markPrice: doublePrecision("mark_price"),
+    positionValue: doublePrecision("position_value"),
+    weightPct: doublePrecision("weight_pct"),
+    delta: doublePrecision("delta"),
+    gamma: doublePrecision("gamma"),
+    theta: doublePrecision("theta"),
+    vega: doublePrecision("vega"),
+    knownAt: timestamp("known_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.accountId, t.asOfDate, t.symbol, t.optionType, t.strike, t.expiry] }),
+    index("idx_holdings_positions_asof").on(t.asOfDate),
+  ],
+);
+
 // ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(

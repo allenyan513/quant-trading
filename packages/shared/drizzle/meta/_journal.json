@@ -120,6 +120,13 @@
       "when": 1780620679072,
       "tag": "0016_valuation_snapshots_to_data",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1781549572084,
+      "tag": "0017_careful_molecule_man",
+      "breakpoints": true
     }
   ]
 }

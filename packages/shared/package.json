@@ -12,6 +12,7 @@
     "./config": "./src/config.ts",
     "./envelope": "./src/envelope.ts",
     "./marketdata": "./src/marketdata/index.ts",
+    "./metrics": "./src/metrics.ts",
     "./research": "./src/research.ts"
   },
   "scripts": {
@@ -24,6 +25,7 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.44.7",
+    "fast-xml-parser": "^5.7.1",
     "pg": "^8.16.3"
   },
   "devDependencies": {

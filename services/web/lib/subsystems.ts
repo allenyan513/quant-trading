@@ -61,6 +61,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     ],
     pages: [
       { href: "/data/watchlist", label: "Watchlist" },
+      { href: "/data/holdings", label: "Holdings" },
       { href: "/data/news", label: "News" },
       { href: "/data/events", label: "Events" },
       { href: "/data/notifications", label: "Notifications" },
@@ -98,6 +99,7 @@ export const SYSTEM_PAGES: SubsystemPage[] = [
   { href: "/system", label: "Overview" },
   { href: "/system/logs", label: "Logs" },
 ];
+
 
 export function subsystemByName(name: string): Subsystem | undefined {
   return SUBSYSTEMS.find((s) => s.name === name);

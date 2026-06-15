@@ -11,6 +11,12 @@
         "services/web"
       ],
       "autoPort": true
+    },
+    {
+      "name": "data",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:data"],
+      "port": 8081
     }
   ]
 }

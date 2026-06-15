@@ -42,5 +42,9 @@ export const {
   tradingSignals,
   signalDeliveries,
   positions,
+  holdingsAccounts,
+  holdingsNavHistory,
+  holdingsTrades,
+  holdingsPositions,
   logs,
 } = schema;

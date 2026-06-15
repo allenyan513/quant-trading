@@ -6,7 +6,7 @@
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { ok, fail, config, isAuthorizedJob } from "@qt/shared";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
@@ -18,6 +18,9 @@ import { addToWatchlist, removeFromWatchlist } from "./watchlist.js";
 import { warmAndPullNews, revalue, refreshWatchlist } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { sweepWatchlistValuations } from "./valuation/sweep.js";
+import { syncHoldings } from "./holdings/sync.js";
+import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
+import { IBKRFlexError } from "@qt/shared";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { buildMcpServer } from "./mcp/server.js";
 import { log } from "./log.js";
@@ -274,6 +277,62 @@ app.post("/jobs/refresh-watchlist", async (c) => {
     return c.json(fail("refresh_watchlist_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
+
+// Save/update the IBKR Flex credentials (token + query id) for the configured
+// account. Written here (data owns data_holdings_accounts); the web "Connect
+// IBKR" form forwards to this endpoint so the dashboard stays read-only on DB.
+app.post("/holdings/credentials", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      token?: unknown;
+      queryId?: unknown;
+      label?: unknown;
+    };
+    const token = typeof body.token === "string" ? body.token : "";
+    const queryId = typeof body.queryId === "string" ? body.queryId : "";
+    if (!token.trim() || !queryId.trim()) {
+      return c.json(fail("bad_request", "token and queryId are required"), 400);
+    }
+    const res = await setHoldingsCredentials({
+      token,
+      queryId,
+      label: typeof body.label === "string" ? body.label : undefined,
+    });
+    log.info("holdings.credentials.set", { accountId: res.accountId });
+    return c.json(ok({ accountId: res.accountId, connected: true }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("holdings.credentials.failed", { error: msg });
+    return c.json(fail("holdings_credentials_failed", msg), 500);
+  }
+});
+
+// Sync the live IBKR Flex statement into the data_holdings_* tables (daily NAV,
+// trades, positions) + warm the SPY benchmark. Idempotent. Two entry points,
+// same body: `/jobs/sync-holdings` (cron, JOB_TOKEN) and `/holdings/sync`
+// (the dashboard "refresh" button + the auto-sync after connecting).
+async function runHoldingsSync(c: Context) {
+  try {
+    const res = await syncHoldings();
+    log.info("holdings.sync.done", { ...res });
+    return c.json(ok(res));
+  } catch (err) {
+    // Map credential / Flex failures to precise codes; everything else generic.
+    const code =
+      err instanceof HoldingsNotConnectedError
+        ? "holdings_not_connected"
+        : err instanceof IBKRFlexError
+          ? `flex_${err.reason}`
+          : "sync_holdings_failed";
+    const status = err instanceof HoldingsNotConnectedError ? 400 : 500;
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("holdings.sync.failed", { code, error: msg });
+    return c.json(fail(code, msg), status);
+  }
+}
+
+app.post("/jobs/sync-holdings", (c) => runHoldingsSync(c));
+app.post("/holdings/sync", (c) => runHoldingsSync(c));
 
 // Reference valuation (System A) — deterministic, no LLM. Lives in data (moved
 // from alpha): it's computed from data-owned marketdata caches. alpha fetches it
