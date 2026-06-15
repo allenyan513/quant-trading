@@ -191,12 +191,23 @@ async function rebuildNavIndexAfter(accountId: string, afterDate: string, seedIn
   if (rows.length === 0) return 0;
 
   const indices = computeNavIndexChain(seedIndex, rows.map((r) => r.dailyReturn));
-  for (let i = 0; i < rows.length; i++) {
-    await db()
-      .update(holdingsNavHistory)
-      .set({ navIndex: indices[i]! })
-      .where(and(eq(holdingsNavHistory.accountId, accountId), eq(holdingsNavHistory.date, rows[i]!.date)));
-  }
+  // Single batched upsert (not N round-trips): every row already exists, so this
+  // only takes the conflict branch and rewrites nav_index. daily_return is
+  // re-echoed to satisfy NOT NULL on the (never-taken) insert branch but is not
+  // in `set`, so the stored value + cash-flow columns are preserved.
+  const payload = rows.map((r, i) => ({
+    accountId,
+    date: r.date,
+    dailyReturn: r.dailyReturn,
+    navIndex: indices[i]!,
+  }));
+  await db()
+    .insert(holdingsNavHistory)
+    .values(payload)
+    .onConflictDoUpdate({
+      target: [holdingsNavHistory.accountId, holdingsNavHistory.date],
+      set: { navIndex: ex("nav_index") },
+    });
   return rows.length;
 }
 
@@ -254,8 +265,23 @@ async function upsertPositions(
     }
   }
 
-  const navBase = endingNav && endingNav > 0 ? endingNav : null;
-  const payload = Array.from(aggregated.values()).map((p) => {
+  // weight_pct denominator is NAV *of that snapshot date*. A statement can carry
+  // more than one reportDate (historical sync), so summing across all dates would
+  // inflate NAV ~Nx and crush historical weights → compute NAV per date: the
+  // account's net market value (Σ position values, shorts negative) + cash on
+  // that date. IBKR's `endingNav` only applies to the latest date; otherwise fall
+  // back to the per-date computed NAV so weight stays meaningful instead of 0.
+  const agg = Array.from(aggregated.values());
+  const navByDate = new Map<string, number>();
+  for (const p of agg) navByDate.set(p.asOf, (navByDate.get(p.asOf) ?? 0) + computePositionMarketValue(p));
+  for (const c of cashRows) navByDate.set(c.date, (navByDate.get(c.date) ?? 0) + c.endingCash);
+  const latestDate = [...navByDate.keys()].sort().at(-1);
+  const navBaseFor = (date: string): number | null => {
+    if (endingNav && endingNav > 0 && date === latestDate) return endingNav;
+    const v = navByDate.get(date) ?? 0;
+    return v > 0 ? v : null;
+  };
+  const payload = agg.map((p) => {
     const positionValue = computePositionMarketValue(p);
     return {
       accountId,
@@ -270,7 +296,7 @@ async function upsertPositions(
       avgPrice: p.avgPrice ?? null,
       markPrice: p.markPrice ?? null,
       positionValue,
-      weightPct: computePositionWeightPct(positionValue, navBase),
+      weightPct: computePositionWeightPct(positionValue, navBaseFor(p.asOf)),
       delta: p.delta ?? null,
       gamma: p.gamma ?? null,
       theta: p.theta ?? null,
@@ -293,7 +319,7 @@ async function upsertPositions(
       avgPrice: null,
       markPrice: null,
       positionValue: c.endingCash,
-      weightPct: navBase ? (c.endingCash / navBase) * 100 : 0,
+      weightPct: computePositionWeightPct(c.endingCash, navBaseFor(c.date)),
       delta: null,
       gamma: null,
       theta: null,

@@ -7,6 +7,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getSymbolResearch, RESEARCH_SECTIONS } from "./research.js";
+import { getHoldingsExport, HOLDINGS_SECTIONS } from "../holdings/export.js";
 
 export function buildMcpServer(): McpServer {
   const server = new McpServer({ name: "qt-research", version: "0.1.0" });
@@ -34,6 +35,38 @@ export function buildMcpServer(): McpServer {
     },
     async ({ symbol, sections }) => {
       const data = await getSymbolResearch(symbol, sections);
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    "get_holdings",
+    {
+      title: "The operator's live IBKR brokerage account",
+      description:
+        "Fetch the operator's REAL connected IBKR account (a single live brokerage account, synced " +
+        "via Flex) as structured JSON: current positions (symbol, quantity, market value, % weight, " +
+        "option greeks), recent executed trades, and performance (NAV index base-100 at inception + " +
+        "CAGR / Sharpe / Sortino / Max Drawdown / Volatility / Beta / Alpha / Info Ratio vs SPY). " +
+        "Use when the user asks about THEIR OWN portfolio: 'my holdings/positions', 'how is my " +
+        "account doing', 'my P&L / returns', 'what did I trade recently'. Distinct from " +
+        "get_symbol_research, which is public per-stock research, not the user's account.",
+      inputSchema: {
+        sections: z
+          .array(z.enum(HOLDINGS_SECTIONS))
+          .optional()
+          .describe("Limit to these sections; defaults to all (performance, positions, trades)."),
+        tradesLimit: z
+          .number()
+          .int()
+          .positive()
+          .max(200)
+          .optional()
+          .describe("Max recent trades to return (default 50, cap 200)."),
+      },
+    },
+    async ({ sections, tradesLimit }) => {
+      const data = await getHoldingsExport({ sections, tradesLimit });
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     },
   );
