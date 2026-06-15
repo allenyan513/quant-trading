@@ -12,7 +12,7 @@
  * FMP only forecasts revenue + EPS, so only those two income rows get estimates.
  */
 
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { useParams } from "next/navigation";
 import { useLive } from "@/components/live";
 import { Card, Grid, Badge } from "@/components/ui";
@@ -151,13 +151,23 @@ interface Snapshot {
 export default function FinancialsTab() {
   const params = useParams<{ symbol: string }>();
   const symbol = (params.symbol ?? "").toUpperCase();
+  // Annual feeds the inherently-annual analytics (quality CAGR / forward
+  // estimates / ratios / peers); a separate period-driven fetch feeds the full
+  // statement tables. When period="annual" both URLs match → SWR dedupes.
+  const [period, setPeriod] = useState<"annual" | "quarter">("annual");
   const { data, error } = useLive<Financials>(`/api/data/symbol/${symbol}/financials?period=annual&limit=8`);
+  const { data: stmt } = useLive<Financials>(
+    `/api/data/symbol/${symbol}/financials?period=${period}&limit=${period === "quarter" ? 12 : 8}`,
+  );
   const { data: snap } = useLive<Snapshot | null>(`/api/data/valuation/${symbol}`);
 
   if (!data && !error) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   if (error) return <p style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</p>;
   if (!data || data.income.length === 0)
     return <p style={{ color: "var(--muted)" }}>暂无财报缓存（点头部「⟳ 刷新数据」预热该 symbol）。</p>;
+
+  const stmtData = stmt ?? data;
+  const stmtEmpty = period === "quarter" && stmtData.income.length === 0;
 
   const byDate = (rows: Row[]) => new Map(rows.map((r) => [r.fiscalDate, r.data]));
   const cf = byDate(data.cashflow);
@@ -185,9 +195,19 @@ export default function FinancialsTab() {
       <ForwardEstimates income={data.income} estimates={data.estimates ?? []} />
       <TrendOverview trend={trend} range={range} />
       <RatioGroups income={data.income} balance={data.balance} cashflow={data.cashflow} ratios={data.ratios} />
-      <StatementTable title="利润表 Income Statement" rows={data.income} lines={INCOME_LINES} estimates={data.estimates ?? []} estimateMap={INCOME_ESTIMATE_MAP} />
-      <StatementTable title="资产负债表 Balance Sheet" rows={data.balance} lines={BALANCE_LINES} />
-      <StatementTable title="现金流量表 Cash Flow" rows={data.cashflow} lines={CASHFLOW_LINES} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>完整财务三表</span>
+        <PeriodToggle period={period} onChange={setPeriod} />
+      </div>
+      {stmtEmpty ? (
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>暂无季报缓存（点头部「⟳ 刷新数据」预热；或该标的为非美股报送人）。</p>
+      ) : (
+        <>
+          <StatementTable title="利润表 Income Statement" rows={stmtData.income} lines={INCOME_LINES} period={period} estimates={period === "annual" ? (data.estimates ?? []) : []} estimateMap={INCOME_ESTIMATE_MAP} />
+          <StatementTable title="资产负债表 Balance Sheet" rows={stmtData.balance} lines={BALANCE_LINES} period={period} />
+          <StatementTable title="现金流量表 Cash Flow" rows={stmtData.cashflow} lines={CASHFLOW_LINES} period={period} note={period === "quarter" ? "季度现金流多数公司按 YTD 申报，目前仅财年 Q1 有值（SEC EDGAR 限制，见 #98）。" : undefined} />
+        </>
+      )}
       <PeerCompare symbol={symbol} peers={peers} income={data.income} balance={data.balance} />
     </div>
   );
@@ -341,19 +361,60 @@ function TrendOverview({
   );
 }
 
+// ---------- render: period toggle (annual / quarter) ----------
+function PeriodToggle({ period, onChange }: { period: "annual" | "quarter"; onChange: (p: "annual" | "quarter") => void }) {
+  const opts: { key: "annual" | "quarter"; label: string }[] = [
+    { key: "annual", label: "年报 FY" },
+    { key: "quarter", label: "季报 Q" },
+  ];
+  return (
+    <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+      {opts.map((o) => {
+        const on = o.key === period;
+        return (
+          <button
+            key={o.key}
+            onClick={() => onChange(o.key)}
+            style={{
+              padding: "5px 12px",
+              fontSize: 12.5,
+              fontWeight: on ? 700 : 400,
+              color: on ? "var(--text)" : "var(--muted)",
+              background: on ? "var(--border)" : "transparent",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------- render: statement table (with optional forward estimates) ----------
+// Column header: annual shows the fiscal year (2025); quarter shows year-month
+// (2025-06) so multiple quarters in one calendar year stay distinct.
+const colLabel = (fiscalDate: string, period: "annual" | "quarter"): string =>
+  period === "quarter" ? fiscalDate.slice(0, 7) : fiscalDate.slice(0, 4);
+
 function StatementTable({
   title,
   rows,
   lines,
+  period = "annual",
   estimates = [],
   estimateMap = {},
+  note,
 }: {
   title: string;
   rows: Row[];
   lines: Line[];
+  period?: "annual" | "quarter";
   estimates?: Row[];
   estimateMap?: Record<string, string>;
+  note?: string;
 }) {
   if (rows.length === 0) return null;
   const lastActual = rows.at(-1)?.fiscalDate ?? "";
@@ -370,7 +431,7 @@ function StatementTable({
             <tr>
               <th style={{ ...thBase, textAlign: "left", ...stick }}>Line item</th>
               {rows.map((r) => (
-                <th key={r.fiscalDate} style={{ ...thBase, textAlign: "right" }}>{r.fiscalDate.slice(0, 4)}</th>
+                <th key={r.fiscalDate} style={{ ...thBase, textAlign: "right" }}>{colLabel(r.fiscalDate, period)}</th>
               ))}
               {estCols.map((e) => (
                 <th key={e.fiscalDate} style={{ ...thBase, textAlign: "right", color: "#a371f7" }}>{e.fiscalDate.slice(0, 4)}E</th>
@@ -402,6 +463,7 @@ function StatementTable({
           <span style={{ color: "#a371f7" }}>E</span> = 分析师一致预期（FMP 仅预测营收与 EPS）
         </div>
       )}
+      {note && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{note}</div>}
     </Card>
   );
 }
