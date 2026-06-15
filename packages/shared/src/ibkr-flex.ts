@@ -19,6 +19,9 @@ const IBKR_FLEX_BASE_URL =
 // Poll backoff schedule (ms) — IBKR needs a few seconds to generate a statement.
 const IBKR_POLL_BACKOFF_MS = [2000, 3000, 5000, 8000, 12000] as const;
 const IBKR_POLL_MAX_ATTEMPTS = IBKR_POLL_BACKOFF_MS.length;
+// Per-request timeout — Node's fetch has none by default, so a hung IBKR
+// endpoint would block the sync indefinitely. Surfaces as a classified timeout.
+const IBKR_HTTP_TIMEOUT_MS = 20_000;
 /** Standard US equity-option contract multiplier (shares per contract). */
 export const OPTION_CONTRACT_MULTIPLIER = 100;
 
@@ -206,9 +209,22 @@ function classifyError(
   return "unknown";
 }
 
+/** fetch with a hard timeout; maps abort/network errors to a classified IBKRFlexError. */
+async function flexFetch(url: string): Promise<Response> {
+  try {
+    return await fetch(url, { signal: AbortSignal.timeout(IBKR_HTTP_TIMEOUT_MS) });
+  } catch (e) {
+    const name = e instanceof Error ? e.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      throw new IBKRFlexError("timeout", `IBKR request timed out after ${IBKR_HTTP_TIMEOUT_MS}ms`);
+    }
+    throw new IBKRFlexError("http_error", e instanceof Error ? e.message : String(e));
+  }
+}
+
 export async function sendFlexRequest(cfg: FlexConfig): Promise<string> {
   const url = `${IBKR_FLEX_BASE_URL}/SendRequest?t=${encodeURIComponent(cfg.token)}&q=${encodeURIComponent(cfg.queryId)}&v=3`;
-  const res = await fetch(url);
+  const res = await flexFetch(url);
   if (!res.ok) {
     throw new IBKRFlexError("http_error", `SendRequest HTTP ${res.status}`);
   }
@@ -231,7 +247,7 @@ export async function pollStatement(refCode: string, cfg: FlexConfig): Promise<s
 
   for (let attempt = 0; attempt < IBKR_POLL_MAX_ATTEMPTS; attempt++) {
     await sleep(IBKR_POLL_BACKOFF_MS[attempt]!);
-    const res = await fetch(url);
+    const res = await flexFetch(url);
     if (!res.ok) throw new IBKRFlexError("http_error", `GetStatement HTTP ${res.status}`);
     const xml = await res.text();
 

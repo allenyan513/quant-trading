@@ -191,12 +191,23 @@ async function rebuildNavIndexAfter(accountId: string, afterDate: string, seedIn
   if (rows.length === 0) return 0;
 
   const indices = computeNavIndexChain(seedIndex, rows.map((r) => r.dailyReturn));
-  for (let i = 0; i < rows.length; i++) {
-    await db()
-      .update(holdingsNavHistory)
-      .set({ navIndex: indices[i]! })
-      .where(and(eq(holdingsNavHistory.accountId, accountId), eq(holdingsNavHistory.date, rows[i]!.date)));
-  }
+  // Single batched upsert (not N round-trips): every row already exists, so this
+  // only takes the conflict branch and rewrites nav_index. daily_return is
+  // re-echoed to satisfy NOT NULL on the (never-taken) insert branch but is not
+  // in `set`, so the stored value + cash-flow columns are preserved.
+  const payload = rows.map((r, i) => ({
+    accountId,
+    date: r.date,
+    dailyReturn: r.dailyReturn,
+    navIndex: indices[i]!,
+  }));
+  await db()
+    .insert(holdingsNavHistory)
+    .values(payload)
+    .onConflictDoUpdate({
+      target: [holdingsNavHistory.accountId, holdingsNavHistory.date],
+      set: { navIndex: ex("nav_index") },
+    });
   return rows.length;
 }
 
@@ -254,8 +265,15 @@ async function upsertPositions(
     }
   }
 
-  const navBase = endingNav && endingNav > 0 ? endingNav : null;
-  const payload = Array.from(aggregated.values()).map((p) => {
+  // Prefer IBKR's ending NAV; if the Flex response omitted it, fall back to the
+  // account's own net market value (Σ position values, shorts negative, + cash)
+  // so weight_pct stays meaningful instead of collapsing to 0.
+  const agg = Array.from(aggregated.values());
+  const calculatedNav =
+    agg.reduce((s, p) => s + computePositionMarketValue(p), 0) +
+    cashRows.reduce((s, c) => s + c.endingCash, 0);
+  const navBase = endingNav && endingNav > 0 ? endingNav : calculatedNav > 0 ? calculatedNav : null;
+  const payload = agg.map((p) => {
     const positionValue = computePositionMarketValue(p);
     return {
       accountId,

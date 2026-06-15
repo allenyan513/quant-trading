@@ -28,6 +28,13 @@ interface SyncResult {
   spyRows: number;
 }
 
+/** Envelope errors may arrive as a string or an object {code,message}; extract text. */
+function errText(err: unknown, status: number): string {
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
+  return `HTTP ${status}`;
+}
+
 const inputStyle: React.CSSProperties = {
   background: "var(--panel-2)",
   border: "1px solid var(--border)",
@@ -66,7 +73,7 @@ export default function HoldingsSettingsPage() {
     try {
       const res = await fetch("/api/holdings/sync", { method: "POST" });
       const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok || !json.ok) throw new Error(errText(json.error, res.status));
       const r = json.data as SyncResult;
       setSyncMsg({
         ok: true,
@@ -91,7 +98,7 @@ export default function HoldingsSettingsPage() {
         body: JSON.stringify({ token, queryId }),
       });
       const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok || !json.ok) throw new Error(errText(json.error, res.status));
       setMsg({ ok: true, text: "凭证已保存，正在自动同步…" });
       setToken("");
       setQueryId("");
