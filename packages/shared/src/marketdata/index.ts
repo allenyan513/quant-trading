@@ -15,6 +15,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { fmpGet } from "../fmp.js";
+import { fetchQuarterlyStatements } from "../edgar.js";
 import { mapLimit } from "../concurrency.js";
 import { createLogger } from "../log.js";
 
@@ -181,6 +182,35 @@ type StatementKind = keyof typeof STATEMENT_SOURCES;
 // cache is already as complete as FMP allows. (See #33.)
 const STATEMENT_FETCH_LIMIT = 20;
 
+// Quarterly statements come from SEC EDGAR (free, official) instead of FMP,
+// whose free tier gates the quarterly endpoints. companyfacts returns all three
+// statements in one fetch, so populating any one of income/balance/cashflow
+// fills the other two — the freshness gate then short-circuits their refetch.
+const EDGAR_STATEMENT_KINDS = { income: true, balance: true, cashflow: true } as const;
+type EdgarStatementKind = keyof typeof EDGAR_STATEMENT_KINDS;
+const isEdgarKind = (k: StatementKind): k is EdgarStatementKind => k in EDGAR_STATEMENT_KINDS;
+
+/** Fetch SEC EDGAR quarterly statements and persist all three (immutable PIT,
+ *  known_at = filing date). Best-effort: any failure logs and is swallowed so
+ *  the read-through degrades to whatever cache exists (mirrors FMP soft-fail). */
+async function populateEdgarQuarterly(sym: string): Promise<void> {
+  try {
+    const stmts = await fetchQuarterlyStatements(sym);
+    if (!stmts) return;
+    const writes: Array<[StatementTable, FmpStatement[]]> = [
+      [STATEMENT_SOURCES.income.table, stmts.income as FmpStatement[]],
+      [STATEMENT_SOURCES.balance.table, stmts.balance as FmpStatement[]],
+      [STATEMENT_SOURCES.cashflow.table, stmts.cashflow as FmpStatement[]],
+    ];
+    for (const [table, raw] of writes) {
+      const rows = mapStatementRows(sym, "quarter", raw);
+      if (rows.length) await db().insert(table).values(rows).onConflictDoNothing();
+    }
+  } catch (err) {
+    log.warn("marketdata.edgar.failed", { symbol: sym, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 async function getStatement(
   kind: StatementKind,
   symbol: string,
@@ -201,6 +231,12 @@ async function getStatement(
   const cached = await read(STATEMENT_FETCH_LIMIT);
   if (cached.length && isStatementFresh(cached[0]?.fiscalDate ?? null, period, new Date())) {
     return cached.slice(0, limit) as StatementRowInput[];
+  }
+
+  // Quarterly → SEC EDGAR (FMP's free tier gates it); annual / ratios / estimates → FMP.
+  if (period === "quarter" && isEdgarKind(kind)) {
+    await populateEdgarQuarterly(sym);
+    return (await read(limit)) as StatementRowInput[];
   }
 
   const fmp = await fmpGet<FmpStatement[]>(

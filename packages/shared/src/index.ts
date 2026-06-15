@@ -3,6 +3,20 @@ export * from "./envelope.js";
 export { config, codeVersion, requireEnv, optionalEnv } from "./config.js";
 export { fmpGet, FmpSoftError } from "./fmp.js";
 export {
+  fetchQuarterlyStatements,
+  fetchCompanyFacts,
+  mapCompanyFactsToStatements,
+  tickerToCik,
+  loadTickerMap,
+  isQuarterDuration,
+  selectByEnd,
+  padCik,
+  EdgarError,
+  type CompanyFacts,
+  type XbrlFact,
+  type EdgarStatements,
+} from "./edgar.js";
+export {
   fetchFlexStatement,
   sendFlexRequest,
   pollStatement,

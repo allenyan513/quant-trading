@@ -35,6 +35,13 @@ export const config = {
   fmpBaseUrl: () => "https://financialmodelingprep.com/stable",
   fmpRateLimit: () => Number(optionalEnv("FMP_RATE_LIMIT", "250")),
 
+  // ---- SEC EDGAR (free quarterly financials; see @qt/shared/edgar) ----
+  /** SEC fair-access requires a descriptive User-Agent with contact info. Has a
+   *  compliant default so zero-config works; override per deploy if desired. */
+  secUserAgent: () => optionalEnv("SEC_USER_AGENT", "quant-trading research (wsyanligang@gmail.com)"),
+  /** Requests/sec ceiling for SEC (their guideline is ≤10); conservative default. */
+  secRateLimit: () => Number(optionalEnv("SEC_RATE_LIMIT", "8")),
+
   // ---- IBKR Flex brokerage sync (single account — the maintainer's own) ----
   // Flex token + query id live in the data_holdings_accounts table (set via the
   // web "Connect IBKR" form), NOT in env. The account_id is a code constant:
