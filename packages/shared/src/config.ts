@@ -35,6 +35,13 @@ export const config = {
   fmpBaseUrl: () => "https://financialmodelingprep.com/stable",
   fmpRateLimit: () => Number(optionalEnv("FMP_RATE_LIMIT", "250")),
 
+  // ---- IBKR Flex brokerage sync (single account — the maintainer's own) ----
+  // Flex token + query id live in the data_holdings_accounts table (set via the
+  // web "Connect IBKR" form), NOT in env. The account_id is a code constant:
+  // single-user never changes it, and multi-user would key rows by user id (a
+  // per-request value), so an env knob serves neither — hence a plain constant.
+  holdingsAccountId: () => "me",
+
   // ---- Discovery / universe selection (tuning constants, not deploy knobs) ----
   /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
   scanEarningsSurprisePct: () => 0.2,

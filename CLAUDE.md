@@ -70,8 +70,9 @@ pnpm down
 
 - `.claude/rules/typescript.md` —— TS/ESM 编码规范（`**/*.ts`）
 - `.claude/rules/services.md` —— Hono 服务 / 端点 / outbox 投递约定（`services/**`）
+- `.claude/rules/web.md` —— Next.js 只读仪表盘：读穿 `/api/*`、写 forward、图表/tab 模式（`services/web/**`）
 - `.claude/rules/alpha-agent.md` —— Agent SDK、工具集、emit_signal 护栏（`services/alpha/**`）
-- `.claude/rules/database.md` —— Drizzle schema / 迁移流程 / PIT（`packages/shared/src/db/**` 等）
+- `.claude/rules/database.md` —— Drizzle schema / 迁移流程 / PIT / upsert 细则（`packages/shared/src/db/**` 等）
 
 ## 当前阶段
 
