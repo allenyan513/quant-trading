@@ -15,7 +15,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { fmpGet } from "../fmp.js";
-import { fetchQuarterlyStatements } from "../edgar.js";
+import { fetchStatements } from "../edgar.js";
 import { mapLimit } from "../concurrency.js";
 import { createLogger } from "../log.js";
 
@@ -182,20 +182,24 @@ type StatementKind = keyof typeof STATEMENT_SOURCES;
 // cache is already as complete as FMP allows. (See #33.)
 const STATEMENT_FETCH_LIMIT = 20;
 
-// Quarterly statements come from SEC EDGAR (free, official) instead of FMP,
-// whose free tier gates the quarterly endpoints. companyfacts returns all three
+// The three financial statements come from SEC EDGAR (free, official) instead of
+// FMP. Quarterly: FMP's free tier gates the endpoints outright. Annual: FMP's
+// free tier serves it, but EDGAR's known_at = 10-K filing date is more
+// authoritative and its quarterly path already proved the mapper out — so we
+// prefer EDGAR for annual too, falling back to FMP only when EDGAR has no filing
+// (foreign / ADR tickers aren't EDGAR filers). companyfacts returns all three
 // statements in one fetch, so populating any one of income/balance/cashflow
 // fills the other two — the freshness gate then short-circuits their refetch.
 const EDGAR_STATEMENT_KINDS = { income: true, balance: true, cashflow: true } as const;
 type EdgarStatementKind = keyof typeof EDGAR_STATEMENT_KINDS;
 const isEdgarKind = (k: StatementKind): k is EdgarStatementKind => k in EDGAR_STATEMENT_KINDS;
 
-/** Fetch SEC EDGAR quarterly statements and persist all three (immutable PIT,
+/** Fetch SEC EDGAR statements for `period` and persist all three (immutable PIT,
  *  known_at = filing date). Best-effort: any failure logs and is swallowed so
  *  the read-through degrades to whatever cache exists (mirrors FMP soft-fail). */
-async function populateEdgarQuarterly(sym: string): Promise<void> {
+async function populateEdgar(sym: string, period: StatementPeriod): Promise<void> {
   try {
-    const stmts = await fetchQuarterlyStatements(sym);
+    const stmts = await fetchStatements(sym, period);
     if (!stmts) return;
     const writes: Array<[StatementTable, FmpStatement[]]> = [
       [STATEMENT_SOURCES.income.table, stmts.income as FmpStatement[]],
@@ -203,11 +207,11 @@ async function populateEdgarQuarterly(sym: string): Promise<void> {
       [STATEMENT_SOURCES.cashflow.table, stmts.cashflow as FmpStatement[]],
     ];
     for (const [table, raw] of writes) {
-      const rows = mapStatementRows(sym, "quarter", raw);
+      const rows = mapStatementRows(sym, period, raw);
       if (rows.length) await db().insert(table).values(rows).onConflictDoNothing();
     }
   } catch (err) {
-    log.warn("marketdata.edgar.failed", { symbol: sym, error: err instanceof Error ? err.message : String(err) });
+    log.warn("marketdata.edgar.failed", { symbol: sym, period, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -233,12 +237,21 @@ async function getStatement(
     return cached.slice(0, limit) as StatementRowInput[];
   }
 
-  // Quarterly → SEC EDGAR (FMP's free tier gates it); annual / ratios / estimates → FMP.
-  if (period === "quarter" && isEdgarKind(kind)) {
-    await populateEdgarQuarterly(sym);
-    return (await read(limit)) as StatementRowInput[];
+  // income / balance / cashflow → SEC EDGAR (both periods). Quarter has no FMP
+  // free-tier fallback (gated), so we serve stale cache on a miss. Annual can
+  // fall back to FMP when EDGAR returns nothing fresh (non-EDGAR filer). The
+  // freshness re-check distinguishes "EDGAR filled it" from "only stale cache".
+  if (isEdgarKind(kind)) {
+    await populateEdgar(sym, period);
+    const afterEdgar = await read(STATEMENT_FETCH_LIMIT);
+    if (afterEdgar.length && isStatementFresh(afterEdgar[0]?.fiscalDate ?? null, period, new Date())) {
+      return afterEdgar.slice(0, limit) as StatementRowInput[];
+    }
+    if (period === "quarter") return afterEdgar.slice(0, limit) as StatementRowInput[];
+    // annual → fall through to FMP fallback below.
   }
 
+  // ratios / estimates (any period) + annual income/balance/cashflow EDGAR-miss.
   const fmp = await fmpGet<FmpStatement[]>(
     path,
     { symbol: sym, period, limit: STATEMENT_FETCH_LIMIT },

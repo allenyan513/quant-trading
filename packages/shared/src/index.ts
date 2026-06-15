@@ -3,12 +3,14 @@ export * from "./envelope.js";
 export { config, codeVersion, requireEnv, optionalEnv } from "./config.js";
 export { fmpGet, FmpSoftError } from "./fmp.js";
 export {
+  fetchStatements,
   fetchQuarterlyStatements,
   fetchCompanyFacts,
   mapCompanyFactsToStatements,
   tickerToCik,
   loadTickerMap,
   isQuarterDuration,
+  isAnnualDuration,
   selectByEnd,
   padCik,
   EdgarError,
