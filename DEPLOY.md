@@ -152,6 +152,13 @@ mkjob alpha-valsweep   "0 18 * * 1-5"    "$ALPHA_URL" /internal/valuation-sweep 
 mkjob portfolio-track  "*/30 9-16 * * 1-5" "$PORTFOLIO_URL" /jobs/track
 ```
 
+The `JOB_TOKEN`-guarded `/jobs/*` endpoints (`data /jobs/refresh-watchlist`,
+`data /jobs/sync-holdings`) are driven by **GitHub Actions** instead
+(`.github/workflows/{daily-refresh,sync-holdings}.yml`), which POST them with a
+`Bearer $JOB_TOKEN` header. Set the `DATA_SERVICE_URL` and `JOB_TOKEN` repo
+secrets to match the deployed data service; no Cloud Scheduler job is needed for
+those two.
+
 ## 6. Verify
 
 ```bash
