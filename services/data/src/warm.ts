@@ -26,6 +26,12 @@ const WARMERS: Array<[string, (s: string) => Promise<unknown>]> = [
   ["income", (s) => marketdata.getIncomeStatement(s, "annual")],
   ["balance", (s) => marketdata.getBalanceSheet(s, "annual")],
   ["cashflow", (s) => marketdata.getCashFlow(s, "annual")],
+  // Quarterly three-statements (SEC EDGAR). companyfacts returns all three in
+  // one fetch, so the first quarter getter fills the other two and they
+  // short-circuit on freshness. Ratios/estimates stay annual (FMP-only).
+  ["income_q", (s) => marketdata.getIncomeStatement(s, "quarter")],
+  ["balance_q", (s) => marketdata.getBalanceSheet(s, "quarter")],
+  ["cashflow_q", (s) => marketdata.getCashFlow(s, "quarter")],
   ["ratios", (s) => marketdata.getRatios(s, "annual")],
   ["estimates", (s) => marketdata.getEstimates(s, "annual")],
   ["prices", (s) => marketdata.getDailyPrices(s, 60)],
