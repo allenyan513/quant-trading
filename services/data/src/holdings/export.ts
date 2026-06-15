@@ -30,8 +30,17 @@ async function computePerformance(accountId: string) {
     .from(holdingsNavHistory)
     .where(eq(holdingsNavHistory.accountId, accountId))
     .orderBy(holdingsNavHistory.date);
-  if (navRows.length === 0) {
-    return { tradingDays: 0, asOf: null, navIndex: null, endingNav: null, kpis: null };
+  // Need ≥2 points for any return-based metric (stdev uses N-1); with 0/1 row
+  // every KPI is null anyway, so short-circuit (also skips the SPY fetch).
+  if (navRows.length < 2) {
+    const last = navRows[0];
+    return {
+      tradingDays: navRows.length,
+      asOf: last?.date ?? null,
+      navIndex: last?.navIndex ?? null,
+      endingNav: last?.endingNav ?? null,
+      kpis: null,
+    };
   }
 
   const first = navRows[0]!;

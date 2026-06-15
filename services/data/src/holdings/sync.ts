@@ -265,14 +265,22 @@ async function upsertPositions(
     }
   }
 
-  // Prefer IBKR's ending NAV; if the Flex response omitted it, fall back to the
-  // account's own net market value (Σ position values, shorts negative, + cash)
-  // so weight_pct stays meaningful instead of collapsing to 0.
+  // weight_pct denominator is NAV *of that snapshot date*. A statement can carry
+  // more than one reportDate (historical sync), so summing across all dates would
+  // inflate NAV ~Nx and crush historical weights → compute NAV per date: the
+  // account's net market value (Σ position values, shorts negative) + cash on
+  // that date. IBKR's `endingNav` only applies to the latest date; otherwise fall
+  // back to the per-date computed NAV so weight stays meaningful instead of 0.
   const agg = Array.from(aggregated.values());
-  const calculatedNav =
-    agg.reduce((s, p) => s + computePositionMarketValue(p), 0) +
-    cashRows.reduce((s, c) => s + c.endingCash, 0);
-  const navBase = endingNav && endingNav > 0 ? endingNav : calculatedNav > 0 ? calculatedNav : null;
+  const navByDate = new Map<string, number>();
+  for (const p of agg) navByDate.set(p.asOf, (navByDate.get(p.asOf) ?? 0) + computePositionMarketValue(p));
+  for (const c of cashRows) navByDate.set(c.date, (navByDate.get(c.date) ?? 0) + c.endingCash);
+  const latestDate = [...navByDate.keys()].sort().at(-1);
+  const navBaseFor = (date: string): number | null => {
+    if (endingNav && endingNav > 0 && date === latestDate) return endingNav;
+    const v = navByDate.get(date) ?? 0;
+    return v > 0 ? v : null;
+  };
   const payload = agg.map((p) => {
     const positionValue = computePositionMarketValue(p);
     return {
@@ -288,7 +296,7 @@ async function upsertPositions(
       avgPrice: p.avgPrice ?? null,
       markPrice: p.markPrice ?? null,
       positionValue,
-      weightPct: computePositionWeightPct(positionValue, navBase),
+      weightPct: computePositionWeightPct(positionValue, navBaseFor(p.asOf)),
       delta: p.delta ?? null,
       gamma: p.gamma ?? null,
       theta: p.theta ?? null,
@@ -311,7 +319,7 @@ async function upsertPositions(
       avgPrice: null,
       markPrice: null,
       positionValue: c.endingCash,
-      weightPct: navBase ? (c.endingCash / navBase) * 100 : 0,
+      weightPct: computePositionWeightPct(c.endingCash, navBaseFor(c.date)),
       delta: null,
       gamma: null,
       theta: null,
