@@ -18,6 +18,26 @@ export {
   type XbrlFact,
   type EdgarStatements,
 } from "./edgar.js";
+export { secGet, SecError } from "./sec-http.js";
+export {
+  find13FFilings,
+  latestPerPeriod,
+  pickInfoTableDoc,
+  parseInfoTable,
+  normalizeValue,
+  aggregateHoldings,
+  diffHoldings,
+  fetchSubmissions,
+  fetch13FHoldings,
+  fetchLatest13F,
+  type Filing13F,
+  type InfoTableEntry,
+  type Holding13F,
+  type HoldingDelta,
+  type HoldingChange,
+  type Quarter13F,
+  type Submissions,
+} from "./thirteenf.js";
 export {
   fetchFlexStatement,
   sendFlexRequest,

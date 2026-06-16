@@ -316,6 +316,63 @@ export const holdingsPositions = pgTable(
   ],
 );
 
+// ---- 13F — legendary investor / institutional quarterly holdings (SEC) ----
+//
+// Managers with >$100M in 13F securities file Form 13F-HR within 45 days of
+// quarter end; data parses them from SEC EDGAR (free, official) into immutable
+// quarterly snapshots. Research/education only — honest limits: 45-day lag (last
+// quarter's book, not live), U.S. long positions + listed puts only (no shorts,
+// cash, foreign, debt). Written only by data. See @qt/shared/thirteenf.
+
+/** Curated roster of managers we track, by CIK (e.g. Berkshire 0001067983). */
+export const thirteenFFilers = pgTable("data_13f_filers", {
+  cik: text("cik").primaryKey(), // 10-digit zero-padded
+  name: text("name").notNull(),
+  label: text("label"), // short display handle, e.g. "Buffett"
+  active: boolean("active").default(true).notNull(),
+  addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+// One immutable row per (filer, report quarter, security, put/call). `quarter` is
+// the filing's period-of-report (calendar quarter end) — the PIT identity. Same
+// CIK+quarter re-pull is idempotent via the PK. put_call is NOT-NULL with a ''
+// sentinel so the composite PK upsert matches plain share holdings too (PG treats
+// NULLs as distinct, which breaks ON CONFLICT — same pattern as holdings_positions).
+// `value` is whole dollars (normalized for the pre-2023 thousands convention).
+// ticker is intentionally absent — resolved at read time via data_13f_cusip_map.
+export const thirteenFHoldings = pgTable(
+  "data_13f_holdings",
+  {
+    cik: text("cik").notNull(),
+    quarter: date("quarter").notNull(), // period of report (quarter end)
+    cusip: text("cusip").notNull(),
+    putCall: text("put_call").default("").notNull(), // ''|Put|Call
+    issuerName: text("issuer_name").notNull(),
+    titleOfClass: text("title_of_class"),
+    value: doublePrecision("value").notNull(), // whole USD
+    shares: doublePrecision("shares").notNull(),
+    accessionNumber: text("accession_number"),
+    /** Filing date — what was knowable when (PIT). */
+    knownAt: timestamp("known_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cik, t.quarter, t.cusip, t.putCall] }),
+    index("idx_13f_holdings_cik_quarter").on(t.cik, t.quarter),
+    index("idx_13f_holdings_cusip").on(t.cusip),
+  ],
+);
+
+// Self-maintained CUSIP → ticker map (the one external dependency 13F has: the
+// info table carries only CUSIPs). Resolved by left-join at read time, so adding
+// a mapping instantly enriches existing snapshots without re-pulling. Unmapped
+// holdings keep CUSIP + issuer_name and show ticker null. Written only by data.
+export const thirteenFCusipMap = pgTable("data_13f_cusip_map", {
+  cusip: text("cusip").primaryKey(),
+  ticker: text("ticker").notNull(),
+  name: text("name"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
 // ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(

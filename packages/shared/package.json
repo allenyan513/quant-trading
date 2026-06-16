@@ -9,6 +9,7 @@
     "./types": "./src/types.ts",
     "./fmp": "./src/fmp.ts",
     "./edgar": "./src/edgar.ts",
+    "./thirteenf": "./src/thirteenf.ts",
     "./http": "./src/http.ts",
     "./config": "./src/config.ts",
     "./envelope": "./src/envelope.ts",

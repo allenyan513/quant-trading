@@ -1,0 +1,32 @@
+name: Sync 13F holdings
+
+# Pulls tracked managers' latest Form 13F-HR filings from SEC EDGAR into the
+# data service's data_13f_* tables (immutable quarterly snapshots) so the
+# /data/legends dashboard shows legendary investors' quarterly holdings.
+# Triggers the data service's JOB_TOKEN-guarded endpoint (same secrets as
+# daily-refresh.yml / sync-holdings.yml).
+#
+# Required repo secrets:
+#   DATA_SERVICE_URL  — base URL of the deployed data service (no trailing slash)
+#   JOB_TOKEN         — shared secret; must match the data service's JOB_TOKEN env
+
+on:
+  schedule:
+    # 14:00 UTC every Monday. 13F is filed within 45 days of quarter end, so new
+    # data only appears a few times a year; a weekly tick is a cheap no-op
+    # (upserts are idempotent on (cik, quarter, cusip, put_call)) that picks up
+    # each filing season's new quarters without a tight cron. GitHub cron is UTC.
+    - cron: "0 14 * * 1"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger 13F sync
+        run: |
+          curl --fail-with-body --show-error --silent \
+            --max-time 600 \
+            --retry 2 --retry-delay 30 \
+            -X POST "${{ secrets.DATA_SERVICE_URL }}/jobs/sync-13f" \
+            -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"
