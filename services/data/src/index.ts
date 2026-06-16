@@ -19,7 +19,7 @@ import { warmAndPullNews, revalue, refreshWatchlist } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { sweepWatchlistValuations } from "./valuation/sweep.js";
 import { syncHoldings } from "./holdings/sync.js";
-import { sync13FAll, sync13FForFiler, setCusipMapping } from "./thirteenf/sync.js";
+import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
 import { addFiler } from "./thirteenf/filers.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
@@ -372,7 +372,22 @@ app.post("/13f/filers", async (c) => {
   }
 });
 
-// Self-maintained CUSIP→ticker mapping (the one external dependency 13F has).
+// Backfill CUSIP→ticker via OpenFIGI for holdings still unmapped. Idempotent
+// (only scans unmapped CUSIPs); `limit` bounds one run — call repeatedly for a
+// large initial backfill. Folded into /13f/sync too, but exposed for on-demand.
+app.post("/13f/resolve-tickers", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const limit = Number(body.limit ?? 1000);
+  try {
+    const res = await resolveUnmappedCusips(Number.isFinite(limit) && limit > 0 ? limit : 1000);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("13f.resolve.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("resolve_tickers_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Self-maintained CUSIP→ticker mapping (manual override / supplement to OpenFIGI).
 // Resolved at read time, so adding one enriches existing snapshots immediately.
 app.post("/13f/cusip-map", async (c) => {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);

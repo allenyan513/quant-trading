@@ -812,7 +812,7 @@ export async function list13fHoldings(cikRaw: string): Promise<FilerHoldings> {
       .select({ cusip: thirteenFCusipMap.cusip, ticker: thirteenFCusipMap.ticker })
       .from(thirteenFCusipMap)
       .where(inArray(thirteenFCusipMap.cusip, cusips));
-    for (const m of maps) tickerByCusip.set(m.cusip, m.ticker);
+    for (const m of maps) if (m.ticker) tickerByCusip.set(m.cusip, m.ticker); // skip null tombstones
   }
 
   const holdings: HoldingRow[] = deltas

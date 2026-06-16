@@ -70,6 +70,19 @@ export function fmtDate(ts: string | Date | null | undefined): string {
 }
 
 /**
+ * Calendar-quarter label from a `YYYY-MM-DD` quarter-end date (a Postgres `date`
+ * column). Parsed from the string parts — NOT `new Date()` — so it never shifts
+ * across a timezone (e.g. "2026-03-31" → "Q1 2026", never "Mar 30"). Returns "—"
+ * for nullish/malformed input.
+ */
+export function fmtQuarter(q: string | null | undefined): string {
+  if (!q) return "—";
+  const [y, m] = q.split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) return "—";
+  return `Q${Math.ceil(m / 3)} ${y}`;
+}
+
+/**
  * Full precise timestamp for detail panels / timelines:
  * "May 20, 2026, 23:30:45 GMT-7" — year/month/day, seconds, and timezone.
  */

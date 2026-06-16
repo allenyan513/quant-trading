@@ -26,6 +26,17 @@ const DEFAULT_FILERS: FilerInput[] = [
   { cik: "0001336528", name: "Pershing Square Capital Management", label: "Ackman" },
   { cik: "0001061768", name: "Baupost Group LLC", label: "Klarman" },
   { cik: "0001350694", name: "Bridgewater Associates, LP", label: "Dalio" },
+  { cik: "0001656456", name: "Appaloosa LP", label: "Tepper" },
+  { cik: "0001040273", name: "Third Point LLC", label: "Loeb" },
+  { cik: "0000921669", name: "Icahn Carl C", label: "Icahn" },
+  { cik: "0001709323", name: "Himalaya Capital Management LLC", label: "Li Lu" },
+  { cik: "0001112520", name: "Akre Capital Management LLC", label: "Akre" },
+  { cik: "0001536411", name: "Duquesne Family Office LLC", label: "Druckenmiller" },
+  { cik: "0001079114", name: "Greenlight Capital Inc", label: "Einhorn" },
+  { cik: "0000783412", name: "Daily Journal Corp", label: "Munger" },
+  { cik: "0001166559", name: "Gates Foundation Trust", label: "Gates" },
+  { cik: "0001520023", name: "Fundsmith Equity Fund, L.P.", label: "Terry Smith" },
+  { cik: "0001549575", name: "Dalal Street, LLC", label: "Pabrai" },
 ];
 
 const normCik = (cik: string): string => padCik(Number(String(cik).replace(/\D/g, "")));

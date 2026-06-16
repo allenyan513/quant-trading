@@ -362,13 +362,16 @@ export const thirteenFHoldings = pgTable(
   ],
 );
 
-// Self-maintained CUSIP → ticker map (the one external dependency 13F has: the
-// info table carries only CUSIPs). Resolved by left-join at read time, so adding
-// a mapping instantly enriches existing snapshots without re-pulling. Unmapped
-// holdings keep CUSIP + issuer_name and show ticker null. Written only by data.
+// CUSIP → ticker map (the one external dependency 13F has: the info table carries
+// only CUSIPs). Populated by OpenFIGI during sync + manual overrides; resolved by
+// left-join at read time, so adding a mapping instantly enriches existing
+// snapshots without re-pulling. A row with `ticker` NULL is a negative-cache
+// tombstone: OpenFIGI had no match (option/foreign/delisted), recorded so the
+// sync stops re-querying it every run. Read path shows ticker null either way
+// (tombstone or no row). Written only by data.
 export const thirteenFCusipMap = pgTable("data_13f_cusip_map", {
   cusip: text("cusip").primaryKey(),
-  ticker: text("ticker").notNull(),
+  ticker: text("ticker"), // null = tried, unresolved (tombstone)
   name: text("name"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });

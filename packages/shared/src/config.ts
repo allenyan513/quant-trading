@@ -42,6 +42,16 @@ export const config = {
   /** Requests/sec ceiling for SEC (their guideline is ≤10); conservative default. */
   secRateLimit: () => Number(optionalEnv("SEC_RATE_LIMIT", "8")),
 
+  // ---- OpenFIGI (free CUSIP→ticker symbology; see @qt/shared/openfigi) ----
+  // Constant base: the API surface is tied to the code, not a deploy knob.
+  openfigiBaseUrl: () => "https://api.openfigi.com/v3",
+  /** Optional API key. Unset works (OpenFIGI allows anonymous use at a lower
+   *  rate/batch ceiling); a key raises both. Returns null when absent. */
+  openfigiApiKey: () => process.env.OPENFIGI_API_KEY?.trim() || null,
+  /** Requests/min ceiling. OpenFIGI throttles ~25/min anonymous (more with a
+   *  key); stay just under. Batch size scales with the key (see openfigi.ts). */
+  openfigiRateLimit: () => Number(optionalEnv("OPENFIGI_RATE_LIMIT", "20")),
+
   // ---- IBKR Flex brokerage sync (single account — the maintainer's own) ----
   // Flex token + query id live in the data_holdings_accounts table (set via the
   // web "Connect IBKR" form), NOT in env. The account_id is a code constant:

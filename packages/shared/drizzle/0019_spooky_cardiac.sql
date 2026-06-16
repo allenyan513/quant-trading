@@ -1,0 +1,1 @@
+ALTER TABLE "data_13f_cusip_map" ALTER COLUMN "ticker" DROP NOT NULL;

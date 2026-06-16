@@ -38,6 +38,7 @@ export {
   type Quarter13F,
   type Submissions,
 } from "./thirteenf.js";
+export { resolveCusips, pickTicker, collectBatch, OpenFigiError, type CusipTicker } from "./openfigi.js";
 export {
   fetchFlexStatement,
   sendFlexRequest,
