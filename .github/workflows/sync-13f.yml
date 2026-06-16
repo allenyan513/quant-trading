@@ -7,7 +7,7 @@ name: Sync 13F holdings
 # daily-refresh.yml / sync-holdings.yml).
 #
 # Required repo secrets:
-#   DATA_SERVICE_URL  — base URL of the deployed data service (no trailing slash)
+#   DATA_URL  — base URL of the deployed data service (no trailing slash)
 #   JOB_TOKEN         — shared secret; must match the data service's JOB_TOKEN env
 
 on:
@@ -28,5 +28,5 @@ jobs:
           curl --fail-with-body --show-error --silent \
             --max-time 600 \
             --retry 2 --retry-delay 30 \
-            -X POST "${{ secrets.DATA_SERVICE_URL }}/jobs/sync-13f" \
+            -X POST "${{ secrets.DATA_URL }}/jobs/sync-13f" \
             -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"

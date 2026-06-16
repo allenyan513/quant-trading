@@ -6,7 +6,7 @@ name: Sync IBKR holdings
 # service's JOB_TOKEN-guarded endpoint (same secrets as daily-refresh.yml).
 #
 # Required repo secrets:
-#   DATA_SERVICE_URL  — base URL of the deployed data service (no trailing slash)
+#   DATA_URL  — base URL of the deployed data service (no trailing slash)
 #   JOB_TOKEN         — shared secret; must match the data service's JOB_TOKEN env
 
 on:
@@ -31,5 +31,5 @@ jobs:
           curl --fail-with-body --show-error --silent \
             --max-time 600 \
             --retry 2 --retry-delay 30 \
-            -X POST "${{ secrets.DATA_SERVICE_URL }}/jobs/sync-holdings" \
+            -X POST "${{ secrets.DATA_URL }}/jobs/sync-holdings" \
             -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"

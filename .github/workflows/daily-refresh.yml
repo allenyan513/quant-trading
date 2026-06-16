@@ -5,7 +5,7 @@ name: Daily watchlist refresh
 # the data service's JOB_TOKEN-guarded endpoint on Cloud Run.
 #
 # Required repo secrets:
-#   DATA_SERVICE_URL  — base URL of the deployed data service (no trailing slash)
+#   DATA_URL  — base URL of the deployed data service (no trailing slash)
 #   JOB_TOKEN         — shared secret; must match the data service's JOB_TOKEN env
 
 on:
@@ -27,5 +27,5 @@ jobs:
           curl --fail-with-body --show-error --silent \
             --max-time 1800 \
             --retry 2 --retry-delay 30 \
-            -X POST "${{ secrets.DATA_SERVICE_URL }}/jobs/refresh-watchlist" \
+            -X POST "${{ secrets.DATA_URL }}/jobs/refresh-watchlist" \
             -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"
