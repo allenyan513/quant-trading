@@ -38,6 +38,7 @@ import {
   getFinancials as sharedGetFinancials,
 } from "@qt/shared/research";
 import { config, metrics, type DailyReturn } from "@qt/shared";
+import * as shared13f from "@qt/shared/thirteenf-read";
 
 const SERVICES = ["data", "alpha", "portfolio"] as const;
 const STUCK_MINUTES = 5;
@@ -687,3 +688,12 @@ export async function listHoldingsTrades(opts: HoldingsTradeOpts = {}) {
     .limit(limit)
     .offset(Math.max(0, opts.offset ?? 0));
 }
+
+// ---- 13F — legendary investor quarterly holdings (read-only; see #99). The read
+// logic lives in @qt/shared/thirteenf-read (one source, shared with data's MCP
+// endpoint); these wrappers just inject web's db(). ----
+export type { FilerSummary, FilerHeader, HoldingRow, FilerHoldings } from "@qt/shared/thirteenf-read";
+
+export const list13fFilers = () => shared13f.list13fFilers(db());
+export const get13fFilerHeader = (cik: string) => shared13f.get13fFilerHeader(db(), cik);
+export const list13fHoldings = (cik: string) => shared13f.list13fHoldings(db(), cik);

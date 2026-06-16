@@ -17,56 +17,13 @@
  * Pure (mapper) + thin HTTP client, no DB — mirrors fmp.ts. The read-through /
  * persistence wiring lives in marketdata/index.ts.
  */
-import { config } from "./config.js";
+import { secGet, SecError } from "./sec-http.js";
 
 const SEC_DATA_BASE = "https://data.sec.gov";
 const SEC_WWW_BASE = "https://www.sec.gov";
 
-export class EdgarError extends Error {}
-
-// ───────────────────────── rate-limited fetch (SEC fair-access) ─────────────────────────
-// SEC asks for ≤10 req/s and a descriptive User-Agent with contact info. We run
-// a conservative sliding-window bucket (default 8/s) and always send the UA.
-
-const WINDOW_MS = 1_000;
-const timestamps: number[] = [];
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-async function throttle(): Promise<void> {
-  const limit = config.secRateLimit();
-  const now = Date.now();
-  while (timestamps.length && now - timestamps[0]! >= WINDOW_MS) timestamps.shift();
-  if (timestamps.length >= limit) {
-    await sleep(WINDOW_MS - (now - timestamps[0]!));
-    return throttle();
-  }
-  timestamps.push(Date.now());
-}
-
-async function secGet<T>(url: string): Promise<T | null> {
-  const maxAttempts = 3;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await throttle();
-    let resp: Response;
-    try {
-      resp = await fetch(url, { headers: { "User-Agent": config.secUserAgent(), Accept: "application/json" } });
-    } catch (err) {
-      if (attempt === maxAttempts - 1) throw new EdgarError(`SEC fetch failed: ${err instanceof Error ? err.message : String(err)}`);
-      await sleep(2 ** attempt * 500);
-      continue;
-    }
-    if (resp.status === 404) return null; // no such company/facts — soft
-    if (resp.status === 429 || resp.status >= 500) {
-      if (attempt === maxAttempts - 1) throw new EdgarError(`SEC ${resp.status} for ${url}`);
-      await sleep(2 ** attempt * 500);
-      continue;
-    }
-    if (!resp.ok) throw new EdgarError(`SEC ${resp.status} for ${url}`);
-    return (await resp.json()) as T;
-  }
-  return null;
-}
+/** Back-compat alias — SEC fetch errors are now the shared `SecError`. */
+export const EdgarError = SecError;
 
 // ───────────────────────── ticker → CIK ─────────────────────────
 // company_tickers.json maps every ticker to its zero-paddable CIK. Cached in

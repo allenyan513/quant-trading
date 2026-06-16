@@ -19,6 +19,8 @@ import { warmAndPullNews, revalue, refreshWatchlist } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { sweepWatchlistValuations } from "./valuation/sweep.js";
 import { syncHoldings } from "./holdings/sync.js";
+import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
+import { addFiler } from "./thirteenf/filers.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
 import { StreamableHTTPTransport } from "@hono/mcp";
@@ -333,6 +335,73 @@ async function runHoldingsSync(c: Context) {
 
 app.post("/jobs/sync-holdings", (c) => runHoldingsSync(c));
 app.post("/holdings/sync", (c) => runHoldingsSync(c));
+
+// ---- 13F — legendary investor quarterly holdings (SEC, free). data owns the
+// data_13f_* tables; web reads them. Display only (parse + store); see #99. ----
+
+// Sync every tracked manager's latest 13F filings. Two entry points, same body:
+// `/jobs/sync-13f` (cron, JOB_TOKEN — quarterly cadence; 13F lands 45d after
+// quarter end so frequent runs are cheap no-ops) and `/13f/sync` (manual; an
+// optional `cik` syncs a single filer).
+async function run13FSync(c: Context) {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const cik = String(body.cik ?? "").trim();
+    const res = cik ? await sync13FForFiler(cik) : await sync13FAll();
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("13f.sync.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("sync_13f_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+}
+app.post("/jobs/sync-13f", (c) => run13FSync(c));
+app.post("/13f/sync", (c) => run13FSync(c));
+
+// Add/refresh a tracked manager (data owns the roster; mirrors /watchlist).
+app.post("/13f/filers", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const cik = String(body.cik ?? "").trim();
+  const name = String(body.name ?? "").trim();
+  if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
+  try {
+    const res = await addFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("13f.filer.add.failed", { cik, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("add_filer_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Backfill CUSIP→ticker via OpenFIGI for holdings still unmapped. Idempotent
+// (only scans unmapped CUSIPs); `limit` bounds one run — call repeatedly for a
+// large initial backfill. Folded into /13f/sync too, but exposed for on-demand.
+app.post("/13f/resolve-tickers", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const limit = Number(body.limit ?? 1000);
+  try {
+    const res = await resolveUnmappedCusips(Number.isFinite(limit) && limit > 0 ? limit : 1000);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("13f.resolve.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("resolve_tickers_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Self-maintained CUSIP→ticker mapping (manual override / supplement to OpenFIGI).
+// Resolved at read time, so adding one enriches existing snapshots immediately.
+app.post("/13f/cusip-map", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const cusip = String(body.cusip ?? "").trim();
+  const ticker = String(body.ticker ?? "").trim();
+  if (!cusip || !ticker) return c.json(fail("bad_request", "cusip and ticker required"), 400);
+  try {
+    const res = await setCusipMapping(cusip, ticker, typeof body.name === "string" ? body.name : undefined);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("13f.cusip.map.failed", { cusip, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("cusip_map_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
 
 // Reference valuation (System A) — deterministic, no LLM. Lives in data (moved
 // from alpha): it's computed from data-owned marketdata caches. alpha fetches it

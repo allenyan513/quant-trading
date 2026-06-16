@@ -46,5 +46,8 @@ export const {
   holdingsNavHistory,
   holdingsTrades,
   holdingsPositions,
+  thirteenFFilers,
+  thirteenFHoldings,
+  thirteenFCusipMap,
   logs,
 } = schema;
