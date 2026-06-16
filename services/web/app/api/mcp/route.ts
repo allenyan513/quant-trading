@@ -111,6 +111,34 @@ const mcpHandler = createMcpHandler(
   { basePath: "/api" },
 );
 
-// No auth: only public market-data tools are registered (get_holdings is excluded),
-// so the endpoint is safe to leave open for claude.ai custom connectors.
-export { mcpHandler as GET, mcpHandler as POST, mcpHandler as DELETE };
+// No auth (only public market-data tools — get_holdings is excluded), so it's safe
+// to leave open for claude.ai connectors. But open + DB-backed ⇒ blunt scraping/DoS
+// with a lightweight per-IP fixed-window rate limit (no deps). In-memory ⇒ per Cloud
+// Run instance; pair with `gcloud run ... --max-instances` (hard cost ceiling) +
+// Cloud Armor for robust distributed limiting. Tune via MCP_RATE_PER_MIN.
+const RATE_MAX = Number(process.env.MCP_RATE_PER_MIN ?? "60");
+const RATE_WINDOW_MS = 60_000;
+const hits = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimited(req: Request): boolean {
+  if (!(RATE_MAX > 0)) return false; // 0/invalid disables the limiter
+  const now = Date.now();
+  if (hits.size > 5000) for (const [k, v] of hits) if (now >= v.resetAt) hits.delete(k); // prune
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]!.trim() || "unknown";
+  const e = hits.get(ip);
+  if (!e || now >= e.resetAt) {
+    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  e.count += 1;
+  return e.count > RATE_MAX;
+}
+
+async function handler(req: Request): Promise<Response> {
+  if (rateLimited(req)) {
+    return Response.json({ error: "rate_limited", message: "too many requests" }, { status: 429 });
+  }
+  return mcpHandler(req);
+}
+
+export { handler as GET, handler as POST, handler as DELETE };
