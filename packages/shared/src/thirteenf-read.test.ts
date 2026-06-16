@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { matchFiler, type FilerRef, type HoldingRow } from "@qt/shared/thirteenf-read";
-import type { HoldingChange } from "@qt/shared/thirteenf";
-import { changePct, splitActivity, summarize, quarterLabel } from "./thirteenf.js";
+import {
+  matchFiler,
+  changePct,
+  splitActivity,
+  summarize,
+  quarterLabel,
+  type FilerRef,
+  type HoldingRow,
+} from "./thirteenf-read.js";
+import type { HoldingChange } from "./thirteenf.js";
 
 // ───────────────────────── matchFiler (CIK or name/label resolution) ─────────────────────────
 

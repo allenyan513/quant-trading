@@ -11,17 +11,20 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@modelcontextprotocol/sdk": "1.26.0",
     "@neondatabase/serverless": "^0.10.4",
     "@qt/shared": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.7",
     "lightweight-charts": "^5.0.0",
+    "mcp-handler": "^1.1.0",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "swr": "^2.3.0",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

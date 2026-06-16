@@ -260,3 +260,55 @@ export async function resolveFiler(db: ReadDb, query: string): Promise<ResolveRe
     .where(eq(thirteenFFilers.active, true));
   return matchFiler(filers, query);
 }
+
+// ───────────────────────── pure transforms (MCP export shaping; unit-tested) ─────────────────────────
+
+const r2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** "2026-03-31" → "Q1 2026". */
+export function quarterLabel(q: string | null): string | null {
+  if (!q) return null;
+  const [y, m] = q.split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) return null;
+  return `Q${Math.ceil(m / 3)} ${y}`;
+}
+
+/** Share change vs prior quarter, %. new→null (no prior), exited→-100, held→0. */
+export function changePct(h: HoldingRow): number | null {
+  if (h.change === "new") return null;
+  if (h.change === "exited") return -100;
+  if (h.prevShares <= 0) return null;
+  return r2(((h.shares - h.prevShares) / h.prevShares) * 100);
+}
+
+/** Split diffed holdings into current positions, buys (new+added), sells (trimmed+exited). */
+export function splitActivity(holdings: HoldingRow[]): { current: HoldingRow[]; buys: HoldingRow[]; sells: HoldingRow[] } {
+  return {
+    current: holdings.filter((h) => h.change !== "exited"),
+    buys: holdings.filter((h) => h.change === "new" || h.change === "added"),
+    sells: holdings.filter((h) => h.change === "trimmed" || h.change === "exited"),
+  };
+}
+
+/** Per-change counts + current position count/value. positions = new+added+held+trimmed. */
+export function summarize(holdings: HoldingRow[]): {
+  positions: number;
+  portfolioValue: number;
+  newCount: number;
+  addedCount: number;
+  heldCount: number;
+  trimmedCount: number;
+  exitedCount: number;
+} {
+  const current = holdings.filter((h) => h.change !== "exited");
+  const cnt = (c: string): number => holdings.filter((h) => h.change === c).length;
+  return {
+    positions: current.length,
+    portfolioValue: current.reduce((s, h) => s + h.value, 0),
+    newCount: cnt("new"),
+    addedCount: cnt("added"),
+    heldCount: cnt("held"),
+    trimmedCount: cnt("trimmed"),
+    exitedCount: cnt("exited"),
+  };
+}

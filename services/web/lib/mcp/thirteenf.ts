@@ -1,12 +1,22 @@
 /**
  * 13F export for the MCP tools: list tracked legendary investors, and one
  * investor's holdings + this-quarter buys/sells. Reads via the shared 13F queries
- * (`@qt/shared/thirteenf-read`, same data the dashboard shows) and shapes a
- * compact, LLM-friendly JSON. Read-only; 13F is public SEC data (~45-day lag,
- * quarterly). The pure transforms (split/summarize/shape) are exported for tests.
+ * (`@qt/shared/thirteenf-read`) and shapes compact, LLM-friendly JSON. Read-only.
+ * Pure transforms (split/summarize/changePct/quarterLabel) live in the shared
+ * module (unit-tested there); this file does the DB read + response assembly.
  */
-import { db } from "@qt/shared";
-import { list13fFilers, list13fHoldings, resolveFiler, type FilerSummary, type HoldingRow } from "@qt/shared/thirteenf-read";
+import { db } from "@/lib/db";
+import {
+  list13fFilers,
+  list13fHoldings,
+  resolveFiler,
+  changePct,
+  splitActivity,
+  summarize,
+  quarterLabel,
+  type FilerSummary,
+  type HoldingRow,
+} from "@qt/shared/thirteenf-read";
 
 export const THIRTEENF_SECTIONS = ["summary", "holdings", "buys", "sells"] as const;
 export type ThirteenFSection = (typeof THIRTEENF_SECTIONS)[number];
@@ -19,22 +29,6 @@ const NOTE =
 
 const today = (): string => new Date().toISOString().slice(0, 10);
 const r2 = (n: number): number => Math.round(n * 100) / 100;
-
-/** "2026-03-31" → "Q1 2026". */
-export function quarterLabel(q: string | null): string | null {
-  if (!q) return null;
-  const [y, m] = q.split("-").map(Number);
-  if (!y || !m || m < 1 || m > 12) return null;
-  return `Q${Math.ceil(m / 3)} ${y}`;
-}
-
-/** Share change vs prior quarter, %. new→null (no prior), exited→-100, held→0. */
-export function changePct(h: HoldingRow): number | null {
-  if (h.change === "new") return null;
-  if (h.change === "exited") return -100;
-  if (h.prevShares <= 0) return null;
-  return r2(((h.shares - h.prevShares) / h.prevShares) * 100);
-}
 
 function shapeHolding(h: HoldingRow) {
   return {
@@ -49,30 +43,6 @@ function shapeHolding(h: HoldingRow) {
     change: h.change,
     changePct: changePct(h),
     prevShares: h.prevShares,
-  };
-}
-
-/** Split a filer's diffed holdings into current positions, buys (new+added), sells (trimmed+exited). */
-export function splitActivity(holdings: HoldingRow[]) {
-  return {
-    current: holdings.filter((h) => h.change !== "exited"),
-    buys: holdings.filter((h) => h.change === "new" || h.change === "added"),
-    sells: holdings.filter((h) => h.change === "trimmed" || h.change === "exited"),
-  };
-}
-
-/** Per-change counts + current position count/value. positions = new+added+held+trimmed. */
-export function summarize(holdings: HoldingRow[]) {
-  const current = holdings.filter((h) => h.change !== "exited");
-  const cnt = (c: string): number => holdings.filter((h) => h.change === c).length;
-  return {
-    positions: current.length,
-    portfolioValue: current.reduce((s, h) => s + h.value, 0),
-    newCount: cnt("new"),
-    addedCount: cnt("added"),
-    heldCount: cnt("held"),
-    trimmedCount: cnt("trimmed"),
-    exitedCount: cnt("exited"),
   };
 }
 

@@ -79,9 +79,8 @@ export const config = {
    *  GitHub Actions). Empty (local dev) = open; set in prod so only the cron can
    *  trigger jobs. Partial fix for #24 (full service-to-service auth is separate). */
   jobToken: () => optionalEnv("JOB_TOKEN", ""),
-  /** Optional bearer guarding the public /mcp endpoint. Empty = open (read-only
-   *  research data); set to require `Authorization: Bearer <MCP_TOKEN>`. */
-  mcpToken: () => optionalEnv("MCP_TOKEN", ""),
+  // (mcpToken removed — the MCP endpoint moved to services/web, which reads
+  //  process.env.MCP_TOKEN directly per the web env rules.)
 
   // ---- Portfolio construction (T7) deterministic sizing params ----
   /** Total paper capital (USD). Only scales notional, not weight logic. */
