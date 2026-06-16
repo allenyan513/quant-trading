@@ -10,6 +10,7 @@
     "./fmp": "./src/fmp.ts",
     "./edgar": "./src/edgar.ts",
     "./thirteenf": "./src/thirteenf.ts",
+    "./thirteenf-read": "./src/thirteenf-read.ts",
     "./openfigi": "./src/openfigi.ts",
     "./http": "./src/http.ts",
     "./config": "./src/config.ts",

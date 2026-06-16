@@ -2,13 +2,13 @@ import Link from "next/link";
 import { list13fFilers } from "@/lib/queries";
 import { PageTitle } from "@/components/page-title";
 import { Badge } from "@/components/ui";
-import { formatLargeNumber, fmtQuarter } from "@/lib/format";
+import { fmtMoney, fmtQuarter, fmtDay } from "@/lib/format";
 
 // Reads the DB per request (latest filed quarter per manager); never statically
 // prerendered at build time (no DATABASE_URL then).
 export const dynamic = "force-dynamic";
 
-const GRID = "minmax(220px, 1fr) 120px 110px 150px";
+const GRID = "minmax(180px, 1fr) 88px 124px 84px 180px";
 
 /**
  * Legends 13F — the tracked roster of well-known managers as a list, each row a
@@ -35,8 +35,8 @@ export default async function LegendsPage() {
         Legends 13F
       </PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
-        Quarterly holdings parsed from SEC 13F filings. Sync via <code>POST /13f/sync</code> (data);
-        13F lands ~45 days after quarter end.
+        Quarterly holdings parsed from SEC 13F filings, newest filing first. Sync via{" "}
+        <code>POST /13f/sync</code> (data); 13F lands ~45 days after quarter end.
       </p>
 
       {filers.length === 0 ? (
@@ -48,6 +48,7 @@ export default async function LegendsPage() {
           <div style={{ display: "grid", gridTemplateColumns: GRID, borderBottom: "1px solid var(--border)" }}>
             <div style={head}>Manager</div>
             <div style={head}>Quarter</div>
+            <div style={head}>Filed</div>
             <div style={{ ...head, justifyContent: "flex-end" }}>Positions</div>
             <div style={{ ...head, justifyContent: "flex-end" }}>Value</div>
           </div>
@@ -71,11 +72,12 @@ export default async function LegendsPage() {
               <div style={{ ...cell, color: "var(--muted)", whiteSpace: "nowrap" }}>
                 {f.latestQuarter ? fmtQuarter(f.latestQuarter) : "no filing"}
               </div>
+              <div style={{ ...cell, color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtDay(f.filedAt)}</div>
               <div style={{ ...cell, justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
                 {f.latestQuarter ? f.positions.toLocaleString() : "—"}
               </div>
               <div style={{ ...cell, justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>
-                {f.latestQuarter ? formatLargeNumber(f.totalValue) : "—"}
+                {f.latestQuarter ? fmtMoney(f.totalValue) : "—"}
               </div>
             </Link>
           ))}

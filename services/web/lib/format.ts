@@ -83,6 +83,19 @@ export function fmtQuarter(q: string | null | undefined): string {
 }
 
 /**
+ * Calendar date from a `YYYY-MM-DD` string (a Postgres `date`), parsed from the
+ * parts — NOT `new Date()` — so it never shifts across a timezone. "2026-05-15"
+ * → "May 15, 2026". Returns "—" for nullish/malformed input.
+ */
+export function fmtDay(d: string | null | undefined): string {
+  if (!d) return "—";
+  const [y, m, day] = d.split("-").map(Number);
+  if (!y || !m || !day || m < 1 || m > 12) return "—";
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${MONTHS[m - 1]} ${day}, ${y}`;
+}
+
+/**
  * Full precise timestamp for detail panels / timelines:
  * "May 20, 2026, 23:30:45 GMT-7" — year/month/day, seconds, and timezone.
  */

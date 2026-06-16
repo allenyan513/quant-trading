@@ -17,9 +17,6 @@ import {
   holdingsNavHistory,
   holdingsTrades,
   holdingsPositions,
-  thirteenFFilers,
-  thirteenFHoldings,
-  thirteenFCusipMap,
   valuationSnapshots,
   dailyPrices,
   incomeStatement,
@@ -41,7 +38,7 @@ import {
   getFinancials as sharedGetFinancials,
 } from "@qt/shared/research";
 import { config, metrics, type DailyReturn } from "@qt/shared";
-import { diffHoldings, type Holding13F, type HoldingChange } from "@qt/shared/thirteenf";
+import * as shared13f from "@qt/shared/thirteenf-read";
 
 const SERVICES = ["data", "alpha", "portfolio"] as const;
 const STUCK_MINUTES = 5;
@@ -692,143 +689,11 @@ export async function listHoldingsTrades(opts: HoldingsTradeOpts = {}) {
     .offset(Math.max(0, opts.offset ?? 0));
 }
 
-// ---- 13F — legendary investor quarterly holdings (read-only; see #99) ----
+// ---- 13F — legendary investor quarterly holdings (read-only; see #99). The read
+// logic lives in @qt/shared/thirteenf-read (one source, shared with data's MCP
+// endpoint); these wrappers just inject web's db(). ----
+export type { FilerSummary, FilerHeader, HoldingRow, FilerHoldings } from "@qt/shared/thirteenf-read";
 
-export interface FilerSummary {
-  cik: string;
-  name: string;
-  label: string | null;
-  latestQuarter: string | null;
-  positions: number;
-  totalValue: number;
-}
-
-/** Tracked managers + a snapshot of their latest filed quarter (position count +
- *  total reported value). Filers with no holdings yet show nulls/zeros. */
-export async function list13fFilers(): Promise<FilerSummary[]> {
-  const [filers, groups] = await Promise.all([
-    db()
-      .select({ cik: thirteenFFilers.cik, name: thirteenFFilers.name, label: thirteenFFilers.label })
-      .from(thirteenFFilers)
-      .where(eq(thirteenFFilers.active, true))
-      .orderBy(thirteenFFilers.addedAt),
-    db()
-      .select({
-        cik: thirteenFHoldings.cik,
-        quarter: thirteenFHoldings.quarter,
-        positions: count(),
-        totalValue: sql<number>`sum(${thirteenFHoldings.value})`,
-      })
-      .from(thirteenFHoldings)
-      .groupBy(thirteenFHoldings.cik, thirteenFHoldings.quarter),
-  ]);
-  // Keep each filer's most recent quarter only.
-  const latest = new Map<string, { quarter: string; positions: number; totalValue: number }>();
-  for (const g of groups) {
-    const cur = latest.get(g.cik);
-    if (!cur || g.quarter > cur.quarter) {
-      latest.set(g.cik, { quarter: g.quarter, positions: Number(g.positions), totalValue: Number(g.totalValue) });
-    }
-  }
-  return filers.map((f) => {
-    const l = latest.get(f.cik);
-    return {
-      cik: f.cik,
-      name: f.name,
-      label: f.label,
-      latestQuarter: l?.quarter ?? null,
-      positions: l?.positions ?? 0,
-      totalValue: l?.totalValue ?? 0,
-    };
-  });
-}
-
-export interface HoldingRow {
-  cusip: string;
-  ticker: string | null;
-  issuerName: string;
-  titleOfClass: string | null;
-  putCall: string;
-  value: number;
-  shares: number;
-  prevShares: number;
-  change: HoldingChange;
-}
-
-export interface FilerHoldings {
-  cik: string;
-  name: string | null;
-  quarter: string | null;
-  prevQuarter: string | null;
-  holdings: HoldingRow[];
-}
-
-/** One manager's latest-quarter holdings, each tagged with its quarter-over-quarter
- *  change (new/added/trimmed/held, plus exited names from the prior quarter).
- *  Tickers resolved via the self-maintained CUSIP map (null when unmapped). */
-export async function list13fHoldings(cikRaw: string): Promise<FilerHoldings> {
-  const cik = cikRaw.replace(/\D/g, "").padStart(10, "0");
-  const [filer] = await db()
-    .select({ name: thirteenFFilers.name })
-    .from(thirteenFFilers)
-    .where(eq(thirteenFFilers.cik, cik));
-  const quarters = await db()
-    .selectDistinct({ quarter: thirteenFHoldings.quarter })
-    .from(thirteenFHoldings)
-    .where(eq(thirteenFHoldings.cik, cik))
-    .orderBy(desc(thirteenFHoldings.quarter))
-    .limit(2);
-  if (quarters.length === 0) {
-    return { cik, name: filer?.name ?? null, quarter: null, prevQuarter: null, holdings: [] };
-  }
-  const currQ = quarters[0]!.quarter;
-  const prevQ = quarters[1]?.quarter ?? null;
-
-  const rowsFor = async (q: string): Promise<Holding13F[]> => {
-    const rows = await db()
-      .select()
-      .from(thirteenFHoldings)
-      .where(and(eq(thirteenFHoldings.cik, cik), eq(thirteenFHoldings.quarter, q)));
-    return rows.map((r) => ({
-      cusip: r.cusip,
-      issuerName: r.issuerName,
-      titleOfClass: r.titleOfClass ?? "",
-      value: r.value,
-      shares: r.shares,
-      putCall: r.putCall,
-    }));
-  };
-
-  const [curr, prev] = await Promise.all([rowsFor(currQ), prevQ ? rowsFor(prevQ) : Promise.resolve([])]);
-  const deltas = diffHoldings(curr, prev);
-
-  // titleOfClass isn't carried in the delta — recover it from the current rows.
-  const titleByKey = new Map(curr.map((h) => [`${h.cusip}|${h.putCall}`, h.titleOfClass]));
-  // Resolve tickers from the self-maintained CUSIP map.
-  const cusips = [...new Set(deltas.map((d) => d.cusip))];
-  const tickerByCusip = new Map<string, string>();
-  if (cusips.length) {
-    const maps = await db()
-      .select({ cusip: thirteenFCusipMap.cusip, ticker: thirteenFCusipMap.ticker })
-      .from(thirteenFCusipMap)
-      .where(inArray(thirteenFCusipMap.cusip, cusips));
-    for (const m of maps) if (m.ticker) tickerByCusip.set(m.cusip, m.ticker); // skip null tombstones
-  }
-
-  const holdings: HoldingRow[] = deltas
-    .map((d) => ({
-      cusip: d.cusip,
-      ticker: tickerByCusip.get(d.cusip) ?? null,
-      issuerName: d.issuerName,
-      titleOfClass: titleByKey.get(`${d.cusip}|${d.putCall}`) || null,
-      putCall: d.putCall,
-      value: d.value,
-      shares: d.shares,
-      prevShares: d.prevShares,
-      change: d.change,
-    }))
-    // Largest current position first; exited names (value 0) sink to the bottom.
-    .sort((a, b) => b.value - a.value);
-
-  return { cik, name: filer?.name ?? null, quarter: currQ, prevQuarter: prevQ, holdings };
-}
+export const list13fFilers = () => shared13f.list13fFilers(db());
+export const get13fFilerHeader = (cik: string) => shared13f.get13fFilerHeader(db(), cik);
+export const list13fHoldings = (cik: string) => shared13f.list13fHoldings(db(), cik);
