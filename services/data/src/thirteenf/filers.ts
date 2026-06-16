@@ -121,6 +121,9 @@ export async function ensureFilersSeeded(): Promise<void> {
 
 export async function addFiler(input: FilerInput): Promise<{ cik: string }> {
   const cik = normCik(input.cik);
+  // Reject a CIK with no digits — normCik would otherwise write the all-zero
+  // sentinel "0000000000" and pollute the roster with a junk filer.
+  if (cik === "0000000000") throw new Error(`invalid CIK (no digits): ${input.cik}`);
   await db()
     .insert(thirteenFFilers)
     .values({ cik, name: input.name, label: input.label })

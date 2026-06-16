@@ -51,8 +51,14 @@ async function upsertQuarter(cik: string, q: Quarter13F): Promise<number> {
 /** Sync one filer: pull the latest `quarters` filings, upsert each. Best-effort
  *  (a filer with no filings / parse failure logs + yields zero, never throws). */
 export async function sync13FForFiler(cik: string, quarters = 2): Promise<{ cik: string; quarters: number; rows: number }> {
-  const padded = padCik(Number(cik));
-  const filings = await fetchLatest13F(Number(cik), quarters);
+  const digits = String(cik).replace(/\D/g, "");
+  if (!digits) {
+    // No digits → Number() would be NaN → padCik("0000000NaN") → bogus SEC request.
+    log.warn("13f.sync.invalid_cik", { cik });
+    return { cik, quarters: 0, rows: 0 };
+  }
+  const padded = padCik(Number(digits));
+  const filings = await fetchLatest13F(Number(digits), quarters);
   if (!filings || filings.length === 0) {
     log.warn("13f.sync.empty", { cik: padded });
     return { cik: padded, quarters: 0, rows: 0 };

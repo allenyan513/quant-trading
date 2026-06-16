@@ -40,23 +40,24 @@ export async function secGet<T>(url: string, accept = "application/json"): Promi
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await throttle();
-    let resp: Response;
     try {
-      resp = await fetch(url, { headers: { "User-Agent": config.secUserAgent(), Accept: accept } });
+      const resp = await fetch(url, { headers: { "User-Agent": config.secUserAgent(), Accept: accept } });
+      if (resp.status === 404) return null; // no such resource — soft
+      if (resp.status === 429 || resp.status >= 500) {
+        if (attempt === maxAttempts - 1) throw new SecError(`SEC ${resp.status} for ${url}`);
+        await sleep(2 ** attempt * 500);
+        continue;
+      }
+      if (!resp.ok) throw new SecError(`SEC ${resp.status} for ${url}`);
+      const isJson = accept.includes("json");
+      // Parse the body INSIDE the try so a malformed/empty 200 retries (via the
+      // catch) rather than throwing a bare SyntaxError that aborts the sync.
+      return (isJson ? await resp.json() : await resp.text()) as T;
     } catch (err) {
+      if (err instanceof SecError) throw err; // terminal HTTP error (4xx) — don't retry
       if (attempt === maxAttempts - 1) throw new SecError(`SEC fetch failed: ${err instanceof Error ? err.message : String(err)}`);
-      await sleep(2 ** attempt * 500);
-      continue;
+      await sleep(2 ** attempt * 500); // network or body-parse error — back off + retry
     }
-    if (resp.status === 404) return null; // no such resource — soft
-    if (resp.status === 429 || resp.status >= 500) {
-      if (attempt === maxAttempts - 1) throw new SecError(`SEC ${resp.status} for ${url}`);
-      await sleep(2 ** attempt * 500);
-      continue;
-    }
-    if (!resp.ok) throw new SecError(`SEC ${resp.status} for ${url}`);
-    const isJson = accept.includes("json");
-    return (isJson ? await resp.json() : await resp.text()) as T;
   }
   return null;
 }

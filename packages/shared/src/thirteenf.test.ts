@@ -44,6 +44,20 @@ describe("find13FFilings", () => {
     expect(find13FFilings({})).toEqual([]);
     expect(find13FFilings({ filings: { recent: {} } })).toEqual([]);
   });
+
+  it("skips a filing with an empty filingDate (would make known_at Invalid)", () => {
+    const f = find13FFilings({
+      filings: {
+        recent: {
+          accessionNumber: ["a-1", "a-2"],
+          form: ["13F-HR", "13F-HR"],
+          reportDate: ["2025-03-31", "2024-12-31"],
+          filingDate: ["2025-05-15", ""],
+        },
+      },
+    });
+    expect(f.map((x) => x.accessionNumber)).toEqual(["a-1"]);
+  });
 });
 
 describe("latestPerPeriod", () => {
@@ -78,9 +92,18 @@ describe("pickInfoTableDoc", () => {
     expect(pickInfoTableDoc({ directory: { item: [{ name: "a.txt" }] } })).toBeNull();
     expect(pickInfoTableDoc({})).toBeNull();
   });
+  it("tolerates items missing a name without throwing", () => {
+    const doc = pickInfoTableDoc({ directory: { item: [{} as { name: string }, { name: "infotable.xml" }] } });
+    expect(doc).toBe("infotable.xml");
+  });
 });
 
 describe("parseInfoTable", () => {
+  it("returns [] for empty/garbage XML without throwing", () => {
+    expect(parseInfoTable("")).toEqual([]);
+    expect(parseInfoTable("<informationTable></informationTable>")).toEqual([]);
+  });
+
   it("parses rows, preserving CUSIP leading zeros and reading shares/putCall", () => {
     const xml = `<?xml version="1.0"?>
       <informationTable>

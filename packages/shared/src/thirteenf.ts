@@ -67,7 +67,9 @@ export function find13FFilings(subs: Submissions): Filing13F[] {
     const accessionNumber = r.accessionNumber[i];
     const reportDate = r.reportDate?.[i] ?? "";
     const filingDate = r.filingDate?.[i] ?? "";
-    if (!accessionNumber || !reportDate) continue;
+    // filingDate is required: it becomes known_at (NOT NULL) and the value cutoff;
+    // an empty one would make `new Date("T00:00:00Z")` Invalid → DB write failure.
+    if (!accessionNumber || !reportDate || !filingDate) continue;
     out.push({ accessionNumber, reportDate, filingDate, form });
   }
   // Newest report period first; for the same period, newest-filed first
@@ -104,7 +106,7 @@ interface FilingIndex {
  */
 export function pickInfoTableDoc(index: FilingIndex): string | null {
   const items = index.directory?.item ?? [];
-  const xmls = items.map((i) => i.name).filter((n) => /\.xml$/i.test(n));
+  const xmls = items.map((i) => i?.name).filter((n): n is string => typeof n === "string" && /\.xml$/i.test(n));
   if (xmls.length === 0) return null;
   const named = xmls.find((n) => /info.?table|infotable|form13fInfoTable/i.test(n));
   if (named) return named;
@@ -135,7 +137,7 @@ export interface InfoTableEntry {
   putCall: string;
 }
 
-const asArray = <T>(x: T | T[] | undefined): T[] => (x === undefined ? [] : Array.isArray(x) ? x : [x]);
+const asArray = <T>(x: T | T[] | null | undefined): T[] => (x == null ? [] : Array.isArray(x) ? x : [x]);
 const str = (x: unknown): string => (x == null ? "" : String(x).trim());
 const num = (x: unknown): number => {
   const n = Number(str(x).replace(/,/g, ""));
@@ -148,11 +150,12 @@ const num = (x: unknown): number => {
  * single-row table (fast-xml-parser yields an object, not an array, for one row).
  */
 export function parseInfoTable(xml: string): InfoTableEntry[] {
-  const doc = parser.parse(xml) as Record<string, unknown>;
-  const table = (doc.informationTable ?? doc.infoTable ?? doc) as Record<string, unknown>;
-  const rows = asArray((table.infoTable ?? table) as unknown) as Record<string, unknown>[];
+  const doc = parser.parse(xml) as Record<string, unknown> | null;
+  const table = (doc?.informationTable ?? doc?.infoTable ?? doc) as Record<string, unknown> | null;
+  const rows = asArray((table?.infoTable ?? table) as unknown) as Record<string, unknown>[];
   const out: InfoTableEntry[] = [];
   for (const row of rows) {
+    if (!row || typeof row !== "object") continue; // tolerate null/empty parsed tags
     const cusip = str(row.cusip);
     if (!cusip) continue; // not an info-table row
     const amt = (row.shrsOrPrnAmt ?? {}) as Record<string, unknown>;
