@@ -23,8 +23,6 @@ import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } f
 import { addFiler } from "./thirteenf/filers.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
-import { StreamableHTTPTransport } from "@hono/mcp";
-import { buildMcpServer } from "./mcp/server.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -42,19 +40,8 @@ const jobAuth: MiddlewareHandler = async (c, next) => {
 };
 app.use("/jobs/*", jobAuth);
 
-// MCP endpoint (Streamable HTTP) — lets Claude pull a symbol's research bundle via
-// the get_symbol_research tool (proxies web's read-only /api/*). Stateless: a fresh
-// server + transport per request. Open unless MCP_TOKEN is set.
-app.all("/mcp", async (c) => {
-  const tok = config.mcpToken();
-  if (tok && c.req.header("authorization") !== `Bearer ${tok}`) {
-    return c.json(fail("unauthorized", "invalid or missing mcp token"), 401);
-  }
-  const server = buildMcpServer();
-  const transport = new StreamableHTTPTransport();
-  await server.connect(transport);
-  return (await transport.handleRequest(c)) ?? c.body(null, 204);
-});
+// (The MCP endpoint moved to services/web — web is the sole public ingress; data
+// is internal. See services/web/app/api/[transport]/route.ts.)
 
 // Fallback window for explicit/partial overrides and the scanner.
 function defaultWindow(): { from: string; to: string } {

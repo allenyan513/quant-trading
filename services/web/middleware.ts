@@ -3,14 +3,17 @@ import { COOKIE_NAME, verifySession } from "@/lib/auth";
 
 /**
  * Guards every page and API route. Unauthenticated requests are redirected to
- * /login (pages) or rejected with 401 (API). /login and the login API are open.
+ * /login (pages) or rejected with 401 (API). /login and the login API are open;
+ * /api/mcp is open here too — it uses a bearer token (MCP_TOKEN), not the dashboard
+ * session cookie, and does its own auth inside the route.
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isLoginPage = pathname === "/login";
   const isLoginApi = pathname === "/api/login";
-  if (isLoginPage || isLoginApi) return NextResponse.next();
+  const isMcp = pathname === "/api/mcp"; // bearer-gated in the route, not cookie-gated
+  if (isLoginPage || isLoginApi || isMcp) return NextResponse.next();
 
   const ok = await verifySession(req.cookies.get(COOKIE_NAME)?.value);
   if (ok) return NextResponse.next();

@@ -28,4 +28,5 @@ paths:
 ## 导航与归属
 
 - 导航单一真源 `lib/subsystems.ts`：每个页面归属**拥有其数据的子系统**（`PageTitle` 的 subsystem chip 体现）。新页面加进对应子系统的 `pages` 数组——**顺序即渲染顺序**。
-- 鉴权：单密码 cookie（`DASHBOARD_PASSWORD`，本地 `123456`），`middleware.ts` 守卫除 `/login`/`/api/login` 外的全部路由；`useLive` 的 fetcher 收到 401 自动跳 `/login`。
+- 鉴权：单密码 cookie（`DASHBOARD_PASSWORD`，本地 `123456`），`middleware.ts` 守卫除 `/login`/`/api/login`/`/api/mcp` 外的全部路由；`useLive` 的 fetcher 收到 401 自动跳 `/login`。
+- **MCP 端点**（`app/api/mcp/route.ts` → `/api/mcp`）：web 是唯一公网入口,也对第三方 LLM 托管 MCP（`mcp-handler`，streamable HTTP）。它**不走 cookie**、自己用 bearer `process.env.MCP_TOKEN` 门控（**fail-closed**：不设=503），故 middleware 放行；工具直读只读 DB（复用 `@qt/shared/research`、`@qt/shared/thirteenf-read`，注入 `lib/db.ts` 的 `db()`），**不回调 data**——MCP 全只读,与"web 只读 DB"一致。

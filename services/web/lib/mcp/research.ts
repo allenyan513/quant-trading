@@ -1,22 +1,14 @@
 /**
- * Symbol research bundle for the MCP tool. Reads the DB directly via the shared
- * read queries (`@qt/shared/research`) — the same data the dashboard shows — then
- * COMPACTS each section for an LLM consumer: the dashboard needs the full raw FMP
- * jsonb + the entire per-model valuation `detail`, but returning all of that here
- * blows the context (a full bundle was ~500 KB). We keep the decision-relevant
- * fields and drop the heavy internals (per-model assumptions, valuation pillars,
- * 400-bar history, raw news bodies). Each section is best-effort: a failure is
- * reported in `errors` (and logged), not fatal to the whole bundle.
+ * Symbol research bundle for the MCP `get_symbol_research` tool. Reads the DB
+ * directly via the shared read queries (`@qt/shared/research`) — the same data the
+ * dashboard shows — then COMPACTS each section for an LLM consumer (drop the heavy
+ * internals: per-model assumptions, valuation pillars, 400-bar history, raw news
+ * bodies). Each section is best-effort: a failure is reported in `errors`, not
+ * fatal. Moved from services/data so the MCP endpoint lives on web (the sole public
+ * ingress); web reads the read-only DB just like every dashboard page.
  */
-import { db } from "@qt/shared";
-import {
-  getLatestValuation,
-  getFinancials,
-  getPrices,
-  getAnalystsData,
-  getSymbolNews,
-} from "@qt/shared/research";
-import { log } from "../log.js";
+import { db } from "@/lib/db";
+import { getLatestValuation, getFinancials, getPrices, getAnalystsData, getSymbolNews } from "@qt/shared/research";
 
 export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts"] as const;
 export type ResearchSection = (typeof RESEARCH_SECTIONS)[number];
@@ -123,10 +115,7 @@ export interface SymbolResearch {
 }
 
 /** Fetch a symbol's compact research bundle. `sections` defaults to all (deduped). */
-export async function getSymbolResearch(
-  symbol: string,
-  sections?: ResearchSection[],
-): Promise<SymbolResearch> {
+export async function getSymbolResearch(symbol: string, sections?: ResearchSection[]): Promise<SymbolResearch> {
   const sym = symbol.trim().toUpperCase();
   const wanted = Array.from(new Set(sections?.length ? sections : RESEARCH_SECTIONS));
 
@@ -139,7 +128,7 @@ export async function getSymbolResearch(
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors[s] = msg;
-        log.warn("mcp.fetch_section_failed", { symbol: sym, section: s, error: msg });
+        console.warn("mcp.fetch_section_failed", { symbol: sym, section: s, error: msg });
       }
     }),
   );

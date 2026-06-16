@@ -1,14 +1,20 @@
 /**
  * Holdings export for the MCP `get_holdings` tool — reads the data_holdings_*
- * tables (the operator's real IBKR account) directly and returns a compact,
- * LLM-friendly JSON: current positions, recent trades, and performance (NAV
- * index + KPIs vs SPY). Mirrors the dashboard's read logic but trims to the
- * decision-relevant fields. Read-only; data owns these tables.
+ * tables (the operator's real IBKR account) and returns a compact, LLM-friendly
+ * JSON: current positions, recent trades, performance (NAV index + KPIs vs SPY).
+ * Read-only. Moved from services/data so MCP lives on web; web reads the read-only
+ * DB directly (the dashboard already reads these same tables).
  */
 import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { db, dbSchema, config, metrics, type DailyReturn } from "@qt/shared";
+import { db } from "@/lib/db";
+import { dbSchema, config, metrics, type DailyReturn } from "@qt/shared";
 
 const { holdingsAccounts, holdingsNavHistory, holdingsTrades, holdingsPositions, dailyPrices } = dbSchema;
+
+// Risk-free rate read statically (Next only inlines static process.env access; a
+// dynamic config.riskFreeRate() would read empty in a route handler). Falls back
+// to the same default config uses.
+const riskFreeRate = (): number => Number(process.env.RISK_FREE_RATE ?? "0.043");
 
 export const HOLDINGS_SECTIONS = ["performance", "positions", "trades"] as const;
 export type HoldingsSection = (typeof HOLDINGS_SECTIONS)[number];
@@ -45,7 +51,7 @@ async function computePerformance(accountId: string) {
 
   const first = navRows[0]!;
   const last = navRows[navRows.length - 1]!;
-  const rf = config.riskFreeRate();
+  const rf = riskFreeRate();
   const portReturns: DailyReturn[] = navRows.map((r) => ({ date: r.date, r: r.dailyReturn }));
   const navSeries = navRows.map((r) => ({ date: r.date, nav: r.navIndex }));
   const spyRows = await db()
