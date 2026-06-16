@@ -1,18 +1,22 @@
 /**
- * MCP endpoint (Model Context Protocol over streamable HTTP) — the system's sole
- * public data outlet for third-party LLMs. Lives on web (the only public ingress);
- * tools read the read-only DB directly via shared queries (same as the dashboard),
- * so there's no internal HTTP hop back to data. Hosted via `mcp-handler` at
- * /api/mcp. Bearer-gated by MCP_TOKEN (fail-closed: no token configured → disabled),
- * because one tool (get_holdings) exposes the operator's real brokerage account.
+ * MCP endpoint (Model Context Protocol over streamable HTTP) — the system's public
+ * data outlet for third-party LLMs. Lives on web (the only public ingress); tools
+ * read the read-only DB directly via shared queries (same as the dashboard), so
+ * there's no internal HTTP hop back to data. Hosted via `mcp-handler` at /api/mcp.
  *
- * Tools: get_symbol_research · get_holdings · list_13f_investors · get_13f_investor.
+ * OPEN (no auth) so it works as a claude.ai custom connector — those accept only
+ * OAuth or no-auth, NOT a static bearer header. Therefore only PUBLIC market data
+ * is exposed: get_symbol_research + the two 13F tools (all from SEC/public sources).
+ * get_holdings (the operator's REAL brokerage account) is deliberately NOT
+ * registered here — an open endpoint would publish private positions to anyone with
+ * the URL. Re-add it only behind real auth (OAuth), or serve it from a separate
+ * token-gated route for Claude Desktop/Code. (Export logic kept in lib/mcp/holdings.ts.)
+ *
+ * Tools: get_symbol_research · list_13f_investors · get_13f_investor.
  */
 import { createMcpHandler } from "mcp-handler";
-import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getSymbolResearch, RESEARCH_SECTIONS } from "@/lib/mcp/research";
-import { getHoldingsExport, HOLDINGS_SECTIONS } from "@/lib/mcp/holdings";
 import { getInvestorsList, getInvestorDetail, THIRTEENF_SECTIONS } from "@/lib/mcp/thirteenf";
 
 export const runtime = "nodejs";
@@ -41,38 +45,6 @@ const mcpHandler = createMcpHandler(
       },
       async ({ symbol, sections }) => {
         const data = await getSymbolResearch(symbol, sections);
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-      },
-    );
-
-    server.registerTool(
-      "get_holdings",
-      {
-        title: "The operator's live IBKR brokerage account",
-        description:
-          "Fetch the operator's REAL connected IBKR account (a single live brokerage account, synced " +
-          "via Flex) as structured JSON: current positions (symbol, quantity, market value, % weight, " +
-          "option greeks), recent executed trades, and performance (NAV index base-100 at inception + " +
-          "CAGR / Sharpe / Sortino / Max Drawdown / Volatility / Beta / Alpha / Info Ratio vs SPY). " +
-          "Use when the user asks about THEIR OWN portfolio: 'my holdings/positions', 'how is my " +
-          "account doing', 'my P&L / returns', 'what did I trade recently'. Distinct from " +
-          "get_symbol_research, which is public per-stock research, not the user's account.",
-        inputSchema: {
-          sections: z
-            .array(z.enum(HOLDINGS_SECTIONS))
-            .optional()
-            .describe("Limit to these sections; defaults to all (performance, positions, trades)."),
-          tradesLimit: z
-            .number()
-            .int()
-            .positive()
-            .max(200)
-            .optional()
-            .describe("Max recent trades to return (default 50, cap 200)."),
-        },
-      },
-      async ({ sections, tradesLimit }) => {
-        const data = await getHoldingsExport({ sections, tradesLimit });
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       },
     );
@@ -139,37 +111,34 @@ const mcpHandler = createMcpHandler(
   { basePath: "/api" },
 );
 
-/**
- * Match `Authorization: Bearer <token>`. The "Bearer" scheme is case-insensitive
- * (RFC 6750); the token is compared in constant time (timingSafeEqual) since this
- * gates a public endpoint.
- */
-function bearerMatches(header: string | null, token: string): boolean {
-  const m = header?.match(/^Bearer[ \t]+(.+)$/i);
-  if (!m) return false;
-  const got = Buffer.from(m[1]);
-  const want = Buffer.from(token);
-  return got.length === want.length && timingSafeEqual(got, want);
-}
+// No auth (only public market-data tools — get_holdings is excluded), so it's safe
+// to leave open for claude.ai connectors. But open + DB-backed ⇒ blunt scraping/DoS
+// with a lightweight per-IP fixed-window rate limit (no deps). In-memory ⇒ per Cloud
+// Run instance; pair with `gcloud run ... --max-instances` (hard cost ceiling) +
+// Cloud Armor for robust distributed limiting. Tune via MCP_RATE_PER_MIN.
+const RATE_MAX = Number(process.env.MCP_RATE_PER_MIN ?? "60");
+const RATE_WINDOW_MS = 60_000;
+const hits = new Map<string, { count: number; resetAt: number }>();
 
-/**
- * Bearer gate, fail-closed: MCP_TOKEN must be configured AND match, else 401/503.
- * Stricter than the old data endpoint (which was open when unset) because this now
- * hosts the operator's private brokerage account.
- */
-function deny(req: Request): Response | null {
-  const token = process.env.MCP_TOKEN;
-  if (!token) {
-    return Response.json({ error: "mcp_disabled", message: "MCP is not configured (set MCP_TOKEN)" }, { status: 503 });
+function rateLimited(req: Request): boolean {
+  if (!(RATE_MAX > 0)) return false; // 0/invalid disables the limiter
+  const now = Date.now();
+  if (hits.size > 5000) for (const [k, v] of hits) if (now >= v.resetAt) hits.delete(k); // prune
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]!.trim() || "unknown";
+  const e = hits.get(ip);
+  if (!e || now >= e.resetAt) {
+    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
   }
-  if (!bearerMatches(req.headers.get("authorization"), token)) {
-    return Response.json({ error: "unauthorized", message: "missing or invalid bearer token" }, { status: 401 });
-  }
-  return null;
+  e.count += 1;
+  return e.count > RATE_MAX;
 }
 
 async function handler(req: Request): Promise<Response> {
-  return deny(req) ?? mcpHandler(req);
+  if (rateLimited(req)) {
+    return Response.json({ error: "rate_limited", message: "too many requests" }, { status: 429 });
+  }
+  return mcpHandler(req);
 }
 
 export { handler as GET, handler as POST, handler as DELETE };
