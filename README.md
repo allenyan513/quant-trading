@@ -17,7 +17,7 @@
 - `services/data` —— 外部数据唯一接收者（v1 只做定时 pull），无 LLM
 - `services/alpha` —— 核心 LLM agent，事件 → 交易信号
 - `services/portfolio` —— `positions` 账本唯一 owner，无 LLM：记录信号 + 确定性 sizing 开仓 + 止损/止盈/到期结算平仓
-- `services/web` —— 只读监控仪表盘（Next.js）
+- `services/web` —— 只读监控仪表盘（Next.js）+ **唯一对外公网入口**；也托管 MCP 端点 `/api/mcp`（bearer `MCP_TOKEN` 门控）向第三方 LLM 吐调研/持仓/13F 数据。data/alpha/portfolio 为内部服务。
 
 ## 本地开发
 
