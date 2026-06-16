@@ -9,6 +9,7 @@
  * Tools: get_symbol_research · get_holdings · list_13f_investors · get_13f_investor.
  */
 import { createMcpHandler } from "mcp-handler";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getSymbolResearch, RESEARCH_SECTIONS } from "@/lib/mcp/research";
 import { getHoldingsExport, HOLDINGS_SECTIONS } from "@/lib/mcp/holdings";
@@ -139,6 +140,19 @@ const mcpHandler = createMcpHandler(
 );
 
 /**
+ * Match `Authorization: Bearer <token>`. The "Bearer" scheme is case-insensitive
+ * (RFC 6750); the token is compared in constant time (timingSafeEqual) since this
+ * gates a public endpoint.
+ */
+function bearerMatches(header: string | null, token: string): boolean {
+  const m = header?.match(/^Bearer[ \t]+(.+)$/i);
+  if (!m) return false;
+  const got = Buffer.from(m[1]);
+  const want = Buffer.from(token);
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
+/**
  * Bearer gate, fail-closed: MCP_TOKEN must be configured AND match, else 401/503.
  * Stricter than the old data endpoint (which was open when unset) because this now
  * hosts the operator's private brokerage account.
@@ -148,7 +162,7 @@ function deny(req: Request): Response | null {
   if (!token) {
     return Response.json({ error: "mcp_disabled", message: "MCP is not configured (set MCP_TOKEN)" }, { status: 503 });
   }
-  if (req.headers.get("authorization") !== `Bearer ${token}`) {
+  if (!bearerMatches(req.headers.get("authorization"), token)) {
     return Response.json({ error: "unauthorized", message: "missing or invalid bearer token" }, { status: 401 });
   }
   return null;
