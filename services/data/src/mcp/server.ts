@@ -1,13 +1,16 @@
 /**
- * MCP server exposing the quant-trading system's per-symbol research data to
- * Claude. One tool, `get_symbol_research`, returns the same data the dashboard
- * shows (valuation / financials / chart / news / analysts) as JSON for Claude to
- * summarize. Stateless: index.ts builds a fresh server per request.
+ * MCP server exposing the quant-trading system's data to Claude as JSON tools:
+ *   - get_symbol_research — per-symbol research (valuation/financials/chart/news/analysts)
+ *   - get_holdings        — the operator's own live IBKR account
+ *   - list_13f_investors  — tracked legendary investors (13F) + latest-quarter snapshot
+ *   - get_13f_investor    — one investor's 13F holdings + this-quarter buys/sells
+ * Stateless: index.ts builds a fresh server per request.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getSymbolResearch, RESEARCH_SECTIONS } from "./research.js";
 import { getHoldingsExport, HOLDINGS_SECTIONS } from "../holdings/export.js";
+import { getInvestorsList, getInvestorDetail, THIRTEENF_SECTIONS } from "./thirteenf.js";
 
 export function buildMcpServer(): McpServer {
   const server = new McpServer({ name: "qt-research", version: "0.1.0" });
@@ -67,6 +70,64 @@ export function buildMcpServer(): McpServer {
     },
     async ({ sections, tradesLimit }) => {
       const data = await getHoldingsExport({ sections, tradesLimit });
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    "list_13f_investors",
+    {
+      title: "List tracked legendary investors (13F)",
+      description:
+        "List the famous 'superinvestor' fund managers this system tracks from SEC 13F filings " +
+        "(Buffett, Burry, Ackman, Tepper, Tiger Global, …), each with a snapshot of their latest filed " +
+        "quarter: position count, total reported portfolio value, the quarter, and the filing date. " +
+        "Sorted newest-filed first by default. Use this to discover who's available (and get a CIK or " +
+        "name) before calling get_13f_investor. 13F is public, ~45-day-lagged quarterly data.",
+      inputSchema: {
+        sort: z
+          .enum(["recent", "value", "name"])
+          .optional()
+          .describe("Order: recent=newest 13F filing first (default), value=largest portfolio, name=A–Z."),
+        limit: z.number().int().positive().max(200).optional().describe("Max investors to return (default all, ~80)."),
+      },
+    },
+    async ({ sort, limit }) => {
+      const data = await getInvestorsList({ sort, limit });
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    "get_13f_investor",
+    {
+      title: "One legendary investor's 13F holdings + buys/sells",
+      description:
+        "Fetch one tracked investor's latest 13F as structured JSON: current holdings (ticker, issuer, " +
+        "% of portfolio, shares, reported price, value) plus this quarter's activity vs the prior quarter — " +
+        "buys (new + increased) and sells (trimmed + exited) — and a summary of counts. Use when the user " +
+        "asks what a legendary investor holds or what they bought/sold (e.g. 'what did Buffett buy this " +
+        "quarter', 'Michael Burry's portfolio'). Identify the investor by CIK or by name/label ('0001067983', " +
+        "'Buffett', 'Berkshire'); if unsure, call list_13f_investors first. Public, ~45-day-lagged quarterly data — not live.",
+      inputSchema: {
+        investor: z
+          .string()
+          .describe("CIK (e.g. 0001067983) or name/label (e.g. 'Buffett', 'Berkshire', 'Tiger Global')."),
+        topN: z
+          .number()
+          .int()
+          .positive()
+          .max(500)
+          .optional()
+          .describe("Max holdings rows (default 50; buys/sells are never truncated)."),
+        sections: z
+          .array(z.enum(THIRTEENF_SECTIONS))
+          .optional()
+          .describe("Limit to these sections; defaults to all (summary, holdings, buys, sells)."),
+      },
+    },
+    async ({ investor, topN, sections }) => {
+      const data = await getInvestorDetail(investor, { topN, sections });
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     },
   );
