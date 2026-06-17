@@ -1,4 +1,182 @@
-import type { CompanyClassification } from "./company";
+/**
+ * Valuation domain types — the single source of truth shared by the producer
+ * (services/data's deterministic valuation engine, `src/valuation/`) and the
+ * consumer (services/web's read-only dashboard). The `data_valuation_snapshots`
+ * `detail` jsonb conforms to these shapes, so both sides MUST agree on them;
+ * keeping one definition here is what stops the wire contract from drifting.
+ *
+ * Ported from legends/value-scope/src/types/{company,financial,valuation}.ts.
+ */
+
+// --- Valuation Tier ---
+export type ValuationTier = "full" | "pre_profit" | "none";
+
+// --- Company ---
+export interface Company {
+  ticker: string;
+  name: string;
+  sector: string;
+  industry: string;
+  market_cap: number;
+  beta: number;
+  price: number;
+  shares_outstanding: number;
+  exchange: string;
+  description: string;
+  logo_url: string | null;
+  updated_at: string;
+  has_valuation: boolean; // true = full valuation models available, false = basic profile only
+  valuation_tier: ValuationTier; // 'full' | 'pre_profit' | 'none'
+  reporting_currency?: string; // e.g., "DKK", "EUR" — defaults to "USD"
+  fx_rate_to_usd?: number; // conversion rate used at ingestion — defaults to 1.0
+  peer_tickers?: string[]; // cached peer tickers from resolvePeers()
+}
+
+// --- Company Classification ---
+export type CompanyArchetype =
+  | "high_growth"
+  | "profitable_growth"
+  | "mature_stable"
+  | "dividend_payer"
+  | "cyclical"
+  | "turnaround"
+  | "asset_heavy"
+  | "loss_making";
+
+export interface ModelApplicability {
+  model_type: string;
+  applicable: boolean;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+  role: "primary" | "cross_check" | "sanity_check" | "not_applicable";
+}
+
+export interface CompanyClassification {
+  archetype: CompanyArchetype;
+  label: string;
+  description: string;
+  traits: string[];
+  model_applicability: ModelApplicability[];
+}
+// --- Financial Statements ---
+export interface FinancialStatement {
+  ticker: string;
+  period: string; // "2024", "2024-Q3"
+  period_type: "annual" | "quarterly";
+  fiscal_year: number;
+  fiscal_quarter: number | null;
+
+  // Income Statement
+  revenue: number;
+  cost_of_revenue: number;
+  gross_profit: number;
+  sga_expense: number;
+  rnd_expense: number;
+  operating_income: number;
+  interest_expense: number;
+  income_before_tax: number;
+  income_tax: number;
+  net_income: number;
+  ebitda: number;
+  eps: number;
+  eps_diluted: number;
+
+  // Balance Sheet
+  total_assets: number;
+  total_liabilities: number;
+  total_equity: number;
+  total_debt: number;
+  cash_and_equivalents: number;
+  net_debt: number;
+  accounts_receivable: number;
+  accounts_payable: number;
+  inventory: number;
+
+  // Cash Flow
+  operating_cash_flow: number;
+  capital_expenditure: number;
+  free_cash_flow: number;
+  depreciation_amortization: number;
+  dividends_paid: number;
+
+  // Shares
+  shares_outstanding: number;
+
+  // Derived
+  tax_rate: number; // effective
+  gross_margin: number;
+  operating_margin: number;
+  net_margin: number;
+}
+
+// --- Analyst Estimates ---
+export interface AnalystEstimate {
+  ticker: string;
+  period: string; // "2025", "2026"
+  revenue_estimate: number;
+  eps_estimate: number;
+  revenue_low: number;
+  revenue_high: number;
+  eps_low: number;
+  eps_high: number;
+  number_of_analysts: number;
+}
+
+// --- Price Target Consensus ---
+export interface PriceTargetConsensus {
+  ticker: string;
+  target_high: number;
+  target_low: number;
+  target_consensus: number;
+  target_median: number;
+  number_of_analysts: number;
+}
+
+// --- Earnings Surprise ---
+export interface EarningsSurprise {
+  date: string;
+  actual_eps: number;
+  estimated_eps: number;
+  surprise_percent: number;
+}
+
+// --- Analyst Recommendation (Buy/Hold/Sell distribution) ---
+export interface AnalystRecommendation {
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strongSell: number;
+  totalAnalysts: number;
+  consensus: string;
+}
+
+// --- Upgrade / Downgrade ---
+export interface UpgradeDowngrade {
+  date: string;
+  gradingCompany: string;
+  previousGrade: string;
+  newGrade: string;
+  action: string;
+}
+
+// --- Daily Price ---
+export interface DailyPrice {
+  ticker: string;
+  date: string; // "2024-01-15"
+  close: number;
+  volume: number;
+}
+
+// --- User / Watchlist ---
+export interface WatchlistItem {
+  ticker: string;
+  company_name: string;
+  current_price: number;
+  fair_value: number;
+  upside_percent: number;
+  added_at: string;
+}
 
 // --- Valuation Models ---
 export type ValuationModelType =
@@ -377,10 +555,10 @@ export interface HistoricalMultiplesResponse {
 }
 
 // ============================================================
-// Per-model detail shapes (ported from value-scope's engine modules).
-// These live here — not in lib/valuation — because this project ports only the
-// DISPLAY layer; the maths run server-side in services/alpha. The valuation
-// `detail` jsonb we read back conforms to these shapes.
+// Per-model detail shapes. The engine (services/data) emits these as the
+// `details` jsonb of the corresponding ValuationResult; the dashboard reads them
+// back. Kept here alongside the result types so producer and consumer share one
+// definition.
 // ============================================================
 
 // --- Revenue DCF ---

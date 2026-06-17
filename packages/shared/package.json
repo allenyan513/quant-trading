@@ -17,7 +17,8 @@
     "./envelope": "./src/envelope.ts",
     "./marketdata": "./src/marketdata/index.ts",
     "./metrics": "./src/metrics.ts",
-    "./research": "./src/research.ts"
+    "./research": "./src/research.ts",
+    "./valuation-types": "./src/valuation-types.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
