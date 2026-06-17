@@ -3,8 +3,8 @@
  * Kept minimal — only what the ported UI references.
  */
 
-/** Upside %/downside % band that splits undervalued / fairly_valued / overvalued. */
-export const VERDICT_THRESHOLD = 15;
+// VERDICT_THRESHOLD is shared with the engine — single source of truth.
+export { VERDICT_THRESHOLD } from "@qt/shared/valuation-constants";
 
 /** AI narrative is a value-scope-only feature; off in this project. */
 export const ENABLE_AI_NARRATIVE = false;

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCurrency } from "@/lib/format";
-import { MODEL_NAMES, MODEL_ORDER, MODEL_LINKS } from "@/lib/valuation/model-names";
+import { MODEL_NAMES, MODEL_ORDER, MODEL_LINKS } from "@qt/shared/valuation-model-names";
 import { ENABLE_AI_NARRATIVE } from "@/lib/constants";
 import type { ValuationSummary, ValuationResult } from "@/types";
 import type { ReactNode } from "react";

@@ -18,7 +18,11 @@
     "./marketdata": "./src/marketdata/index.ts",
     "./metrics": "./src/metrics.ts",
     "./research": "./src/research.ts",
-    "./valuation-types": "./src/valuation-types.ts"
+    "./valuation-types": "./src/valuation-types.ts",
+    "./valuation-constants": "./src/valuation-constants.ts",
+    "./valuation-model-names": "./src/valuation-model-names.ts",
+    "./valuation-section-config": "./src/valuation-section-config.ts",
+    "./valuation-narrative": "./src/valuation-narrative.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

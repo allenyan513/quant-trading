@@ -1,5 +1,6 @@
-// Canonical model display names — single source of truth.
-// Components may use a subset; import and pick what you need.
+// Canonical model display names — single source of truth shared by the engine
+// (services/data) and the dashboard (services/web). Components may use a subset;
+// import and pick what you need.
 
 export const MODEL_NAMES: Record<string, string> = {
   // DCF FCFF models

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { DCFFCFFCards } from "@/components/valuation/dcf-fcff-cards";
 import { DCFFCFFEBITDAExitCards } from "@/components/valuation/dcf-fcff-ebitda-exit-cards";
 import { RevenueDCFCards } from "@/components/valuation/revenue-dcf-cards";
-import { generateDCFNarrative } from "@/lib/valuation/dcf-narrative";
+import { generateDCFNarrative } from "@qt/shared/valuation-narrative";
 import { cn } from "@/lib/utils";
 import type { ValuationSummary, ValuationModelType, ValuationResult } from "@/types";
 

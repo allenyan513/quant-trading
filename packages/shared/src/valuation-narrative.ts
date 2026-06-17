@@ -1,10 +1,12 @@
 // ============================================================
 // DCF Narrative Generator
-// Produces human-readable explanations of DCF valuation results
+// Produces human-readable explanations of DCF valuation results.
+// Single source of truth shared by the engine (services/data) and the
+// dashboard (services/web).
 // ============================================================
 
-import type { ValuationResult } from "@/types";
-import { VERDICT_THRESHOLD } from "@/lib/constants";
+import type { ValuationResult } from "./valuation-types.js";
+import { VERDICT_THRESHOLD } from "./valuation-constants.js";
 
 function pct(v: number): string {
   return v.toFixed(1) + "%";
@@ -31,7 +33,6 @@ export function generateDCFNarrative(
 ): string {
   const a = model.assumptions as Record<string, unknown>;
   const d = model.details as Record<string, unknown>;
-  const method = a.terminal_method as string | undefined;
 
   const discountRate = a.discount_rate as number;
   const terminalGrowth = a.terminal_growth_rate as number;
@@ -51,7 +52,11 @@ export function generateDCFNarrative(
   // Revenue growth summary
   let growthDesc = "";
   if (growthRates && growthRates.length >= 2) {
-    growthDesc = `revenue growing from ${pct(growthRates[0])} to ${pct(growthRates[growthRates.length - 1])} annually`;
+    const firstGrowth = growthRates[0];
+    const lastGrowth = growthRates[growthRates.length - 1];
+    if (firstGrowth != null && lastGrowth != null) {
+      growthDesc = `revenue growing from ${pct(firstGrowth)} to ${pct(lastGrowth)} annually`;
+    }
   }
 
   // Margin description
@@ -59,9 +64,11 @@ export function generateDCFNarrative(
   if (margins && margins.length > 0) {
     const first = margins[0];
     const last = margins[margins.length - 1];
-    marginDesc = marginSource === "analyst"
-      ? `Net margins start at ${pct(first)} (analyst-derived) and fade to ${pct(last)}`
-      : `Net margins average ${pct(first)} based on historical data`;
+    if (first != null && last != null) {
+      marginDesc = marginSource === "analyst"
+        ? `Net margins start at ${pct(first)} (analyst-derived) and fade to ${pct(last)}`
+        : `Net margins average ${pct(first)} based on historical data`;
+    }
   }
 
   // Build narrative based on terminal method
