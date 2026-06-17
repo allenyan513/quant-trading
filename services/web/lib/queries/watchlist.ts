@@ -1,0 +1,125 @@
+/**
+ * Read queries: watchlist "home base" + per-symbol data freshness.
+ * All read-only, Node runtime only.
+ */
+
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  db,
+  watchlist,
+  dailyPrices,
+  incomeStatement,
+  balanceSheet,
+  cashFlow,
+  valuationSnapshots,
+  positions,
+  universe,
+} from "../db.js";
+
+/** Per-watchlist-symbol data freshness: latest price date + latest filing knownAt. */
+export async function getDataFreshness() {
+  const symbols = await db().select().from(watchlist).orderBy(watchlist.symbol);
+
+  const [prices, inc, bal, cf] = await Promise.all([
+    db()
+      .select({ symbol: dailyPrices.symbol, last: sql<string>`max(${dailyPrices.tradeDate})` })
+      .from(dailyPrices)
+      .groupBy(dailyPrices.symbol),
+    db()
+      .select({ symbol: incomeStatement.symbol, last: sql<string>`max(${incomeStatement.knownAt})` })
+      .from(incomeStatement)
+      .groupBy(incomeStatement.symbol),
+    db()
+      .select({ symbol: balanceSheet.symbol, last: sql<string>`max(${balanceSheet.knownAt})` })
+      .from(balanceSheet)
+      .groupBy(balanceSheet.symbol),
+    db()
+      .select({ symbol: cashFlow.symbol, last: sql<string>`max(${cashFlow.knownAt})` })
+      .from(cashFlow)
+      .groupBy(cashFlow.symbol),
+  ]);
+
+  const map = (rows: { symbol: string; last: string | null }[]) => {
+    const m: Record<string, string | null> = {};
+    for (const r of rows) m[r.symbol] = r.last;
+    return m;
+  };
+  const pm = map(prices);
+  const im = map(inc);
+  const bm = map(bal);
+  const cm = map(cf);
+
+  return symbols.map((s) => ({
+    symbol: s.symbol,
+    addedAt: s.addedAt,
+    lastPriceDate: pm[s.symbol] ?? null,
+    lastIncomeKnownAt: im[s.symbol] ?? null,
+    lastBalanceKnownAt: bm[s.symbol] ?? null,
+    lastCashFlowKnownAt: cm[s.symbol] ?? null,
+  }));
+}
+
+/**
+ * Watchlist "home base": each symbol joined with its latest reference valuation
+ * (fair value / price / upside / verdict — the buy-zone signal), whether we hold
+ * it, and its sector. Sorted most-undervalued first. Drives /data/watchlist.
+ */
+export async function listWatchlistOverview() {
+  const wl = await db().select().from(watchlist).orderBy(watchlist.symbol);
+  if (wl.length === 0) return [];
+  const syms = wl.map((w) => w.symbol);
+
+  const [vals, pos, uni] = await Promise.all([
+    // Latest snapshot per symbol (DISTINCT ON keyed by symbol, newest first).
+    db()
+      .selectDistinctOn([valuationSnapshots.symbol], {
+        symbol: valuationSnapshots.symbol,
+        fairValue: valuationSnapshots.fairValuePerShare,
+        price: valuationSnapshots.currentPrice,
+        upsidePct: valuationSnapshots.upsidePct,
+        verdict: valuationSnapshots.verdict,
+        asOf: valuationSnapshots.asOf,
+      })
+      .from(valuationSnapshots)
+      .where(inArray(valuationSnapshots.symbol, syms))
+      .orderBy(valuationSnapshots.symbol, desc(valuationSnapshots.createdAt)),
+    db()
+      .select({ symbol: positions.symbol, shares: positions.shares, entryPrice: positions.entryPrice })
+      .from(positions)
+      .where(and(eq(positions.status, "open"), inArray(positions.symbol, syms))),
+    db().select({ symbol: universe.symbol, sector: universe.sector }).from(universe).where(inArray(universe.symbol, syms)),
+  ]);
+
+  const vBy = new Map(vals.map((v) => [v.symbol, v]));
+  const pBy = new Map(pos.map((p) => [p.symbol, p]));
+  const uBy = new Map(uni.map((u) => [u.symbol, u]));
+
+  return wl
+    .map((w) => {
+      const v = vBy.get(w.symbol);
+      const p = pBy.get(w.symbol);
+      return {
+        symbol: w.symbol,
+        source: w.source,
+        addedAt: w.addedAt,
+        expiresAt: w.expiresAt,
+        sector: uBy.get(w.symbol)?.sector ?? null,
+        fairValue: v?.fairValue ?? null,
+        price: v?.price ?? null,
+        upsidePct: v?.upsidePct ?? null,
+        verdict: v?.verdict ?? null,
+        asOf: v?.asOf ?? null,
+        held: !!p,
+        shares: p?.shares ?? null,
+        entryPrice: p?.entryPrice ?? null,
+      };
+    })
+    // Most undervalued first; symbols without a valuation sink to the bottom.
+    // Compare explicitly: two nulls would make (-Infinity)-(-Infinity)=NaN,
+    // which yields an unstable sort.
+    .sort((a, b) => {
+      const av = a.upsidePct ?? -Infinity;
+      const bv = b.upsidePct ?? -Infinity;
+      return av === bv ? 0 : bv - av;
+    });
+}
