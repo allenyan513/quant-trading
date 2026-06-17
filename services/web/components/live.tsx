@@ -6,7 +6,7 @@ import { Fragment, useState, type ReactNode } from "react";
 async function fetcher(url: string) {
   const res = await fetch(url);
   if (res.status === 401) {
-    window.location.href = "/login";
+    window.location.href = "/sign-in";
     throw new Error("unauthorized");
   }
   const json = await res.json();

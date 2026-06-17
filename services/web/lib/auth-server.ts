@@ -12,6 +12,7 @@
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { dbSchema } from "@qt/shared";
@@ -54,4 +55,7 @@ export const auth = betterAuth({
     },
   }),
   emailAndPassword: { enabled: true },
+  // nextCookies() MUST be last — it makes Better Auth set cookies in Next server
+  // actions / route handlers.
+  plugins: [nextCookies()],
 });
