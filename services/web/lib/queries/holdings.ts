@@ -1,7 +1,9 @@
 /**
- * Read queries: live IBKR account mirror (status / NAV-vs-SPY / positions /
- * trades). Reads the data_holdings_* tables; account_id is the single configured
- * account (config.holdingsAccountId()). All read-only, Node runtime only.
+ * Read queries: a user's live IBKR account mirror (status / NAV-vs-SPY /
+ * positions / trades). Reads data_holdings_* scoped to the caller's `userId`
+ * (the tenant key = Better Auth user id, stored as account_id). All read-only,
+ * Node runtime only. The Flex token is never read here (it's encrypted at rest;
+ * the dashboard only needs "connected").
  */
 
 import { and, desc, eq, gte, sql } from "drizzle-orm";
@@ -15,34 +17,17 @@ import {
 } from "../db.js";
 import { config, metrics, type DailyReturn } from "@qt/shared";
 
-const HOLDINGS_ACCOUNT = config.holdingsAccountId();
-
-/**
- * Connection status for the holdings settings form. Never returns the raw token —
- * only a masked tail (last 4) so the form can show "connected" without leaking
- * the secret to the browser.
- */
-export async function getHoldingsStatus() {
+/** Connection status for the holdings settings form. Returns only whether an
+ *  IBKR Flex link exists (never the token — it's encrypted in the data service). */
+export async function getHoldingsStatus(userId: string) {
   const rows = await db()
-    .select({
-      flexToken: holdingsAccounts.flexToken,
-      flexQueryId: holdingsAccounts.flexQueryId,
-      updatedAt: holdingsAccounts.updatedAt,
-    })
+    .select({ flexQueryId: holdingsAccounts.flexQueryId, updatedAt: holdingsAccounts.updatedAt })
     .from(holdingsAccounts)
-    .where(eq(holdingsAccounts.accountId, HOLDINGS_ACCOUNT))
+    .where(eq(holdingsAccounts.accountId, userId))
     .limit(1);
   const row = rows[0];
-  if (!row) return { accountId: HOLDINGS_ACCOUNT, connected: false, flexQueryId: null, tokenMask: null, updatedAt: null };
-  const tok = row.flexToken ?? "";
-  const tokenMask = tok.length > 4 ? `••••${tok.slice(-4)}` : "••••";
-  return {
-    accountId: HOLDINGS_ACCOUNT,
-    connected: true,
-    flexQueryId: row.flexQueryId,
-    tokenMask,
-    updatedAt: row.updatedAt,
-  };
+  if (!row) return { connected: false, flexQueryId: null, updatedAt: null };
+  return { connected: true, flexQueryId: row.flexQueryId, updatedAt: row.updatedAt };
 }
 
 /**
@@ -51,7 +36,7 @@ export async function getHoldingsStatus() {
  * sync job); each is aligned to a NAV date and rebased so the two lines are
  * comparable. KPIs return null below their min-history threshold.
  */
-export async function getHoldingsNav() {
+export async function getHoldingsNav(userId: string) {
   const navRows = await db()
     .select({
       date: holdingsNavHistory.date,
@@ -60,11 +45,11 @@ export async function getHoldingsNav() {
       endingNav: holdingsNavHistory.endingNav,
     })
     .from(holdingsNavHistory)
-    .where(eq(holdingsNavHistory.accountId, HOLDINGS_ACCOUNT))
+    .where(eq(holdingsNavHistory.accountId, userId))
     .orderBy(holdingsNavHistory.date);
 
   if (navRows.length === 0) {
-    return { accountId: HOLDINGS_ACCOUNT, asOf: null, navIndex: null, endingNav: null, points: [], kpis: null };
+    return { asOf: null, navIndex: null, endingNav: null, points: [], kpis: null };
   }
 
   const firstDate = navRows[0]!.date;
@@ -111,29 +96,22 @@ export async function getHoldingsNav() {
   };
 
   const last = navRows[navRows.length - 1]!;
-  return {
-    accountId: HOLDINGS_ACCOUNT,
-    asOf: last.date,
-    navIndex: last.navIndex,
-    endingNav: last.endingNav,
-    points,
-    kpis,
-  };
+  return { asOf: last.date, navIndex: last.navIndex, endingNav: last.endingNav, points, kpis };
 }
 
 /** Current holdings — the latest as_of_date snapshot, sorted longs → shorts → cash by weight. */
-export async function listHoldingsPositions() {
+export async function listHoldingsPositions(userId: string) {
   const latest = await db()
     .select({ d: sql<string>`max(${holdingsPositions.asOfDate})` })
     .from(holdingsPositions)
-    .where(eq(holdingsPositions.accountId, HOLDINGS_ACCOUNT));
+    .where(eq(holdingsPositions.accountId, userId));
   const asOf = latest[0]?.d ?? null;
   if (!asOf) return { asOf: null, positions: [] };
 
   const rows = await db()
     .select()
     .from(holdingsPositions)
-    .where(and(eq(holdingsPositions.accountId, HOLDINGS_ACCOUNT), eq(holdingsPositions.asOfDate, asOf)));
+    .where(and(eq(holdingsPositions.accountId, userId), eq(holdingsPositions.asOfDate, asOf)));
 
   // Bucket cash last, then sort by signed weight DESC (dollar-impact order).
   const sorted = rows.sort((a, b) => {
@@ -153,9 +131,9 @@ interface HoldingsTradeOpts {
 }
 
 /** Executed trades, newest first. Optional symbol / since filters + pagination. */
-export async function listHoldingsTrades(opts: HoldingsTradeOpts = {}) {
+export async function listHoldingsTrades(userId: string, opts: HoldingsTradeOpts = {}) {
   const limit = Math.min(opts.limit ?? 100, 500);
-  const conds = [eq(holdingsTrades.accountId, HOLDINGS_ACCOUNT)];
+  const conds = [eq(holdingsTrades.accountId, userId)];
   if (opts.symbol) conds.push(eq(holdingsTrades.symbol, opts.symbol.toUpperCase()));
   if (opts.since) conds.push(gte(holdingsTrades.tradeDate, opts.since));
   return db()

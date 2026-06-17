@@ -5,6 +5,7 @@
  * per-user data (holdings, watchlist).
  */
 import { headers } from "next/headers";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth-server";
 
 export async function getSession() {
@@ -21,5 +22,16 @@ export async function getUser() {
 export async function requireUserId(): Promise<string> {
   const user = await getUser();
   if (!user) throw new Error("unauthorized");
+  return user.id;
+}
+
+/**
+ * Route-handler guard: returns the user id, or a 401 envelope to return directly.
+ * Usage: `const uid = await requireUserOr401(); if (typeof uid !== "string") return uid;`
+ * (401 — not handle()'s 500 — so the SWR fetcher redirects to /sign-in.)
+ */
+export async function requireUserOr401(): Promise<string | NextResponse> {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   return user.id;
 }

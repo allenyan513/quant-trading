@@ -18,7 +18,7 @@ import { addToWatchlist, removeFromWatchlist } from "./watchlist.js";
 import { warmAndPullNews, revalue, refreshWatchlist } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { sweepWatchlistValuations } from "./valuation/sweep.js";
-import { syncHoldings } from "./holdings/sync.js";
+import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
 import { addFiler } from "./thirteenf/filers.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
@@ -273,16 +273,19 @@ app.post("/jobs/refresh-watchlist", async (c) => {
 app.post("/holdings/credentials", async (c) => {
   try {
     const body = (await c.req.json().catch(() => ({}))) as {
+      accountId?: unknown;
       token?: unknown;
       queryId?: unknown;
       label?: unknown;
     };
+    const accountId = typeof body.accountId === "string" ? body.accountId : "";
     const token = typeof body.token === "string" ? body.token : "";
     const queryId = typeof body.queryId === "string" ? body.queryId : "";
-    if (!token.trim() || !queryId.trim()) {
-      return c.json(fail("bad_request", "token and queryId are required"), 400);
+    if (!accountId.trim() || !token.trim() || !queryId.trim()) {
+      return c.json(fail("bad_request", "accountId, token and queryId are required"), 400);
     }
     const res = await setHoldingsCredentials({
+      accountId,
       token,
       queryId,
       label: typeof body.label === "string" ? body.label : undefined,
@@ -302,7 +305,10 @@ app.post("/holdings/credentials", async (c) => {
 // (the dashboard "refresh" button + the auto-sync after connecting).
 async function runHoldingsSync(c: Context) {
   try {
-    const res = await syncHoldings();
+    const body = (await c.req.json().catch(() => ({}) as Record<string, unknown>)) as Record<string, unknown>;
+    const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
+    if (!accountId) return c.json(fail("bad_request", "accountId is required"), 400);
+    const res = await syncHoldings(accountId);
     log.info("holdings.sync.done", { ...res });
     return c.json(ok(res));
   } catch (err) {
@@ -320,7 +326,19 @@ async function runHoldingsSync(c: Context) {
   }
 }
 
-app.post("/jobs/sync-holdings", (c) => runHoldingsSync(c));
+// Cron (JOB_TOKEN): sync EVERY connected account. Per-account failure is skipped.
+app.post("/jobs/sync-holdings", async (c) => {
+  try {
+    const res = await syncAllHoldings();
+    log.info("holdings.sync.all.done", { synced: res.synced, failed: res.failed });
+    return c.json(ok(res));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("holdings.sync.all.failed", { error: msg });
+    return c.json(fail("sync_holdings_all_failed", msg), 500);
+  }
+});
+// Manual (web forward): sync the signed-in user's account (accountId in body).
 app.post("/holdings/sync", (c) => runHoldingsSync(c));
 
 // ---- 13F — legendary investor quarterly holdings (SEC, free). data owns the

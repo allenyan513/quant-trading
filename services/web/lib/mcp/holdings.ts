@@ -7,7 +7,7 @@
  */
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { dbSchema, config, metrics, type DailyReturn } from "@qt/shared";
+import { dbSchema, metrics, type DailyReturn } from "@qt/shared";
 
 const { holdingsAccounts, holdingsNavHistory, holdingsTrades, holdingsPositions, dailyPrices } = dbSchema;
 
@@ -143,8 +143,7 @@ async function recentTrades(accountId: string, limit: number) {
  * `{ connected:false, note }` when no Flex credentials are saved yet, so an LLM
  * gets an actionable message instead of empty sections.
  */
-export async function getHoldingsExport(opts: HoldingsExportOpts = {}) {
-  const accountId = config.holdingsAccountId();
+export async function getHoldingsExport(accountId: string, opts: HoldingsExportOpts = {}) {
   const sections = opts.sections?.length ? opts.sections : [...HOLDINGS_SECTIONS];
 
   const acct = (

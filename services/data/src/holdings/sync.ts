@@ -15,7 +15,6 @@ import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
 import {
   db,
   dbSchema,
-  config,
   marketdata,
   fetchFlexStatement,
   OPTION_CONTRACT_MULTIPLIER,
@@ -29,7 +28,7 @@ import {
 import { getHoldingsFlexConfig } from "./credentials.js";
 import { log } from "../log.js";
 
-const { holdingsNavHistory, holdingsTrades, holdingsPositions } = dbSchema;
+const { holdingsNavHistory, holdingsTrades, holdingsPositions, holdingsAccounts } = dbSchema;
 
 /** Reference the conflicting INSERT row's column in an ON CONFLICT DO UPDATE set. */
 const ex = (col: string) => sql.raw(`excluded.${col}`);
@@ -373,8 +372,7 @@ async function refreshSpy(): Promise<number> {
  * Pull the live Flex statement and ingest it. Throws IBKRFlexError (classified)
  * on a Flex-side failure; the endpoint maps that to a precise fail code.
  */
-export async function syncHoldings(): Promise<HoldingsSyncResult> {
-  const accountId = config.holdingsAccountId();
+export async function syncHoldings(accountId: string): Promise<HoldingsSyncResult> {
   const cfg = await getHoldingsFlexConfig(accountId); // throws HoldingsNotConnectedError if unset
   const flex: FlexStatement = await fetchFlexStatement(cfg);
 
@@ -390,4 +388,25 @@ export async function syncHoldings(): Promise<HoldingsSyncResult> {
   const spyRows = await refreshSpy();
 
   return { accountId, navRowsUpserted, tradesInserted, positionsUpserted, spyRows };
+}
+
+/**
+ * Sync every connected account (the daily cron). One account's failure (bad Flex
+ * creds, IBKR hiccup) is logged + skipped, not fatal for the rest. SPY is warmed
+ * once per account but it's an idempotent upsert, so that's fine.
+ */
+export async function syncAllHoldings(): Promise<{ synced: number; failed: number; accounts: { accountId: string; ok: boolean; error?: string }[] }> {
+  const accounts = await db().select({ accountId: holdingsAccounts.accountId }).from(holdingsAccounts);
+  const results: { accountId: string; ok: boolean; error?: string }[] = [];
+  for (const { accountId } of accounts) {
+    try {
+      await syncHoldings(accountId);
+      results.push({ accountId, ok: true });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      log.warn("holdings.sync.account.failed", { accountId, error });
+      results.push({ accountId, ok: false, error });
+    }
+  }
+  return { synced: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, accounts: results };
 }

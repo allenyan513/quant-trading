@@ -1,6 +1,7 @@
 export * from "./types.js";
 export * from "./envelope.js";
 export { config, codeVersion, requireEnv, optionalEnv } from "./config.js";
+export { encryptSecret, decryptSecret } from "./crypto.js";
 export { fmpGet, FmpSoftError } from "./fmp.js";
 export {
   fetchStatements,

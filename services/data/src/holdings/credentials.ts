@@ -1,11 +1,11 @@
 /**
- * Holdings (IBKR Flex) credentials, stored in data_holdings_accounts. Single-user
- * today (account_id = config.holdingsAccountId()); the row shape generalizes to
- * multi-user. Token is plaintext by explicit choice — data owns this table and
- * is the only writer; web reads a masked status only.
+ * Holdings (IBKR Flex) credentials, stored in data_holdings_accounts, keyed by
+ * the user's id (account_id = Better Auth user.id). data owns this table and is
+ * the only writer. The Flex token is encrypted at rest (AES-256-GCM, see
+ * @qt/shared/crypto); web only ever reads a "connected" status, never the token.
  */
 import { eq } from "drizzle-orm";
-import { db, dbSchema, config, type FlexConfig } from "@qt/shared";
+import { db, dbSchema, encryptSecret, decryptSecret, type FlexConfig } from "@qt/shared";
 
 const { holdingsAccounts } = dbSchema;
 
@@ -17,7 +17,7 @@ export class HoldingsNotConnectedError extends Error {
   }
 }
 
-/** Load the Flex config for an account. Throws HoldingsNotConnectedError if unset. */
+/** Load (and decrypt) the Flex config for an account. Throws if unset. */
 export async function getHoldingsFlexConfig(accountId: string): Promise<FlexConfig> {
   const rows = await db()
     .select({ token: holdingsAccounts.flexToken, queryId: holdingsAccounts.flexQueryId })
@@ -26,28 +26,30 @@ export async function getHoldingsFlexConfig(accountId: string): Promise<FlexConf
     .limit(1);
   const row = rows[0];
   if (!row) throw new HoldingsNotConnectedError(accountId);
-  return { token: row.token, queryId: row.queryId };
+  return { token: decryptSecret(row.token), queryId: row.queryId };
 }
 
 export interface SetHoldingsCredentialsInput {
+  accountId: string;
   token: string;
   queryId: string;
   label?: string;
 }
 
-/** Upsert the credentials for the configured account (accountId is server-set). */
+/** Upsert a user's credentials (token encrypted before store). */
 export async function setHoldingsCredentials(input: SetHoldingsCredentialsInput): Promise<{ accountId: string }> {
-  const accountId = config.holdingsAccountId();
+  const accountId = input.accountId.trim();
   const token = input.token.trim();
   const queryId = input.queryId.trim();
-  if (!token || !queryId) throw new Error("token and queryId are required");
+  if (!accountId || !token || !queryId) throw new Error("accountId, token and queryId are required");
 
+  const flexToken = encryptSecret(token);
   await db()
     .insert(holdingsAccounts)
-    .values({ accountId, flexToken: token, flexQueryId: queryId, label: input.label ?? null, updatedAt: new Date() })
+    .values({ accountId, flexToken, flexQueryId: queryId, label: input.label ?? null, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: holdingsAccounts.accountId,
-      set: { flexToken: token, flexQueryId: queryId, label: input.label ?? null, updatedAt: new Date() },
+      set: { flexToken, flexQueryId: queryId, label: input.label ?? null, updatedAt: new Date() },
     });
   return { accountId };
 }
