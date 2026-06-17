@@ -1,5 +1,4 @@
-// Barrel for the valuation display types ported from value-scope.
-// Only the domain types the valuation detail page needs are re-exported here.
-
-export * from "./company";
-export * from "./valuation";
+// Valuation display types. Single source of truth lives in @qt/shared, shared
+// with services/data's engine (the data_valuation_snapshots `detail` jsonb we
+// read back conforms to these shapes). Imported here via the `@/types` alias.
+export * from "@qt/shared/valuation-types";
