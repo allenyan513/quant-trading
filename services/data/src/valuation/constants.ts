@@ -1,5 +1,6 @@
 /* Valuation constants ported from legends/value-scope/src/lib/constants.ts. */
-export const VERDICT_THRESHOLD = 15;   // % upside band for under/over-valued
+// VERDICT_THRESHOLD is shared with the dashboard — single source of truth.
+export { VERDICT_THRESHOLD } from "@qt/shared/valuation-constants";
 export const MIN_GROWTH_RATE = -0.1;
 export const MAX_GROWTH_RATE = 0.3;
 

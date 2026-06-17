@@ -1,8 +1,9 @@
-// Section registry for the unified valuation page.
-// Drives both page rendering (which sections to show) and TOC sidebar.
+// Section registry for the unified valuation page. Single source of truth shared
+// by the engine (services/data) and the dashboard (services/web). Drives both page
+// rendering (which sections to show) and the TOC sidebar.
 // Adding a new tier (e.g., "pre_revenue") = add entries to the type union + tiers arrays.
 
-import type { ValuationTier } from "@/types";
+import type { ValuationTier } from "./valuation-types.js";
 
 export interface ValuationSection {
   id: string;
