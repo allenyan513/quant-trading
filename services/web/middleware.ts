@@ -13,7 +13,8 @@ export async function middleware(req: NextRequest) {
   const isLoginPage = pathname === "/login";
   const isLoginApi = pathname === "/api/login";
   const isMcp = pathname === "/api/mcp"; // public MCP endpoint, not cookie-gated
-  if (isLoginPage || isLoginApi || isMcp) return NextResponse.next();
+  const isBetterAuth = pathname.startsWith("/api/auth/"); // Better Auth endpoints (own security)
+  if (isLoginPage || isLoginApi || isMcp || isBetterAuth) return NextResponse.next();
 
   const ok = await verifySession(req.cookies.get(COOKIE_NAME)?.value);
   if (ok) return NextResponse.next();
