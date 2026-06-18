@@ -10,3 +10,4 @@ coverage/
 # local-only reference projects (quant-researcher / value-scope); anchored to
 # repo root so it doesn't swallow the /data/legends dashboard route.
 /legends/
+scripts/db/roles.local.env

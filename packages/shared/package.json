@@ -29,6 +29,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=../../.env src/db/migrate.ts",
+    "db:grants": "tsx --env-file-if-exists=../../.env src/db/grants.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

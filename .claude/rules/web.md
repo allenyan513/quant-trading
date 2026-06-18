@@ -9,7 +9,7 @@ paths:
 
 ## 数据流向（一条线）
 
-页面(`"use client"`) → `useLive`/`LiveTable`（SWR 5s 轮询，`components/live.tsx`）→ `/api/*` route handler（`export const runtime="nodejs"` + `dynamic="force-dynamic"`，用 `handle()` 包 envelope，`lib/api.ts`）→ `lib/queries.ts` 里 Drizzle 读（`lib/db.ts` 的 `db()`，neon-http，**只读角色**）。Edge 中间件只做鉴权，绝不碰 DB。
+页面(`"use client"`) → `useLive`/`LiveTable`（SWR 5s 轮询，`components/live.tsx`）→ `/api/*` route handler（`export const runtime="nodejs"` + `dynamic="force-dynamic"`，用 `handle()` 包 envelope，`lib/api.ts`）→ `lib/queries.ts` 里 Drizzle 读（`lib/db.ts` 的 `db()`，neon-http，**只读角色 `qt_web_ro`**：经 `DATABASE_URL_WEB` 连，只 SELECT、读不到 `data_holdings_accounts.flex_token`、不能写；缺省回退 `DATABASE_URL`。角色模型见 `scripts/db/README.md` 与 `database.md`）。Edge 中间件只做鉴权，绝不碰 DB。
 
 ## 铁律
 

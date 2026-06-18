@@ -20,6 +20,7 @@
     "dev:web": "pnpm --filter @qt/web dev",
     "db:generate": "pnpm --filter @qt/shared db:generate",
     "db:migrate": "pnpm --filter @qt/shared db:migrate",
+    "db:grants": "pnpm --filter @qt/shared db:grants",
     "up": "docker compose up --build",
     "down": "docker compose down"
   },
