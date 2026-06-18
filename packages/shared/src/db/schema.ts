@@ -681,3 +681,21 @@ export const authVerification = pgTable("auth_verification", {
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
+
+// ---- Per-user app data (multi-tenant). `user_` prefix = scoped to a user
+// (auth_user.id), distinct from the shared house tables. Owned/written by data
+// (web forwards writes, T12); read by web scoped to the session user. ----
+
+// A user's PRIVATE watchlist — their own followed symbols. Separate from the
+// global `data_watchlist` (the house discovery universe that drives the
+// refresh/valuation/discovery pipeline); this one has no pipeline role.
+export const userWatchlist = pgTable(
+  "user_watchlist",
+  {
+    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    note: text("note"),
+    addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.symbol] })],
+);

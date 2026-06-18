@@ -8,6 +8,7 @@ export * from "./overview.js";
 export * from "./lists.js";
 export * from "./symbol.js";
 export * from "./watchlist.js";
+export * from "./user-watchlist.js";
 export * from "./holdings.js";
 export * from "./logs.js";
 export * from "./thirteenf.js";

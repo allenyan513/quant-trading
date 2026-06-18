@@ -22,6 +22,7 @@ import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
 import { addFiler } from "./thirteenf/filers.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
+import { addUserWatchlist, removeUserWatchlist } from "./user-watchlist.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
 
@@ -340,6 +341,26 @@ app.post("/jobs/sync-holdings", async (c) => {
 });
 // Manual (web forward): sync the signed-in user's account (accountId in body).
 app.post("/holdings/sync", (c) => runHoldingsSync(c));
+
+// ---- Per-user private watchlist (user_watchlist). web forwards add/remove with
+// the session user's id; data owns the table (T12). No pipeline involvement. ----
+async function runUserWatchlistMutation(c: Context, op: "add" | "remove") {
+  try {
+    const body = (await c.req.json().catch(() => ({}) as Record<string, unknown>)) as Record<string, unknown>;
+    const userId = typeof body.userId === "string" ? body.userId : "";
+    const symbol = typeof body.symbol === "string" ? body.symbol : "";
+    if (!userId.trim() || !symbol.trim()) return c.json(fail("bad_request", "userId and symbol are required"), 400);
+    const note = typeof body.note === "string" ? body.note : undefined;
+    const res = op === "add" ? await addUserWatchlist(userId, symbol, note) : await removeUserWatchlist(userId, symbol);
+    return c.json(ok(res));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error(`user_watchlist.${op}.failed`, { error: msg });
+    return c.json(fail(`user_watchlist_${op}_failed`, msg), 500);
+  }
+}
+app.post("/user-watchlist/add", (c) => runUserWatchlistMutation(c, "add"));
+app.post("/user-watchlist/remove", (c) => runUserWatchlistMutation(c, "remove"));
 
 // ---- 13F — legendary investor quarterly holdings (SEC, free). data owns the
 // data_13f_* tables; web reads them. Display only (parse + store); see #99. ----
