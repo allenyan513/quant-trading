@@ -18,25 +18,37 @@ import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { dbSchema } from "@qt/shared";
 
+// `next build` evaluates this module (it backs the auth + OAuth routes) with
+// NODE_ENV=production but WITHOUT the runtime env — so the module-load reads below
+// must not throw at build time, or `next build` (collecting page data) dies. NEXT_PHASE
+// marks the build: during it we return placeholders (the auth instance is constructed
+// but never actually used while building) and enforce the real values at runtime.
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+
 function databaseUrl(): string {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("Missing required env var: DATABASE_URL");
-  return url;
+  if (url) return url;
+  if (isBuildPhase) return "postgresql://build-placeholder/build";
+  throw new Error("Missing required env var: DATABASE_URL");
 }
 
 function authSecret(): string {
   const s = process.env.BETTER_AUTH_SECRET;
-  if (!s || s.trim() === "") throw new Error("Missing required env var: BETTER_AUTH_SECRET");
-  return s;
+  if (s && s.trim() !== "") return s;
+  if (isBuildPhase) return "build-time-placeholder-secret";
+  throw new Error("Missing required env var: BETTER_AUTH_SECRET");
 }
 
 // Public base URL of the AS (OAuth metadata + the MCP resource identifier). In prod
 // this MUST be the real public URL — a silent localhost fallback would publish broken
-// OAuth endpoints — so fail fast there; default to localhost only in dev.
+// OAuth endpoints — so fail fast there; default to localhost in dev, and never throw
+// during the build (env isn't present yet; the value is only needed at request time).
 function resolveBaseURL(): string {
   const url = process.env.BETTER_AUTH_URL;
   if (url && url.trim() !== "") return url;
-  if (process.env.NODE_ENV === "production") throw new Error("Missing required env var: BETTER_AUTH_URL");
+  if (process.env.NODE_ENV === "production" && !isBuildPhase) {
+    throw new Error("Missing required env var: BETTER_AUTH_URL");
+  }
   return "http://localhost:3001";
 }
 const baseURL = resolveBaseURL();
