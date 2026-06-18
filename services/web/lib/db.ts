@@ -46,6 +46,7 @@ export const {
   holdingsNavHistory,
   holdingsTrades,
   holdingsPositions,
+  oauthAccessToken,
   thirteenFFilers,
   thirteenFHoldings,
   thirteenFCusipMap,

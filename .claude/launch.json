@@ -3,14 +3,9 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "--env-file-if-exists=.env",
-        "services/web/node_modules/next/dist/bin/next",
-        "dev",
-        "services/web"
-      ],
-      "autoPort": true
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:web"],
+      "port": 3001
     },
     {
       "name": "data",
