@@ -30,8 +30,16 @@ function authSecret(): string {
   return s;
 }
 
-// Public base URL of the AS (OAuth metadata + the MCP resource identifier).
-const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+// Public base URL of the AS (OAuth metadata + the MCP resource identifier). In prod
+// this MUST be the real public URL — a silent localhost fallback would publish broken
+// OAuth endpoints — so fail fast there; default to localhost only in dev.
+function resolveBaseURL(): string {
+  const url = process.env.BETTER_AUTH_URL;
+  if (url && url.trim() !== "") return url;
+  if (process.env.NODE_ENV === "production") throw new Error("Missing required env var: BETTER_AUTH_URL");
+  return "http://localhost:3001";
+}
+const baseURL = resolveBaseURL();
 // The OAuth-gated MCP endpoint this AS protects (same origin). See app/api/private/mcp.
 const mcpResource = `${baseURL}/api/private/mcp`;
 

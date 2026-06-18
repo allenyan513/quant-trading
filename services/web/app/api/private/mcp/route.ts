@@ -26,8 +26,8 @@ const UNAUTH = { content: [{ type: "text" as const, text: "Not authenticated." }
 
 /** The token's user id, injected by verifyToken into AuthInfo.extra. Never trust a
  *  client-supplied user — tenant isolation depends on this coming from the token. */
-function userIdFrom(extra: { authInfo?: { extra?: Record<string, unknown> } }): string | null {
-  const uid = extra.authInfo?.extra?.userId;
+function userIdFrom(extra?: { authInfo?: { extra?: Record<string, unknown> } }): string | null {
+  const uid = extra?.authInfo?.extra?.userId;
   return typeof uid === "string" && uid ? uid : null;
 }
 
