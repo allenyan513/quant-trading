@@ -16,9 +16,10 @@ import {
   universe,
 } from "../db.js";
 
-/** Per-watchlist-symbol data freshness: latest price date + latest filing knownAt. */
-export async function getDataFreshness() {
-  const symbols = await db().select().from(watchlist).orderBy(watchlist.symbol);
+/** Per-watchlist-symbol data freshness: latest price date + latest filing knownAt.
+ *  Scoped to the session user's watchlist (the table is per-user). */
+export async function getDataFreshness(userId: string) {
+  const symbols = await db().select().from(watchlist).where(eq(watchlist.userId, userId)).orderBy(watchlist.symbol);
 
   const [prices, inc, bal, cf] = await Promise.all([
     db()
@@ -64,8 +65,8 @@ export async function getDataFreshness() {
  * (fair value / price / upside / verdict — the buy-zone signal), whether we hold
  * it, and its sector. Sorted most-undervalued first. Drives /data/watchlist.
  */
-export async function listWatchlistOverview() {
-  const wl = await db().select().from(watchlist).orderBy(watchlist.symbol);
+export async function listWatchlistOverview(userId: string) {
+  const wl = await db().select().from(watchlist).where(eq(watchlist.userId, userId)).orderBy(watchlist.symbol);
   if (wl.length === 0) return [];
   const syms = wl.map((w) => w.symbol);
 
@@ -100,9 +101,8 @@ export async function listWatchlistOverview() {
       const p = pBy.get(w.symbol);
       return {
         symbol: w.symbol,
-        source: w.source,
+        note: w.note,
         addedAt: w.addedAt,
-        expiresAt: w.expiresAt,
         sector: uBy.get(w.symbol)?.sector ?? null,
         fairValue: v?.fairValue ?? null,
         price: v?.price ?? null,

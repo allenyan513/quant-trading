@@ -13,16 +13,14 @@ import { scanEarnings } from "./scan/earnings.js";
 import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
-import { promoteCandidate, dismissCandidate, expireDiscoveryWatchlist } from "./candidates.js";
-import { addToWatchlist, removeFromWatchlist } from "./watchlist.js";
-import { warmAndPullNews, revalue, refreshWatchlist } from "./refresh.js";
+import { dismissCandidate } from "./candidates.js";
+import { addWatchlist, removeWatchlist } from "./watchlist.js";
+import { warmAndPullNews, revalue } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
-import { sweepWatchlistValuations } from "./valuation/sweep.js";
 import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
 import { addFiler } from "./thirteenf/filers.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
-import { addUserWatchlist, removeUserWatchlist } from "./user-watchlist.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
 
@@ -170,20 +168,13 @@ app.post("/scan/earnings", async (c) => {
   }
 });
 
-// Human review: promote a candidate into the watchlist, or dismiss it.
-app.post("/candidates/promote", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const symbol = String(body.symbol ?? "").trim();
-  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
-  try {
-    const res = await promoteCandidate(symbol);
-    if (!res.promoted) return c.json(fail("not_found", `no candidate ${symbol.toUpperCase()}`), 404);
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("candidate.promote.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("promote_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+// SEVERED: candidate promotion is parked. Promote used to insert into the global
+// house watchlist; the watchlist is per-user now, so there's no shared universe to
+// promote into. Candidates stay a read-only discovery view until reconnected (see
+// follow-up issue). 410 so the dashboard can surface it's disabled.
+app.post("/candidates/promote", (c) =>
+  c.json(fail("severed", "candidate promotion is disabled — watchlist is now per-user (see follow-up issue)"), 410),
+);
 
 app.post("/candidates/dismiss", async (c) => {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
@@ -199,36 +190,40 @@ app.post("/candidates/dismiss", async (c) => {
   }
 });
 
-// Manual watchlist management (data owns the table, T12). Reads stay in web
-// (it queries the DB directly with the valuation/position join).
+// Per-user watchlist (data owns data_watchlist, T12). web forwards add/remove with
+// the session user's id; reads stay in web (DB-direct, scoped to the user, with the
+// valuation/position join). The old house "universe" crons that read this table
+// were SEVERED when it became per-user (see follow-up issue).
 app.post("/watchlist", async (c) => {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const userId = String(body.userId ?? "").trim();
   const symbol = String(body.symbol ?? "").trim();
-  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+  if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
+  const note = typeof body.note === "string" ? body.note : undefined;
   try {
-    const res = await addToWatchlist(symbol);
-    // Auto-refresh a newly-added symbol so its detail page / the MCP aren't empty.
-    // Await warm + news (deterministic, a few seconds, fills the caches readers
-    // need); fire the valuation best-effort (the daily sweep is the backstop, and
-    // blocking the add on an LLM repricing would make the button feel stuck).
+    const res = await addWatchlist(userId, symbol, note);
+    // Warm the newly-added symbol so its detail page / the MCP aren't empty. Await
+    // warm + news (deterministic, a few seconds); fire the valuation best-effort so
+    // the add button doesn't block on an LLM repricing. Per-symbol, not watchlist-wide.
     const refresh = await warmAndPullNews(symbol);
     void revalue(symbol);
     return c.json(ok({ ...res, refresh }));
   } catch (err) {
-    log.error("watchlist.add.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    log.error("watchlist.add.failed", { userId, symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("watchlist_add_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
-app.delete("/watchlist/:symbol", async (c) => {
-  const symbol = c.req.param("symbol").trim();
-  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+app.post("/watchlist/remove", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const userId = String(body.userId ?? "").trim();
+  const symbol = String(body.symbol ?? "").trim();
+  if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
   try {
-    const res = await removeFromWatchlist(symbol);
-    if (!res.removed) return c.json(fail("not_found", `not on watchlist: ${symbol.toUpperCase()}`), 404);
+    const res = await removeWatchlist(userId, symbol);
     return c.json(ok(res));
   } catch (err) {
-    log.error("watchlist.remove.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
+    log.error("watchlist.remove.failed", { userId, symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("watchlist_remove_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
@@ -251,22 +246,11 @@ app.post("/warm", async (c) => {
   }
 });
 
-// Daily refresh (cron, JOB_TOKEN-guarded): full refresh of every watchlist
-// symbol — warm marketdata caches + pull news + recompute valuation — so the
-// dashboard and the MCP serve fresh data each market close. Synchronous; the
-// caller (GitHub Actions) should allow a generous timeout for large watchlists.
-app.post("/jobs/refresh-watchlist", async (c) => {
-  try {
-    const res = await refreshWatchlist();
-    const warmed = res.results.filter((r) => r.warmed).length;
-    const revalued = res.results.filter((r) => r.revalued).length;
-    log.info("refresh.watchlist.done", { scanned: res.scanned, warmed, revalued });
-    return c.json(ok({ scanned: res.scanned, warmed, revalued, results: res.results }));
-  } catch (err) {
-    log.error("refresh.watchlist.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("refresh_watchlist_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+// SEVERED (cron, JOB_TOKEN-guarded): the daily full-watchlist refresh lost its
+// driver when the watchlist became per-user (no global house universe to iterate).
+// No-op so the GitHub Actions cron stays green; per-symbol warming still happens
+// reactively (news triage) and on watchlist add. See follow-up issue.
+app.post("/jobs/refresh-watchlist", (c) => c.json(ok({ severed: true, scanned: 0 })));
 
 // Save/update the IBKR Flex credentials (token + query id) for the configured
 // account. Written here (data owns data_holdings_accounts); the web "Connect
@@ -341,26 +325,6 @@ app.post("/jobs/sync-holdings", async (c) => {
 });
 // Manual (web forward): sync the signed-in user's account (accountId in body).
 app.post("/holdings/sync", (c) => runHoldingsSync(c));
-
-// ---- Per-user private watchlist (user_watchlist). web forwards add/remove with
-// the session user's id; data owns the table (T12). No pipeline involvement. ----
-async function runUserWatchlistMutation(c: Context, op: "add" | "remove") {
-  try {
-    const body = (await c.req.json().catch(() => ({}) as Record<string, unknown>)) as Record<string, unknown>;
-    const userId = typeof body.userId === "string" ? body.userId : "";
-    const symbol = typeof body.symbol === "string" ? body.symbol : "";
-    if (!userId.trim() || !symbol.trim()) return c.json(fail("bad_request", "userId and symbol are required"), 400);
-    const note = typeof body.note === "string" ? body.note : undefined;
-    const res = op === "add" ? await addUserWatchlist(userId, symbol, note) : await removeUserWatchlist(userId, symbol);
-    return c.json(ok(res));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error(`user_watchlist.${op}.failed`, { error: msg });
-    return c.json(fail(`user_watchlist_${op}_failed`, msg), 500);
-  }
-}
-app.post("/user-watchlist/add", (c) => runUserWatchlistMutation(c, "add"));
-app.post("/user-watchlist/remove", (c) => runUserWatchlistMutation(c, "remove"));
 
 // ---- 13F — legendary investor quarterly holdings (SEC, free). data owns the
 // data_13f_* tables; web reads them. Display only (parse + store); see #99. ----
@@ -449,29 +413,14 @@ app.post("/internal/valuation", async (c) => {
   }
 });
 
-// Refresh the reference valuation for every watchlist symbol (cron/daily) so the
-// dashboard's buy-zone view always has a fresh fair_value vs price.
-app.post("/internal/valuation-sweep", async (c) => {
-  try {
-    const res = await sweepWatchlistValuations();
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("valuation.sweep.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("valuation_sweep_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+// SEVERED: the watchlist-wide valuation sweep lost its driver (house universe →
+// per-user). No-op; per-symbol reference valuation is still at /internal/valuation.
+// See follow-up issue.
+app.post("/internal/valuation-sweep", (c) => c.json(ok({ severed: true, swept: 0 })));
 
-// Expiry sweep (cron): drop discovery-sourced watchlist entries past their TTL.
-app.post("/internal/expire-watchlist", async (c) => {
-  try {
-    const res = await expireDiscoveryWatchlist();
-    log.info("expire.done", { removed: res.removed });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("expire.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("expire_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+// SEVERED: discovery TTL expiry is gone — the per-user watchlist has no source/TTL
+// columns. No-op so any scheduler stays green. See follow-up issue.
+app.post("/internal/expire-watchlist", (c) => c.json(ok({ severed: true, removed: 0 })));
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });

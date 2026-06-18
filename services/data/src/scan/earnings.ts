@@ -7,7 +7,6 @@
  */
 import { fmpGet } from "@qt/shared";
 import type { FmpEarning } from "../pull/earnings.js";
-import { getWatchlistSymbols } from "../watchlist.js";
 import { upsertCandidates, type CandidateInput } from "../candidates.js";
 import { log } from "../log.js";
 
@@ -72,8 +71,10 @@ export async function scanEarnings(opts: {
   minSurprisePct: number;
 }): Promise<{ scanned: number; candidates: number }> {
   const rows = (await fmpGet<FmpEarning[]>("earnings-calendar", { from: opts.from, to: opts.to })) ?? [];
-  const watchlist = await getWatchlistSymbols();
-  const cands = selectEarningsCandidates(rows, watchlist, opts.minSurprisePct);
+  // The house watchlist used to exclude already-tracked symbols here; with the
+  // watchlist now per-user there's no global universe to dedup against, and the
+  // promote→watchlist path is severed (see follow-up). Scan all surprises.
+  const cands = selectEarningsCandidates(rows, [], opts.minSurprisePct);
   await upsertCandidates(cands);
   log.info("scan.earnings.done", {
     scanned: rows.length,

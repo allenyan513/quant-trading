@@ -12,9 +12,8 @@ const refresh = () => mutate((k) => typeof k === "string" && k.startsWith("/api/
 
 interface WatchRow {
   symbol: string;
-  source: string;
+  note: string | null;
   addedAt: string;
-  expiresAt: string | null;
   sector: string | null;
   fairValue: number | null;
   price: number | null;
@@ -143,7 +142,7 @@ const columns: Column<WatchRow>[] = [
     render: (r) =>
       r.held ? <Badge color="#58a6ff">held · {r.shares ?? "?"}</Badge> : <span style={{ color: "var(--muted)" }}>—</span>,
   },
-  { key: "source", header: "Source", render: (r) => <Badge>{r.source}</Badge>, width: 90 },
+  { key: "note", header: "Note", render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.note ?? "—"}</span> },
   { key: "addedAt", header: "Added", render: (r) => <TimeText ts={r.addedAt} />, width: 120 },
   { key: "actions", header: "", render: (r) => <RemoveButton symbol={r.symbol} />, width: 70 },
 ];
@@ -151,18 +150,18 @@ const columns: Column<WatchRow>[] = [
 export default function WatchlistPage() {
   return (
     <div>
-      <PageTitle subsystem="data" sub="深挖标的 · 估值 gap / 买入区（fair value vs price）· 是否持有">
+      <PageTitle subsystem="data" sub="你的私有自选 · 估值 gap / 买入区（fair value vs price）· 是否持有">
         Watchlist
       </PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0, fontSize: 13 }}>
-        按 upside 降序（最被低估在前 = 当前买入区）。估值由 alpha 的 <code>/internal/valuation-sweep</code> 每日刷新。
+        你的私有自选，按 upside 降序（最被低估在前 = 当前买入区）。估值在加入自选时即时计算，可在标的页手动刷新。
       </p>
       <AddBar />
       <LiveTable
         path="/api/watchlist"
         rowKey={(r: WatchRow) => r.symbol}
         columns={columns}
-        emptyText="Watchlist 为空 — 上方添加，或在 Candidates 页 promote。"
+        emptyText="自选为空 — 上方添加，或在标的页点「加自选」。"
       />
     </div>
   );

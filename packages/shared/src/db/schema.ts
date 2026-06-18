@@ -26,7 +26,7 @@ import { sql } from "drizzle-orm";
 
 /**
  * `universe` — every stock the system knows about, plus its profile metadata.
- * The catalog. `watchlist` is the active subset we actually pull/track for.
+ * The catalog. `watchlist` (below) is now a per-user followed-symbols list.
  */
 export const universe = pgTable("data_universe", {
   symbol: text("symbol").primaryKey(),
@@ -39,16 +39,27 @@ export const universe = pgTable("data_universe", {
   knownAt: timestamp("known_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
 
-/** `watchlist` — the symbols we actively observe (drives the /pull/* endpoints). */
-export const watchlist = pgTable("data_watchlist", {
-  symbol: text("symbol").primaryKey(),
-  addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
-  // How the symbol entered the universe: 'manual' (seeded) | 'discovery' (promoted
-  // from a scanner). Discovery entries carry a reason + TTL; manual never expire.
-  source: text("source").default("manual").notNull(),
-  discoveryReason: text("discovery_reason"),
-  expiresAt: timestamp("expires_at", { withTimezone: true }), // null = permanent
-});
+/**
+ * `watchlist` (data_watchlist) — each user's PRIVATE followed symbols.
+ * Per-user (PK [user_id, symbol], FK → auth_user, cascade). data owns the writes
+ * (web forwards, T12); web reads scoped to the session user.
+ *
+ * NOTE: this table used to be the GLOBAL "house universe" (source/discovery/TTL)
+ * that drove the refresh / valuation-sweep / discovery pipelines. When the parallel
+ * `user_watchlist` was collapsed back into this single table, that house role was
+ * dropped and those proactive sweeps were SEVERED (reactive news/alpha paths are
+ * unaffected). Re-driving proactive coverage is tracked in a follow-up issue.
+ */
+export const watchlist = pgTable(
+  "data_watchlist",
+  {
+    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    note: text("note"),
+    addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.symbol] })],
+);
 
 /**
  * `candidates` — the discovery review queue. Deterministic scanners (data,
@@ -682,20 +693,5 @@ export const authVerification = pgTable("auth_verification", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
 
-// ---- Per-user app data (multi-tenant). `user_` prefix = scoped to a user
-// (auth_user.id), distinct from the shared house tables. Owned/written by data
-// (web forwards writes, T12); read by web scoped to the session user. ----
-
-// A user's PRIVATE watchlist — their own followed symbols. Separate from the
-// global `data_watchlist` (the house discovery universe that drives the
-// refresh/valuation/discovery pipeline); this one has no pipeline role.
-export const userWatchlist = pgTable(
-  "user_watchlist",
-  {
-    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
-    symbol: text("symbol").notNull(),
-    note: text("note"),
-    addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.userId, t.symbol] })],
-);
+// (The per-user watchlist now lives in `data_watchlist` above — there is no
+// separate `user_watchlist` table.)

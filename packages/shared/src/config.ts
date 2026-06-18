@@ -62,8 +62,6 @@ export const config = {
   // ---- Discovery / universe selection (tuning constants, not deploy knobs) ----
   /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
   scanEarningsSurprisePct: () => 0.2,
-  /** TTL (days) for a discovery-promoted watchlist entry before it expires out. */
-  discoveryTtlDays: () => 30,
 
   /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
   riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),

@@ -7,23 +7,25 @@ import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
 
-/** Promote/dismiss buttons. Calls the web route (which forwards to the data service),
- *  then revalidates the candidates table so the row updates immediately. */
+/** Dismiss button. Calls the web route (which forwards to the data service), then
+ *  revalidates the candidates table. Promote-into-watchlist is SEVERED — the
+ *  watchlist is per-user now, so candidates are a read-only discovery view (see the
+ *  follow-up issue). Only Dismiss (noise removal) remains. */
 function CandidateActions({ symbol, status }: { symbol: string; status: string }) {
   const [busy, setBusy] = useState(false);
   if (status !== "pending") return <span style={{ color: "var(--muted)" }}>—</span>;
 
-  async function act(action: "promote" | "dismiss") {
+  async function dismiss() {
     setBusy(true);
     try {
-      const res = await fetch(`/api/candidates/${action}`, {
+      const res = await fetch(`/api/candidates/dismiss`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ symbol }),
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        alert(`${action} failed: ${j.error ?? res.status}`);
+        alert(`dismiss failed: ${j.error ?? res.status}`);
         return;
       }
       await mutate((k) => typeof k === "string" && k.startsWith("/api/candidates"));
@@ -32,21 +34,24 @@ function CandidateActions({ symbol, status }: { symbol: string; status: string }
     }
   }
 
-  const btn = (color: string): React.CSSProperties => ({
-    fontSize: 12,
-    padding: "2px 8px",
-    borderRadius: 4,
-    cursor: busy ? "default" : "pointer",
-    border: `1px solid ${color}`,
-    background: "transparent",
-    color,
-    opacity: busy ? 0.5 : 1,
-  });
-
   return (
-    <span style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-      <button disabled={busy} onClick={() => act("promote")} style={btn("#3fb950")}>Promote</button>
-      <button disabled={busy} onClick={() => act("dismiss")} style={btn("#f85149")}>Dismiss</button>
+    <span onClick={(e) => e.stopPropagation()}>
+      <button
+        disabled={busy}
+        onClick={dismiss}
+        style={{
+          fontSize: 12,
+          padding: "2px 8px",
+          borderRadius: 4,
+          cursor: busy ? "default" : "pointer",
+          border: "1px solid #f85149",
+          background: "transparent",
+          color: "#f85149",
+          opacity: busy ? 0.5 : 1,
+        }}
+      >
+        Dismiss
+      </button>
     </span>
   );
 }
@@ -75,10 +80,10 @@ const columns: Column<CandidateRow>[] = [
 export default function CandidatesPage() {
   return (
     <div>
-      <PageTitle subsystem="data" sub="选股发现 scanner → 人工 promote 进 watchlist">Candidates</PageTitle>
+      <PageTitle subsystem="data" sub="选股发现 scanner（只读发现队列）">Candidates</PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
-        Discovery review queue. Promote via{" "}
-        <code>POST /candidates/promote {"{ symbol }"}</code> (data) to add to the watchlist.
+        Discovery review queue. 升级进 watchlist 已暂停（watchlist 现为每用户私有，见 follow-up issue）；
+        当前仅支持 Dismiss 噪音。
       </p>
       <LiveTable
         path="/api/candidates"

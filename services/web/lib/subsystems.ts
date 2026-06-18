@@ -64,7 +64,6 @@ export const SUBSYSTEMS: Subsystem[] = [
     ],
     pages: [
       { href: "/data/watchlist", label: "Watchlist" },
-      { href: "/data/my-watchlist", label: "我的自选" },
       { href: "/data/holdings", label: "Holdings" },
       { href: "/data/legends", label: "Legends 13F" },
       { href: "/data/news", label: "News" },
