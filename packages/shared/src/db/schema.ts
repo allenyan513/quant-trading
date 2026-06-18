@@ -769,8 +769,7 @@ export const morningBriefs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
   },
-  (t) => [
-    primaryKey({ columns: [t.userId, t.briefDate] }),
-    index("idx_morning_briefs_user_date").on(t.userId, t.briefDate),
-  ],
+  // PK (user_id, brief_date) already provides the index the list query needs
+  // (filter by user_id + order by brief_date), so no extra index.
+  (t) => [primaryKey({ columns: [t.userId, t.briefDate] })],
 );

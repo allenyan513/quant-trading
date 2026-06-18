@@ -113,22 +113,27 @@ const mcpHandler = createMcpHandler(
       async ({ date, markdown, summary }, extra) => {
         const userId = userIdFrom(extra);
         if (!userId) return UNAUTH;
-        const resp = await fetch(`${dataUrl()}/morning-brief/submit`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ userId, date, markdown, summary }),
-        });
-        const json = (await resp.json().catch(() => ({}))) as {
-          ok?: boolean;
-          data?: unknown;
-          error?: { code?: string; message?: string } | string;
-        };
-        if (!resp.ok || !json.ok) {
-          const err = json.error;
-          const msg = typeof err === "string" ? err : (err?.message ?? err?.code ?? `data service returned ${resp.status}`);
-          return { content: [{ type: "text", text: `Failed to save brief: ${msg}` }], isError: true };
+        try {
+          const resp = await fetch(`${dataUrl()}/morning-brief/submit`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ userId, date, markdown, summary }),
+          });
+          const json = (await resp.json().catch(() => ({}))) as {
+            ok?: boolean;
+            data?: unknown;
+            error?: { code?: string; message?: string } | string;
+          };
+          if (!resp.ok || !json.ok) {
+            const err = json.error;
+            const msg = typeof err === "string" ? err : (err?.message ?? err?.code ?? `data service returned ${resp.status}`);
+            return { content: [{ type: "text", text: `Failed to save brief: ${msg}` }], isError: true };
+          }
+          return { content: [{ type: "text", text: `Saved morning brief for ${date}.` }] };
+        } catch (e) {
+          // fetch can throw on network failure (data service down / DNS) — surface it, don't crash the MCP request.
+          return { content: [{ type: "text", text: `Failed to save brief (network error): ${e instanceof Error ? e.message : String(e)}` }], isError: true };
         }
-        return { content: [{ type: "text", text: `Saved morning brief for ${date}.` }] };
       },
     );
   },

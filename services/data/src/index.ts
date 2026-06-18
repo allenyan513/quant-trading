@@ -237,8 +237,8 @@ app.post("/morning-brief/submit", async (c) => {
   const userId = String(body.userId ?? "").trim();
   const date = String(body.date ?? "").trim();
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
-  if (!userId || !date || !markdown.trim()) {
-    return c.json(fail("bad_request", "userId, date and markdown required"), 400);
+  if (!userId || !date || !markdown.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return c.json(fail("bad_request", "userId, valid date (YYYY-MM-DD) and markdown required"), 400);
   }
   const summary = body.summary && typeof body.summary === "object" ? body.summary : undefined;
   try {

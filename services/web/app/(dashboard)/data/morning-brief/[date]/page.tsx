@@ -13,6 +13,7 @@ export default async function BriefDetailPage({ params }: { params: Promise<{ da
   const user = await getUser();
   if (!user) redirect("/landing"); // middleware already guards; defensive
   const { date } = await params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound(); // invalid date → 404, not a DB type error
   const brief = await getMorningBrief(user.id, date);
   if (!brief) notFound();
 
