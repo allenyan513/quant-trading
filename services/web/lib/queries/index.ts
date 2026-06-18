@@ -10,5 +10,6 @@ export * from "./symbol.js";
 export * from "./watchlist.js";
 export * from "./holdings.js";
 export * from "./onboarding.js";
+export * from "./morning-brief.js";
 export * from "./logs.js";
 export * from "./thirteenf.js";

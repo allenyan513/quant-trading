@@ -15,6 +15,7 @@ import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
 import { dismissCandidate } from "./candidates.js";
 import { addWatchlist, removeWatchlist } from "./watchlist.js";
+import { submitMorningBrief } from "./morning-brief.js";
 import { warmAndPullNews, revalue } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
@@ -225,6 +226,28 @@ app.post("/watchlist/remove", async (c) => {
   } catch (err) {
     log.error("watchlist.remove.failed", { userId, symbol, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("watchlist_remove_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// Morning brief (#97): the user's own Claude (skill + web search) generates the brief
+// and posts it back via the OAuth MCP `submit_morning_brief` tool → web forwards here
+// (T12). data just stores it — no LLM. Idempotent by (userId, date).
+app.post("/morning-brief/submit", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const userId = String(body.userId ?? "").trim();
+  const date = String(body.date ?? "").trim();
+  const markdown = typeof body.markdown === "string" ? body.markdown : "";
+  if (!userId || !date || !markdown.trim()) {
+    return c.json(fail("bad_request", "userId, date and markdown required"), 400);
+  }
+  const summary = body.summary && typeof body.summary === "object" ? body.summary : undefined;
+  try {
+    const res = await submitMorningBrief(userId, date, markdown, summary);
+    log.info("morning_brief.submit", { userId, date });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("morning_brief.submit.failed", { userId, date, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("morning_brief_submit_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
