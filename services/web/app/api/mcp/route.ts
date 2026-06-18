@@ -32,6 +32,15 @@ function userIdFrom(extra?: { authInfo?: { extra?: Record<string, unknown> } }):
   return typeof uid === "string" && uid ? uid : null;
 }
 
+// web is read-only DB (T12): the one WRITE tool (submit_morning_brief) forwards to the
+// data service, which owns data_morning_briefs. Static process.env.DATA_URL (Next
+// inlines it; config.dataUrl would read empty in a route handler).
+function dataUrl(): string {
+  const u = process.env.DATA_URL;
+  if (!u) throw new Error("Missing required env var: DATA_URL");
+  return u;
+}
+
 const mcpHandler = createMcpHandler(
   (server) => {
     // Public market-data tools (single source of truth).
@@ -79,6 +88,52 @@ const mcpHandler = createMcpHandler(
         if (!userId) return UNAUTH;
         const data = await listWatchlistOverview(userId);
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      },
+    );
+
+    server.registerTool(
+      "submit_morning_brief",
+      {
+        title: "Save today's morning brief to your archive",
+        description:
+          "Persist a generated morning brief for the signed-in user so it appears in their dashboard " +
+          "archive (/data/morning-brief). Call this at the END of the morning-brief skill — after you've " +
+          "written the brief — with the brief's date and the full rendered Markdown (plus an optional " +
+          "structured summary for the list view). Idempotent per day: re-submitting the same date " +
+          "overwrites. Private + per-user (always saved to the authenticated user's account).",
+        inputSchema: {
+          date: z.string().describe("The brief's date, YYYY-MM-DD (the US trading day it covers)."),
+          markdown: z.string().describe("The full rendered morning brief, in Markdown."),
+          summary: z
+            .record(z.unknown())
+            .optional()
+            .describe("Optional structured summary for the list view, e.g. {dayPnlPct, totalValue, topMover}."),
+        },
+      },
+      async ({ date, markdown, summary }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        try {
+          const resp = await fetch(`${dataUrl()}/morning-brief/submit`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ userId, date, markdown, summary }),
+          });
+          const json = (await resp.json().catch(() => ({}))) as {
+            ok?: boolean;
+            data?: unknown;
+            error?: { code?: string; message?: string } | string;
+          };
+          if (!resp.ok || !json.ok) {
+            const err = json.error;
+            const msg = typeof err === "string" ? err : (err?.message ?? err?.code ?? `data service returned ${resp.status}`);
+            return { content: [{ type: "text", text: `Failed to save brief: ${msg}` }], isError: true };
+          }
+          return { content: [{ type: "text", text: `Saved morning brief for ${date}.` }] };
+        } catch (e) {
+          // fetch can throw on network failure (data service down / DNS) — surface it, don't crash the MCP request.
+          return { content: [{ type: "text", text: `Failed to save brief (network error): ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+        }
       },
     );
   },

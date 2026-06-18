@@ -36,6 +36,7 @@ export const {
   priceTargets,
   insiderTrades,
   valuationSnapshots,
+  morningBriefs,
   events,
   notifications,
   newsItems,
