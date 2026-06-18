@@ -1,108 +1,83 @@
 /**
- * MCP endpoint (Model Context Protocol over streamable HTTP) — the system's public
- * data outlet for third-party LLMs. Lives on web (the only public ingress); tools
- * read the read-only DB directly via shared queries (same as the dashboard), so
- * there's no internal HTTP hop back to data. Hosted via `mcp-handler` at /api/mcp.
+ * MCP endpoint (Model Context Protocol over streamable HTTP) — OAuth-gated. The
+ * single connector a user adds to their Claude Desktop / claude.ai. Hosts ALL tools:
+ * public market-data (get_symbol_research + two 13F tools, from SEC/public sources)
+ * PLUS the PRIVATE per-user account tools (get_holdings / get_watchlist), scoped to
+ * the token's user.
  *
- * OPEN (no auth) so it works as a claude.ai custom connector — those accept only
- * OAuth or no-auth, NOT a static bearer header. Therefore only PUBLIC market data
- * is exposed: get_symbol_research + the two 13F tools (all from SEC/public sources).
- * get_holdings (the operator's REAL brokerage account) is deliberately NOT
- * registered here — an open endpoint would publish private positions to anyone with
- * the URL. Re-add it only behind real auth (OAuth), or serve it from a separate
- * token-gated route for Claude Desktop/Code. (Export logic kept in lib/mcp/holdings.ts.)
+ * web is the OAuth 2.1 Authorization Server (Better Auth + mcp() plugin), so token
+ * validation is a same-origin `getMcpSession` DB lookup — no cross-service hop. The
+ * whole endpoint is gated by mcp-handler's withMcpAuth: an unauthenticated call gets
+ * 401 + WWW-Authenticate pointing at /.well-known/oauth-protected-resource → Claude
+ * runs the OAuth dance (DCR + PKCE) against the AS and retries with a bearer.
  *
- * Tools: get_symbol_research · list_13f_investors · get_13f_investor.
+ * basePath "/api" ⇒ served at /api/mcp.
  */
-import { createMcpHandler } from "mcp-handler";
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
-import { getSymbolResearch, RESEARCH_SECTIONS } from "@/lib/mcp/research";
-import { getInvestorsList, getInvestorDetail, THIRTEENF_SECTIONS } from "@/lib/mcp/thirteenf";
+import { auth } from "@/lib/auth-server";
+import { registerPublicTools } from "@/lib/mcp/register-public-tools";
+import { getHoldingsExport, HOLDINGS_SECTIONS } from "@/lib/mcp/holdings";
+import { listWatchlistOverview } from "@/lib/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const UNAUTH = { content: [{ type: "text" as const, text: "Not authenticated." }], isError: true };
+
+/** The token's user id, injected by verifyToken into AuthInfo.extra. Never trust a
+ *  client-supplied user — tenant isolation depends on this coming from the token. */
+function userIdFrom(extra?: { authInfo?: { extra?: Record<string, unknown> } }): string | null {
+  const uid = extra?.authInfo?.extra?.userId;
+  return typeof uid === "string" && uid ? uid : null;
+}
+
 const mcpHandler = createMcpHandler(
   (server) => {
+    // Public market-data tools (single source of truth).
+    registerPublicTools(server);
+
     server.registerTool(
-      "get_symbol_research",
+      "get_holdings",
       {
-        title: "Deep research data for a stock symbol",
+        title: "Your brokerage holdings (positions, trades, performance)",
         description:
-          "Fetch this quant-trading system's data for a stock ticker and return it as " +
-          "structured JSON to summarize/analyze: reference valuation (fair value, DCF/" +
-          "consensus, verdict + upside), financials (income/balance/cash-flow + key " +
-          "ratios, multi-year), price history (OHLCV with a fair-value overlay), recent " +
-          "news, and analyst activity (ratings, price targets, estimates). Use whenever " +
-          "the user asks to research, analyze, value, or deep-dive a specific stock symbol.",
+          "Fetch the signed-in user's own IBKR portfolio as structured JSON: current positions " +
+          "(symbol, asset class, quantity, market value, weight, option greeks), recent trades, and " +
+          "performance (NAV index + KPIs: CAGR, Sharpe, Sortino, max drawdown, Calmar, beta, alpha vs " +
+          "SPY). Private + per-user — only ever returns the authenticated user's account. Use when the " +
+          "user asks about their portfolio, positions, P&L, or risk metrics.",
         inputSchema: {
-          symbol: z.string().describe("Stock ticker, e.g. AAPL, NVDA, TSLA"),
           sections: z
-            .array(z.enum(RESEARCH_SECTIONS))
+            .array(z.enum(HOLDINGS_SECTIONS))
             .optional()
-            .describe("Limit to these sections; defaults to all (valuation, financials, chart, news, analysts)."),
+            .describe("Limit to these sections; defaults to all (performance, positions, trades)."),
+          tradesLimit: z.number().int().positive().max(200).optional().describe("Max recent trades (default 50)."),
         },
       },
-      async ({ symbol, sections }) => {
-        const data = await getSymbolResearch(symbol, sections);
+      async ({ sections, tradesLimit }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        const data = await getHoldingsExport(userId, { sections, tradesLimit });
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       },
     );
 
     server.registerTool(
-      "list_13f_investors",
+      "get_watchlist",
       {
-        title: "List tracked legendary investors (13F)",
+        title: "Your watchlist (followed symbols + valuation)",
         description:
-          "List the famous 'superinvestor' fund managers this system tracks from SEC 13F filings " +
-          "(Buffett, Burry, Ackman, Tepper, Tiger Global, …), each with a snapshot of their latest filed " +
-          "quarter: position count, total reported portfolio value, the quarter, and the filing date. " +
-          "Sorted newest-filed first by default. Use this to discover who's available (and get a CIK or " +
-          "name) before calling get_13f_investor. 13F is public, ~45-day-lagged quarterly data.",
-        inputSchema: {
-          sort: z
-            .enum(["recent", "value", "name"])
-            .optional()
-            .describe("Order: recent=newest 13F filing first (default), value=largest portfolio, name=A–Z."),
-          limit: z.number().int().positive().max(200).optional().describe("Max investors to return (default all, ~80)."),
-        },
+          "Fetch the signed-in user's private watchlist as structured JSON: each followed symbol with " +
+          "its note, latest reference valuation (fair value / price / upside % / verdict), sector, and " +
+          "whether the user currently holds it — sorted most-undervalued first. Private + per-user. Use " +
+          "when the user asks what's on their watchlist or which of their symbols look cheap.",
+        inputSchema: {},
       },
-      async ({ sort, limit }) => {
-        const data = await getInvestorsList({ sort, limit });
-        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-      },
-    );
-
-    server.registerTool(
-      "get_13f_investor",
-      {
-        title: "One legendary investor's 13F holdings + buys/sells",
-        description:
-          "Fetch one tracked investor's latest 13F as structured JSON: current holdings (ticker, issuer, " +
-          "% of portfolio, shares, reported price, value) plus this quarter's activity vs the prior quarter — " +
-          "buys (new + increased) and sells (trimmed + exited) — and a summary of counts. Use when the user " +
-          "asks what a legendary investor holds or what they bought/sold (e.g. 'what did Buffett buy this " +
-          "quarter', 'Michael Burry's portfolio'). Identify the investor by CIK or by name/label ('0001067983', " +
-          "'Buffett', 'Berkshire'); if unsure, call list_13f_investors first. Public, ~45-day-lagged quarterly data — not live.",
-        inputSchema: {
-          investor: z
-            .string()
-            .describe("CIK (e.g. 0001067983) or name/label (e.g. 'Buffett', 'Berkshire', 'Tiger Global')."),
-          topN: z
-            .number()
-            .int()
-            .positive()
-            .max(500)
-            .optional()
-            .describe("Max holdings rows (default 50; buys/sells are never truncated)."),
-          sections: z
-            .array(z.enum(THIRTEENF_SECTIONS))
-            .optional()
-            .describe("Limit to these sections; defaults to all (summary, holdings, buys, sells)."),
-        },
-      },
-      async ({ investor, topN, sections }) => {
-        const data = await getInvestorDetail(investor, { topN, sections });
+      async (_args, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        const data = await listWatchlistOverview(userId);
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       },
     );
@@ -111,34 +86,24 @@ const mcpHandler = createMcpHandler(
   { basePath: "/api" },
 );
 
-// No auth (only public market-data tools — get_holdings is excluded), so it's safe
-// to leave open for claude.ai connectors. But open + DB-backed ⇒ blunt scraping/DoS
-// with a lightweight per-IP fixed-window rate limit (no deps). In-memory ⇒ per Cloud
-// Run instance; pair with `gcloud run ... --max-instances` (hard cost ceiling) +
-// Cloud Armor for robust distributed limiting. Tune via MCP_RATE_PER_MIN.
-const RATE_MAX = Number(process.env.MCP_RATE_PER_MIN ?? "60");
-const RATE_WINDOW_MS = 60_000;
-const hits = new Map<string, { count: number; resetAt: number }>();
+// Validate the bearer against Better Auth's issued MCP access tokens (opaque,
+// DB-backed via getMcpSession). Returns AuthInfo (user id in `extra`) on success →
+// mcp-handler exposes it to tools as extra.authInfo; undefined → 401 + PRM pointer.
+const verifyToken = async (req: Request, bearerToken?: string) => {
+  if (!bearerToken) return undefined;
+  const session = await auth.api.getMcpSession({ headers: req.headers });
+  if (!session) return undefined;
+  return {
+    token: bearerToken,
+    clientId: session.clientId ?? "",
+    scopes: typeof session.scopes === "string" && session.scopes ? session.scopes.split(" ") : [],
+    extra: { userId: session.userId ?? null },
+  };
+};
 
-function rateLimited(req: Request): boolean {
-  if (!(RATE_MAX > 0)) return false; // 0/invalid disables the limiter
-  const now = Date.now();
-  if (hits.size > 5000) for (const [k, v] of hits) if (now >= v.resetAt) hits.delete(k); // prune
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]!.trim() || "unknown";
-  const e = hits.get(ip);
-  if (!e || now >= e.resetAt) {
-    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-  e.count += 1;
-  return e.count > RATE_MAX;
-}
-
-async function handler(req: Request): Promise<Response> {
-  if (rateLimited(req)) {
-    return Response.json({ error: "rate_limited", message: "too many requests" }, { status: 429 });
-  }
-  return mcpHandler(req);
-}
+const handler = withMcpAuth(mcpHandler, verifyToken, {
+  required: true,
+  resourceMetadataPath: "/.well-known/oauth-protected-resource",
+});
 
 export { handler as GET, handler as POST, handler as DELETE };

@@ -646,7 +646,7 @@ export const logs = pgTable(
 // Shapes follow Better Auth's core schema (email/password); JS keys match Better
 // Auth field names (camelCase), SQL is snake_case, tables prefixed `auth_`.
 // `auth_user.id` is the tenant key threaded through per-user data. The OAuth/MCP
-// provider tables (oauth apps/tokens/consents) get added in Phase 2.
+// provider tables (`auth_oauth_*`, below) back the `mcp()` plugin (#P2).
 export const authUser = pgTable("auth_user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -692,6 +692,63 @@ export const authVerification = pgTable("auth_verification", {
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
+
+// ---- OAuth 2.1 provider tables for the Better Auth `mcp()` plugin (#P2). web's
+// Better Auth instance is the Authorization Server: these hold dynamically-
+// registered MCP clients (DCR), issued access/refresh tokens, and per-user consent.
+// Managed ENTIRELY by Better Auth (we never query them directly — `getMcpSession`
+// validates a bearer by looking up `oauthAccessToken`). Field names mirror Better
+// Auth's mcp/oidc model fields; `clientId` is the OAuth client_id (indexed, not a
+// hard FK — Better Auth manages the app↔token link). userId FK → auth_user cascade.
+export const oauthApplication = pgTable(
+  "auth_oauth_application",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    icon: text("icon"),
+    metadata: text("metadata"),
+    clientId: text("client_id").notNull().unique(),
+    clientSecret: text("client_secret"),
+    redirectUrls: text("redirect_urls").notNull(),
+    type: text("type").notNull(),
+    disabled: boolean("disabled").default(false),
+    userId: text("user_id").references(() => authUser.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [index("idx_oauth_app_user").on(t.userId)],
+);
+
+export const oauthAccessToken = pgTable(
+  "auth_oauth_access_token",
+  {
+    id: text("id").primaryKey(),
+    accessToken: text("access_token").notNull().unique(),
+    refreshToken: text("refresh_token").unique(),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }).notNull(),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    clientId: text("client_id").notNull(),
+    userId: text("user_id").references(() => authUser.id, { onDelete: "cascade" }),
+    scopes: text("scopes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [index("idx_oauth_token_client").on(t.clientId), index("idx_oauth_token_user").on(t.userId)],
+);
+
+export const oauthConsent = pgTable(
+  "auth_oauth_consent",
+  {
+    id: text("id").primaryKey(),
+    clientId: text("client_id").notNull(),
+    userId: text("user_id").references(() => authUser.id, { onDelete: "cascade" }),
+    scopes: text("scopes"),
+    consentGiven: boolean("consent_given").default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [index("idx_oauth_consent_client").on(t.clientId), index("idx_oauth_consent_user").on(t.userId)],
+);
 
 // (The per-user watchlist now lives in `data_watchlist` above — there is no
 // separate `user_watchlist` table.)
