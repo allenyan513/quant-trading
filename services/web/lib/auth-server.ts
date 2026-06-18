@@ -25,7 +25,7 @@ function databaseUrl(): string {
 }
 
 function authSecret(): string {
-  const s = process.env.BETTER_AUTH_SECRET ?? process.env.DASHBOARD_SESSION_SECRET;
+  const s = process.env.BETTER_AUTH_SECRET;
   if (!s || s.trim() === "") throw new Error("Missing required env var: BETTER_AUTH_SECRET");
   return s;
 }
