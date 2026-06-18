@@ -52,18 +52,16 @@ export const config = {
    *  key); stay just under. Batch size scales with the key (see openfigi.ts). */
   openfigiRateLimit: () => Number(optionalEnv("OPENFIGI_RATE_LIMIT", "20")),
 
-  // ---- IBKR Flex brokerage sync (single account — the maintainer's own) ----
-  // Flex token + query id live in the data_holdings_accounts table (set via the
-  // web "Connect IBKR" form), NOT in env. The account_id is a code constant:
-  // single-user never changes it, and multi-user would key rows by user id (a
-  // per-request value), so an env knob serves neither — hence a plain constant.
-  holdingsAccountId: () => "me",
+  // ---- IBKR Flex brokerage sync (per-user) ----
+  // Flex token + query id live in data_holdings_accounts (set via web's "Connect
+  // IBKR" form), keyed by the user's id (Better Auth user.id). The token is
+  // encrypted at rest with AES-256-GCM (@qt/shared/crypto) using this 32-byte key
+  // (base64 or 64-hex). Required wherever the token is read/written (data service).
+  holdingsEncKey: () => requireEnv("HOLDINGS_ENC_KEY"),
 
   // ---- Discovery / universe selection (tuning constants, not deploy knobs) ----
   /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
   scanEarningsSurprisePct: () => 0.2,
-  /** TTL (days) for a discovery-promoted watchlist entry before it expires out. */
-  discoveryTtlDays: () => 30,
 
   /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
   riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),

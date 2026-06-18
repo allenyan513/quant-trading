@@ -26,7 +26,7 @@ import { sql } from "drizzle-orm";
 
 /**
  * `universe` — every stock the system knows about, plus its profile metadata.
- * The catalog. `watchlist` is the active subset we actually pull/track for.
+ * The catalog. `watchlist` (below) is now a per-user followed-symbols list.
  */
 export const universe = pgTable("data_universe", {
   symbol: text("symbol").primaryKey(),
@@ -39,16 +39,27 @@ export const universe = pgTable("data_universe", {
   knownAt: timestamp("known_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
 
-/** `watchlist` — the symbols we actively observe (drives the /pull/* endpoints). */
-export const watchlist = pgTable("data_watchlist", {
-  symbol: text("symbol").primaryKey(),
-  addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
-  // How the symbol entered the universe: 'manual' (seeded) | 'discovery' (promoted
-  // from a scanner). Discovery entries carry a reason + TTL; manual never expire.
-  source: text("source").default("manual").notNull(),
-  discoveryReason: text("discovery_reason"),
-  expiresAt: timestamp("expires_at", { withTimezone: true }), // null = permanent
-});
+/**
+ * `watchlist` (data_watchlist) — each user's PRIVATE followed symbols.
+ * Per-user (PK [user_id, symbol], FK → auth_user, cascade). data owns the writes
+ * (web forwards, T12); web reads scoped to the session user.
+ *
+ * NOTE: this table used to be the GLOBAL "house universe" (source/discovery/TTL)
+ * that drove the refresh / valuation-sweep / discovery pipelines. When the parallel
+ * `user_watchlist` was collapsed back into this single table, that house role was
+ * dropped and those proactive sweeps were SEVERED (reactive news/alpha paths are
+ * unaffected). Re-driving proactive coverage is tracked in a follow-up issue.
+ */
+export const watchlist = pgTable(
+  "data_watchlist",
+  {
+    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    note: text("note"),
+    addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.symbol] })],
+);
 
 /**
  * `candidates` — the discovery review queue. Deterministic scanners (data,
@@ -629,3 +640,58 @@ export const logs = pgTable(
     index("idx_logs_symbol").on(t.symbol),
   ],
 );
+
+// ---- Better Auth — platform identity + OAuth Authorization Server (multi-tenant
+// pivot, #P0). Owned by web's Better Auth instance (services/web/lib/auth-server.ts).
+// Shapes follow Better Auth's core schema (email/password); JS keys match Better
+// Auth field names (camelCase), SQL is snake_case, tables prefixed `auth_`.
+// `auth_user.id` is the tenant key threaded through per-user data. The OAuth/MCP
+// provider tables (oauth apps/tokens/consents) get added in Phase 2.
+export const authUser = pgTable("auth_user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  image: text("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+export const authSession = pgTable("auth_session", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+export const authAccount = pgTable("auth_account", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(), // provider's account id (NOT a brokerage account)
+  providerId: text("provider_id").notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+  scope: text("scope"),
+  password: text("password"), // hashed (email/password provider)
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+export const authVerification = pgTable("auth_verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+// (The per-user watchlist now lives in `data_watchlist` above — there is no
+// separate `user_watchlist` table.)

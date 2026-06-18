@@ -1,5 +1,6 @@
 import { handle } from "@/lib/api";
 import { getHoldingsStatus } from "@/lib/queries";
+import { requireUserOr401 } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,13 +13,18 @@ function dataUrl(): string {
   return u;
 }
 
-/** Masked connection status (never returns the raw token). */
+/** Connection status for the signed-in user (never returns the token). */
 export async function GET() {
-  return handle(() => getHoldingsStatus());
+  const uid = await requireUserOr401();
+  if (typeof uid !== "string") return uid;
+  return handle(() => getHoldingsStatus(uid));
 }
 
-/** Save/update credentials — data owns the write, so this forwards to it. */
+/** Save/update this user's IBKR Flex credentials — data owns the write (and
+ *  encrypts the token), so this forwards with the user's id as the account id. */
 export async function POST(req: Request) {
+  const uid = await requireUserOr401();
+  if (typeof uid !== "string") return uid;
   return handle(async () => {
     const body = (await req.json().catch(() => ({}))) as { token?: string; queryId?: string };
     const token = (body.token ?? "").trim();
@@ -27,7 +33,7 @@ export async function POST(req: Request) {
     const resp = await fetch(`${dataUrl()}/holdings/credentials`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token, queryId }),
+      body: JSON.stringify({ accountId: uid, token, queryId }),
     });
     const json = (await resp.json().catch(() => ({}))) as {
       ok?: boolean;

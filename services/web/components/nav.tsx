@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useLive } from "@/components/live";
 import { statusColor } from "@/components/ui";
 import { SUBSYSTEMS, SYSTEM_PAGES, type SubsystemPage } from "@/lib/subsystems";
+import { signOut } from "@/lib/auth-client";
 
 interface Heartbeat {
   service: string;
@@ -71,8 +72,8 @@ export function Nav() {
 
       <button
         onClick={async () => {
-          await fetch("/api/logout", { method: "POST" });
-          window.location.href = "/login";
+          await signOut();
+          window.location.href = "/landing";
         }}
         style={{
           margin: 10,

@@ -14,10 +14,8 @@ import { Card, Meta } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
 
 interface Status {
-  accountId: string;
   connected: boolean;
   flexQueryId: string | null;
-  tokenMask: string | null;
   updatedAt: string | null;
 }
 
@@ -119,9 +117,7 @@ export default function HoldingsSettingsPage() {
       <Card title="当前连接">
         {status?.connected ? (
           <div style={{ display: "grid", gap: 8 }}>
-            <Meta label="account" value={status.accountId} />
             <Meta label="query id" value={status.flexQueryId ?? "—"} />
-            <Meta label="token" value={status.tokenMask ?? "—"} />
             <Meta label="updated" value={status.updatedAt ? fmtFull(status.updatedAt) : "—"} />
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
               <button onClick={sync} disabled={syncing} style={btnStyle(syncing, false)}>

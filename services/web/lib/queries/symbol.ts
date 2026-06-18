@@ -3,7 +3,7 @@
  * wrappers over the shared research reads. All read-only, Node runtime only.
  */
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import {
   db,
   universe,
@@ -51,7 +51,7 @@ export async function getLatestRatios(symbol: string) {
 /** Header "company shell" for the per-symbol detail layout: identity + latest
  * price/verdict/upside. DB-only (no FMP); leans on universe + latest snapshot,
  * falling back to the latest daily close for price when no snapshot exists. */
-export async function getCompanyShell(symbol: string) {
+export async function getCompanyShell(symbol: string, userId?: string) {
   const [uni, val, lastPrice, wl] = await Promise.all([
     db().select().from(universe).where(eq(universe.symbol, symbol)).limit(1),
     getLatestValuation(symbol),
@@ -61,7 +61,14 @@ export async function getCompanyShell(symbol: string) {
       .where(eq(dailyPrices.symbol, symbol))
       .orderBy(desc(dailyPrices.tradeDate))
       .limit(1),
-    db().select({ symbol: watchlist.symbol }).from(watchlist).where(eq(watchlist.symbol, symbol)).limit(1),
+    // Watchlist membership is per-user; without a session user there's no membership.
+    userId
+      ? db()
+          .select({ symbol: watchlist.symbol })
+          .from(watchlist)
+          .where(and(eq(watchlist.symbol, symbol), eq(watchlist.userId, userId)))
+          .limit(1)
+      : Promise.resolve([] as { symbol: string }[]),
   ]);
   const u = uni[0];
   const detail = (val?.detail ?? null) as { company_name?: string } | null;

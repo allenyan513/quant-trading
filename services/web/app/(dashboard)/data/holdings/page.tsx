@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getHoldingsStatus } from "@/lib/queries";
+import { getUser } from "@/lib/session";
 
 // Reads the DB (connection status) to pick the landing tab, so it must render
 // per-request — never statically prerendered at build (no DATABASE_URL then).
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
  * redirect is safe (no client-tree React #310).
  */
 export default async function HoldingsIndex() {
-  const status = await getHoldingsStatus();
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
+  const status = await getHoldingsStatus(user.id);
   redirect(status.connected ? "/data/holdings/performance" : "/data/holdings/settings");
 }

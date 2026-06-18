@@ -33,13 +33,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.7.1",
     "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",
-    "drizzle-kit": "^0.31.6",
+    "drizzle-kit": "^0.31.10",
     "vitest": "^4.1.7"
   }
 }

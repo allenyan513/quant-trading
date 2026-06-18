@@ -1,4 +1,5 @@
 import { handle } from "@/lib/api";
+import { requireUserOr401 } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,15 +12,21 @@ function dataUrl(): string {
   return u;
 }
 
-/** Trigger a holdings sync — data owns the work, so this forwards to it. Used by
- *  the Settings tab's "refresh" button + the auto-sync right after connecting. */
+/** Trigger a sync of THIS user's holdings — data owns the work, so this forwards
+ *  with the user's id as the account id. Used by the Settings "refresh" button +
+ *  the auto-sync right after connecting. */
 export async function POST() {
+  const uid = await requireUserOr401();
+  if (typeof uid !== "string") return uid;
   return handle(async () => {
-    const resp = await fetch(`${dataUrl()}/holdings/sync`, { method: "POST" });
+    const resp = await fetch(`${dataUrl()}/holdings/sync`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ accountId: uid }),
+    });
     const json = (await resp.json().catch(() => ({}))) as {
       ok?: boolean;
       data?: unknown;
-      // data returns an envelope whose `error` is an object { code, message }.
       error?: { code?: string; message?: string } | string;
     };
     if (!resp.ok || !json.ok) throw new Error(dataError(json.error, resp.status));

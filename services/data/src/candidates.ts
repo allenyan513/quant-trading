@@ -1,14 +1,17 @@
 /**
- * Discovery candidate lifecycle. The data service owns `candidates` + `watchlist`:
- * scanners upsert candidates; a human promotes one into the watchlist (with a
- * source + TTL) or dismisses it; an expiry sweep drops aged discovery entries.
- * Candidates are the gate — nothing reaches alpha until it's on the watchlist.
+ * Discovery candidate lifecycle. Deterministic scanners upsert candidates; a
+ * human dismisses the noise. data owns the `candidates` table.
+ *
+ * NOTE: the promote→watchlist path (and the discovery-TTL expiry sweep) was
+ * SEVERED when the house watchlist became per-user — a candidate can no longer be
+ * promoted into a global universe. Candidates are now a read-only discovery view;
+ * reconnecting promotion is tracked in the follow-up issue.
  */
-import { and, eq, lt, sql } from "drizzle-orm";
-import { db, dbSchema, config } from "@qt/shared";
+import { eq, sql } from "drizzle-orm";
+import { db, dbSchema } from "@qt/shared";
 import { log } from "./log.js";
 
-const { candidates, watchlist } = dbSchema;
+const { candidates } = dbSchema;
 
 export interface CandidateInput {
   symbol: string;
@@ -20,8 +23,7 @@ export interface CandidateInput {
 
 /**
  * Upsert scanner hits. Refreshes the signal but never touches `status`: a
- * dismissed candidate stays dismissed, and a promoted one is already on the
- * watchlist (so the scanner filters it out and it won't reach here).
+ * dismissed candidate stays dismissed.
  */
 export async function upsertCandidates(cands: CandidateInput[]): Promise<void> {
   if (cands.length === 0) return;
@@ -48,22 +50,6 @@ export async function upsertCandidates(cands: CandidateInput[]): Promise<void> {
     });
 }
 
-/** Promote a candidate into the watchlist (source='discovery', TTL'd). */
-export async function promoteCandidate(symbol: string): Promise<{ promoted: boolean; reason: string | null }> {
-  const sym = symbol.toUpperCase();
-  const [c] = await db().select().from(candidates).where(eq(candidates.symbol, sym));
-  if (!c) return { promoted: false, reason: null };
-
-  const expiresAt = new Date(Date.now() + config.discoveryTtlDays() * 24 * 3600 * 1000);
-  await db()
-    .insert(watchlist)
-    .values({ symbol: sym, source: "discovery", discoveryReason: c.discoveryReason, expiresAt })
-    .onConflictDoNothing({ target: watchlist.symbol });
-  await db().update(candidates).set({ status: "promoted" }).where(eq(candidates.symbol, sym));
-  log.info("candidate.promoted", { symbol: sym, reason: c.discoveryReason, expires_at: expiresAt.toISOString() });
-  return { promoted: true, reason: c.discoveryReason };
-}
-
 /** Dismiss a candidate so the scanner won't resurface it. */
 export async function dismissCandidate(symbol: string): Promise<{ dismissed: boolean }> {
   const sym = symbol.toUpperCase();
@@ -74,14 +60,4 @@ export async function dismissCandidate(symbol: string): Promise<{ dismissed: boo
     .returning({ symbol: candidates.symbol });
   if (res.length) log.info("candidate.dismissed", { symbol: sym });
   return { dismissed: res.length > 0 };
-}
-
-/** Drop discovery-sourced watchlist entries past their TTL. Manual entries are never touched. */
-export async function expireDiscoveryWatchlist(): Promise<{ removed: number }> {
-  const removed = await db()
-    .delete(watchlist)
-    .where(and(eq(watchlist.source, "discovery"), lt(watchlist.expiresAt, new Date())))
-    .returning({ symbol: watchlist.symbol });
-  if (removed.length) log.info("watchlist.expired", { removed: removed.map((r) => r.symbol) });
-  return { removed: removed.length };
 }

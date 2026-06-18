@@ -7,7 +7,6 @@
     "dev": "PORT=8081 tsx watch --env-file-if-exists=../../.env src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "seed:watchlist": "tsx --env-file-if-exists=../../.env src/seed-watchlist.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -16,7 +15,7 @@
     "@anthropic-ai/sdk": "^0.100.1",
     "@hono/node-server": "^1.13.7",
     "@qt/shared": "workspace:*",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.6.13",
     "pg": "^8.16.3",
     "tsx": "^4.19.2",
