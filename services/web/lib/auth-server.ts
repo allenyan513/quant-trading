@@ -7,7 +7,7 @@
  * shared Drizzle schema (`auth_*`), migrated via drizzle-kit like everything else.
  *
  * P0 = email/password identity. P2 adds the `mcp()` plugin → this instance is also
- * the OAuth 2.1 Authorization Server for the gated MCP endpoint (`/api/private/mcp`),
+ * the OAuth 2.1 Authorization Server for the gated MCP endpoint (`/api/mcp`),
  * which Claude connects to via OAuth (DCR + PKCE). Social login can come later.
  */
 import { betterAuth } from "better-auth";
@@ -40,8 +40,8 @@ function resolveBaseURL(): string {
   return "http://localhost:3001";
 }
 const baseURL = resolveBaseURL();
-// The OAuth-gated MCP endpoint this AS protects (same origin). See app/api/private/mcp.
-const mcpResource = `${baseURL}/api/private/mcp`;
+// The OAuth-gated MCP endpoint this AS protects (same origin). See app/api/mcp.
+const mcpResource = `${baseURL}/api/mcp`;
 
 // Module singleton — one pool per server instance (Cloud Run instances are long-lived).
 const authPool = new Pool({ connectionString: databaseUrl() });

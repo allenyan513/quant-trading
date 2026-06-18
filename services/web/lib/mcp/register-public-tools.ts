@@ -1,8 +1,7 @@
 /**
  * Registers the PUBLIC market-data MCP tools (SEC / public sources only) on an MCP
- * server. Single source of truth shared by both MCP endpoints:
- *  - the open `/api/mcp` (anonymous public demo), and
- *  - the OAuth-gated `/api/private/mcp` (which also adds the private account tools).
+ * server. Used by the OAuth-gated `/api/mcp` endpoint alongside the private account
+ * tools — kept in its own module so the public tool surface is defined in one place.
  * Tools read the read-only DB directly via the shared queries (same as the dashboard).
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

@@ -1,57 +1,109 @@
 /**
- * MCP endpoint (Model Context Protocol over streamable HTTP) — the system's public
- * data outlet for third-party LLMs. Lives on web (the only public ingress); tools
- * read the read-only DB directly via shared queries (same as the dashboard), so
- * there's no internal HTTP hop back to data. Hosted via `mcp-handler` at /api/mcp.
+ * MCP endpoint (Model Context Protocol over streamable HTTP) — OAuth-gated. The
+ * single connector a user adds to their Claude Desktop / claude.ai. Hosts ALL tools:
+ * public market-data (get_symbol_research + two 13F tools, from SEC/public sources)
+ * PLUS the PRIVATE per-user account tools (get_holdings / get_watchlist), scoped to
+ * the token's user.
  *
- * OPEN (no auth) so it works as a claude.ai custom connector — those accept only
- * OAuth or no-auth, NOT a static bearer header. Therefore only PUBLIC market data
- * is exposed: get_symbol_research + the two 13F tools (all from SEC/public sources).
- * get_holdings (the operator's REAL brokerage account) is deliberately NOT
- * registered here — an open endpoint would publish private positions to anyone with
- * the URL. Re-add it only behind real auth (OAuth), or serve it from a separate
- * token-gated route for Claude Desktop/Code. (Export logic kept in lib/mcp/holdings.ts.)
+ * web is the OAuth 2.1 Authorization Server (Better Auth + mcp() plugin), so token
+ * validation is a same-origin `getMcpSession` DB lookup — no cross-service hop. The
+ * whole endpoint is gated by mcp-handler's withMcpAuth: an unauthenticated call gets
+ * 401 + WWW-Authenticate pointing at /.well-known/oauth-protected-resource → Claude
+ * runs the OAuth dance (DCR + PKCE) against the AS and retries with a bearer.
  *
- * Tools: get_symbol_research · list_13f_investors · get_13f_investor.
+ * basePath "/api" ⇒ served at /api/mcp.
  */
-import { createMcpHandler } from "mcp-handler";
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import { z } from "zod";
+import { auth } from "@/lib/auth-server";
 import { registerPublicTools } from "@/lib/mcp/register-public-tools";
+import { getHoldingsExport, HOLDINGS_SECTIONS } from "@/lib/mcp/holdings";
+import { listWatchlistOverview } from "@/lib/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Only the public market-data tools (shared registrar). The private account tools
-// (get_holdings / get_watchlist) live ONLY on the OAuth-gated /api/private/mcp.
-const mcpHandler = createMcpHandler(registerPublicTools, {}, { basePath: "/api" });
+const UNAUTH = { content: [{ type: "text" as const, text: "Not authenticated." }], isError: true };
 
-// No auth (only public market-data tools — get_holdings is excluded), so it's safe
-// to leave open for claude.ai connectors. But open + DB-backed ⇒ blunt scraping/DoS
-// with a lightweight per-IP fixed-window rate limit (no deps). In-memory ⇒ per Cloud
-// Run instance; pair with `gcloud run ... --max-instances` (hard cost ceiling) +
-// Cloud Armor for robust distributed limiting. Tune via MCP_RATE_PER_MIN.
-const RATE_MAX = Number(process.env.MCP_RATE_PER_MIN ?? "60");
-const RATE_WINDOW_MS = 60_000;
-const hits = new Map<string, { count: number; resetAt: number }>();
-
-function rateLimited(req: Request): boolean {
-  if (!(RATE_MAX > 0)) return false; // 0/invalid disables the limiter
-  const now = Date.now();
-  if (hits.size > 5000) for (const [k, v] of hits) if (now >= v.resetAt) hits.delete(k); // prune
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]!.trim() || "unknown";
-  const e = hits.get(ip);
-  if (!e || now >= e.resetAt) {
-    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-  e.count += 1;
-  return e.count > RATE_MAX;
+/** The token's user id, injected by verifyToken into AuthInfo.extra. Never trust a
+ *  client-supplied user — tenant isolation depends on this coming from the token. */
+function userIdFrom(extra?: { authInfo?: { extra?: Record<string, unknown> } }): string | null {
+  const uid = extra?.authInfo?.extra?.userId;
+  return typeof uid === "string" && uid ? uid : null;
 }
 
-async function handler(req: Request): Promise<Response> {
-  if (rateLimited(req)) {
-    return Response.json({ error: "rate_limited", message: "too many requests" }, { status: 429 });
-  }
-  return mcpHandler(req);
-}
+const mcpHandler = createMcpHandler(
+  (server) => {
+    // Public market-data tools (single source of truth).
+    registerPublicTools(server);
+
+    server.registerTool(
+      "get_holdings",
+      {
+        title: "Your brokerage holdings (positions, trades, performance)",
+        description:
+          "Fetch the signed-in user's own IBKR portfolio as structured JSON: current positions " +
+          "(symbol, asset class, quantity, market value, weight, option greeks), recent trades, and " +
+          "performance (NAV index + KPIs: CAGR, Sharpe, Sortino, max drawdown, Calmar, beta, alpha vs " +
+          "SPY). Private + per-user — only ever returns the authenticated user's account. Use when the " +
+          "user asks about their portfolio, positions, P&L, or risk metrics.",
+        inputSchema: {
+          sections: z
+            .array(z.enum(HOLDINGS_SECTIONS))
+            .optional()
+            .describe("Limit to these sections; defaults to all (performance, positions, trades)."),
+          tradesLimit: z.number().int().positive().max(200).optional().describe("Max recent trades (default 50)."),
+        },
+      },
+      async ({ sections, tradesLimit }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        const data = await getHoldingsExport(userId, { sections, tradesLimit });
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      },
+    );
+
+    server.registerTool(
+      "get_watchlist",
+      {
+        title: "Your watchlist (followed symbols + valuation)",
+        description:
+          "Fetch the signed-in user's private watchlist as structured JSON: each followed symbol with " +
+          "its note, latest reference valuation (fair value / price / upside % / verdict), sector, and " +
+          "whether the user currently holds it — sorted most-undervalued first. Private + per-user. Use " +
+          "when the user asks what's on their watchlist or which of their symbols look cheap.",
+        inputSchema: {},
+      },
+      async (_args, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        const data = await listWatchlistOverview(userId);
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      },
+    );
+  },
+  {},
+  { basePath: "/api" },
+);
+
+// Validate the bearer against Better Auth's issued MCP access tokens (opaque,
+// DB-backed via getMcpSession). Returns AuthInfo (user id in `extra`) on success →
+// mcp-handler exposes it to tools as extra.authInfo; undefined → 401 + PRM pointer.
+const verifyToken = async (req: Request, bearerToken?: string) => {
+  if (!bearerToken) return undefined;
+  const session = await auth.api.getMcpSession({ headers: req.headers });
+  if (!session) return undefined;
+  return {
+    token: bearerToken,
+    clientId: session.clientId ?? "",
+    scopes: typeof session.scopes === "string" && session.scopes ? session.scopes.split(" ") : [],
+    extra: { userId: session.userId ?? null },
+  };
+};
+
+const handler = withMcpAuth(mcpHandler, verifyToken, {
+  required: true,
+  resourceMetadataPath: "/.well-known/oauth-protected-resource",
+});
 
 export { handler as GET, handler as POST, handler as DELETE };

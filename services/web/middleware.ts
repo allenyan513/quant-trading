@@ -9,14 +9,13 @@ import { getSessionCookie } from "better-auth/cookies";
  * unauthenticated API calls get 401.
  *
  * Public (no session needed): /landing, /sign-in, /sign-up, the Better Auth
- * endpoints (/api/auth/*), the OAuth discovery metadata (/.well-known/*), the open
- * /api/mcp (public market data), and the OAuth-gated /api/private/mcp (its auth runs
- * in-handler via withMcpAuth, not the dashboard session cookie).
+ * endpoints (/api/auth/*), the OAuth discovery metadata (/.well-known/*), and the
+ * MCP endpoint /api/mcp — OAuth-gated, but its auth runs in-handler via withMcpAuth
+ * (not the dashboard session cookie), so middleware must let it through.
  */
 function isPublic(pathname: string): boolean {
   if (pathname === "/landing" || pathname === "/sign-in" || pathname === "/sign-up") return true;
-  if (pathname === "/api/mcp") return true; // open public MCP (public market data only)
-  if (pathname === "/api/private/mcp") return true; // OAuth-gated MCP — auth runs in-handler
+  if (pathname === "/api/mcp") return true; // OAuth-gated MCP — auth runs in-handler (withMcpAuth)
   if (pathname.startsWith("/api/auth/")) return true; // Better Auth (own security)
   if (pathname.startsWith("/.well-known/")) return true; // OAuth discovery metadata (AS + PRM)
   return false;
