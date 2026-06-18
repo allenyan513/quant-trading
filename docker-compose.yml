@@ -30,6 +30,7 @@ services:
     environment:
       - PORT=8080
       - PORTFOLIO_URL=http://portfolio:8080
+      - DATA_URL=http://data:8080
     ports: ["8082:8080"]
     depends_on:
       portfolio: { condition: service_healthy }
@@ -54,7 +55,6 @@ services:
     environment:
       - PORT=8080
       - DATA_URL=http://data:8080
-      - ALPHA_URL=http://alpha:8080
     ports: ["3000:8080"]
     depends_on:
       data: { condition: service_healthy }
