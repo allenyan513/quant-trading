@@ -51,7 +51,8 @@ const boolTag = (x: unknown): boolean => {
 // Normalize a filer-supplied date to a bare YYYY-MM-DD (the `date` column rejects
 // anything else). Some filers append a TZ offset or time ("2025-11-04-05:00",
 // "2025-11-04T00:00:00"); take the leading date, drop the rest. Non-date → null.
-const dateOnly = (s: string | null): string | null => (s == null ? null : (s.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null));
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}/;
+const dateOnly = (s: string | null): string | null => (s == null ? null : (s.match(DATE_ONLY_RE)?.[0] ?? null));
 
 // ───────────────────────── transaction-code taxonomy ─────────────────────────
 
@@ -202,9 +203,22 @@ export function parseForm4(xml: string): ParsedForm4 | null {
 
 // ───────────────────────── thin client ─────────────────────────
 
-/** Fetch a Form 4 filing's raw ownership XML. `cik` is numeric (un-padded). */
-export async function fetch4Xml(cik: number, accn: string): Promise<string | null> {
-  return secGet<string>(`${SEC_WWW_BASE}/Archives/edgar/data/${cik}/${accnNoDashes(accn)}/form4.xml`, "application/xml");
+/** Resolve the raw Form 4 XML document name from the submissions `primaryDocument`.
+ *  Filers name the doc arbitrarily ("wk-form4_178…xml", "doc4.xml", …), and the
+ *  submissions feed points at the XSL-styled view ("xslF345X06/wk-form4_…xml") which
+ *  renders to HTML, not the parseable `ownershipDocument` XML. Strip the `xslF345Xnn/`
+ *  prefix to get the raw XML; fall back to the legacy "form4.xml" when absent. */
+export function form4DocName(primaryDocument: string | null | undefined): string {
+  const pd = (primaryDocument ?? "").trim();
+  if (!pd) return "form4.xml";
+  return pd.replace(/^xslF345X\d+\//, "");
+}
+
+/** Fetch a Form 4 filing's raw ownership XML. `cik` is numeric (un-padded);
+ *  `primaryDocument` comes from the submissions feed (see {@link form4DocName}). */
+export async function fetch4Xml(cik: number, accn: string, primaryDocument?: string): Promise<string | null> {
+  const doc = form4DocName(primaryDocument);
+  return secGet<string>(`${SEC_WWW_BASE}/Archives/edgar/data/${cik}/${accnNoDashes(accn)}/${doc}`, "application/xml");
 }
 
 export { fetchSubmissions };

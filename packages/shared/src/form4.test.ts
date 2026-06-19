@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseForm4, find4Filings, decodeCode, type Submissions } from "./form4.js";
+import { parseForm4, find4Filings, decodeCode, form4DocName, type Submissions } from "./form4.js";
 
 // Trimmed-but-real Apple Form 4 (accession 0001140361-26-025622, Newstead): an M
 // option exercise (price footnoted → null), an F tax-withhold, and a derivative leg.
@@ -98,6 +98,19 @@ describe("decodeCode", () => {
     expect(decodeCode("S").signal).toBe("sell");
     expect(decodeCode("M")).toEqual({ code: "M", label: "Option/RSU exercise", signal: "neutral" });
     expect(decodeCode("ZZ")).toEqual({ code: "ZZ", label: "Code ZZ", signal: "neutral" });
+  });
+});
+
+describe("form4DocName", () => {
+  it("strips the xsl-styled prefix to get the raw parseable XML name", () => {
+    // submissions points at the HTML view; the raw ownershipDocument XML is the same name minus the prefix.
+    expect(form4DocName("xslF345X06/wk-form4_1781816696.xml")).toBe("wk-form4_1781816696.xml");
+    expect(form4DocName("xslF345X05/doc4.xml")).toBe("doc4.xml");
+  });
+  it("passes through a bare doc name and falls back when absent", () => {
+    expect(form4DocName("wf-form4.xml")).toBe("wf-form4.xml");
+    expect(form4DocName("")).toBe("form4.xml");
+    expect(form4DocName(null)).toBe("form4.xml");
   });
 });
 
