@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_SECTIONS, type NavSection, type SubsystemPage } from "@/lib/subsystems";
@@ -17,6 +17,14 @@ const SIDEBAR_WIDTH = 212;
  */
 export function Nav() {
   const pathname = usePathname();
+  // The active nav item is the one whose href is the LONGEST prefix of the current
+  // path — so a sub-tab (/data/holdings/positions) still lights its parent
+  // (/data/holdings), while a sibling index+leaf (/system vs /system/logs) each win
+  // on their own page rather than both lighting up.
+  const activeHref =
+    NAV_SECTIONS.flatMap((s) => s.pages.map((p) => p.href))
+      .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+      .sort((a, b) => b.length - a.length)[0] ?? null;
   return (
     <nav
       style={{
@@ -47,7 +55,7 @@ export function Nav() {
 
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 10px 4px" }}>
         {NAV_SECTIONS.map((s) => (
-          <Section key={s.label} section={s} pathname={pathname} />
+          <Section key={s.label} section={s} activeHref={activeHref} />
         ))}
       </div>
 
@@ -87,9 +95,14 @@ const headerStyle = (color: string): React.CSSProperties => ({
 /** One product section: a coloured header over its page links. A `collapsed`
  *  section (System) gets a click-to-toggle header, auto-expanded when you're on
  *  one of its pages. */
-function Section({ section, pathname }: { section: NavSection; pathname: string }) {
-  const containsActive = section.pages.some((p) => pathname === p.href);
+function Section({ section, activeHref }: { section: NavSection; activeHref: string | null }) {
+  const containsActive = section.pages.some((p) => p.href === activeHref);
   const [open, setOpen] = useState(!section.collapsed || containsActive);
+  // Auto-expand a collapsed section when client-side nav lands on one of its pages
+  // (the init above only covers a full load / first render).
+  useEffect(() => {
+    if (containsActive) setOpen(true);
+  }, [containsActive]);
 
   return (
     <div className="nav-section" style={{ marginBottom: 14 }}>
@@ -109,7 +122,7 @@ function Section({ section, pathname }: { section: NavSection; pathname: string 
       {open && (
         <div className="nav-section-pages" style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           {section.pages.map((p) => (
-            <NavItem key={p.href} page={p} color={section.color} pathname={pathname} />
+            <NavItem key={p.href} page={p} color={section.color} active={p.href === activeHref} />
           ))}
         </div>
       )}
@@ -117,11 +130,9 @@ function Section({ section, pathname }: { section: NavSection; pathname: string 
   );
 }
 
-/** A single page link with section-accented active state. */
-function NavItem({ page, color, pathname }: { page: SubsystemPage; color: string; pathname: string }) {
-  // Exact match: every nav target is a leaf (or the /system index), and /system
-  // is also the parent of /system/logs — a prefix match would light up both.
-  const active = pathname === page.href;
+/** A single page link with section-accented active state (active computed by the
+ *  parent via longest-prefix match, so sub-tabs light their parent item). */
+function NavItem({ page, color, active }: { page: SubsystemPage; color: string; active: boolean }) {
   return (
     <Link
       href={page.href}
