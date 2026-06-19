@@ -179,15 +179,6 @@ export const ratings = pgTable(
   ],
 );
 
-export const insiderTrades = pgTable(
-  "data_insider",
-  recordCols,
-  (t) => [
-    primaryKey({ columns: [t.symbol, t.externalId] }),
-    index("idx_insider_symbol_observed").on(t.symbol, t.observedAt),
-  ],
-);
-
 export const priceTargets = pgTable(
   "data_price_targets",
   recordCols,
@@ -474,9 +465,9 @@ export const eightKFilings = pgTable(
 // Direct-from-SEC replacement for FMP insider data: Form 4 (statement of changes in
 // beneficial ownership) carries the transaction CODE (P open-market buy, S sell, M
 // option exercise, A grant, F tax, G gift, …), the 10b5-1 plan flag, and derivative
-// vs non-derivative — all of which FMP flattens away. One row per transaction within a
-// filing (PK = accession + ordinal). data owns; web reads (Ownership tab). FMP
-// data_insider stays as a transition fallback (source-tagged at read time). See #104.
+// vs non-derivative — all of which FMP flattened away. One row per transaction within a
+// filing (PK = accession + ordinal). data owns; web reads (Ownership tab). Sole insider
+// source — the legacy FMP `data_insider` cache was retired (#132). See #104.
 export const form4Transactions = pgTable(
   "data_form4",
   {

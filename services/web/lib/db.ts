@@ -34,7 +34,6 @@ export const {
   analystEstimates,
   ratings,
   priceTargets,
-  insiderTrades,
   valuationSnapshots,
   morningBriefs,
   events,

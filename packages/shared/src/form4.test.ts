@@ -76,6 +76,12 @@ describe("parseForm4", () => {
     expect(parseForm4(AAPL_FORM4.replace("<aff10b5One>false", "<aff10b5One>1"))!.is10b5_1).toBe(true);
   });
 
+  it("normalizes a filer's TZ-suffixed transactionDate to a bare date", () => {
+    // Some filers (e.g. AREC) write "2025-11-04-05:00" — the date column rejects it.
+    const xml = AAPL_FORM4.replaceAll("<transactionDate><value>2026-06-15</value></transactionDate>", "<transactionDate><value>2026-06-15-05:00</value></transactionDate>");
+    expect(parseForm4(xml)!.transactions[0]!.transactionDate).toBe("2026-06-15");
+  });
+
   it("builds a multi-relationship label", () => {
     const xml = AAPL_FORM4.replace("<isOfficer>true</isOfficer>", "<isDirector>true</isDirector><isOfficer>true</isOfficer>");
     expect(parseForm4(xml)!.owners[0]!.relationship).toBe("Director, Officer");

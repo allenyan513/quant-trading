@@ -50,8 +50,8 @@ export const getOwnershipData = (symbol: string) => sharedGetOwnership(db(), sym
 export const getEventsData = (symbol: string) => sharedGet8K(db(), symbol);
 
 /** SEC Form 4 insider transactions for the Ownership tab (rich: transaction code +
- * 10b5-1 + derivative), SEC-primary with FMP fallback. Shared with the MCP
- * get_symbol_research ownership section (see @qt/shared/form4-read). */
+ * 10b5-1 + derivative), SEC-only. Shared with the MCP get_symbol_research
+ * ownership section (see @qt/shared/form4-read). */
 export const getInsidersData = (symbol: string) => sharedGetInsiders(db(), symbol);
 
 /** Latest financial-ratios row for a symbol (newest filing first). `data` is the

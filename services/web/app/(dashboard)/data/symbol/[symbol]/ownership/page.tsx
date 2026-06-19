@@ -54,7 +54,7 @@ interface InsiderTxn {
 }
 interface Insiders {
   symbol: string;
-  source: "sec" | "fmp" | "none";
+  source: "sec" | "none";
   insiders: InsiderTxn[];
 }
 
@@ -157,11 +157,11 @@ function Holders({ rows }: { rows: Holder[] }) {
   );
 }
 
-// ---------- insider transactions (SEC Form 4, FMP fallback) ----------
+// ---------- insider transactions (SEC Form 4) ----------
 function Insiders({ data }: { data: Insiders }) {
   if (data.insiders.length === 0) return null;
   return (
-    <Card title={`内部人交易 · Form 4 (${data.insiders.length})${data.source === "fmp" ? " · FMP 兜底" : ""}`}>
+    <Card title={`内部人交易 · Form 4 (${data.insiders.length})`}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {data.insiders.map((t, i) => (
           <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>

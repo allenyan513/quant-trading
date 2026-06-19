@@ -48,6 +48,10 @@ const boolTag = (x: unknown): boolean => {
   const s = (val(x) ?? "").toLowerCase();
   return s === "true" || s === "1";
 };
+// Normalize a filer-supplied date to a bare YYYY-MM-DD (the `date` column rejects
+// anything else). Some filers append a TZ offset or time ("2025-11-04-05:00",
+// "2025-11-04T00:00:00"); take the leading date, drop the rest. Non-date → null.
+const dateOnly = (s: string | null): string | null => (s == null ? null : (s.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null));
 
 // ───────────────────────── transaction-code taxonomy ─────────────────────────
 
@@ -171,7 +175,7 @@ function parseTxn(t: Record<string, unknown>, isDerivative: boolean): Form4Txn |
     isDerivative,
     sharesOwnedAfter: numVal(post.sharesOwnedFollowingTransaction),
     directIndirect: val(nature.directOrIndirectOwnership),
-    transactionDate: val(t.transactionDate),
+    transactionDate: dateOnly(val(t.transactionDate)),
   };
 }
 

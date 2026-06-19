@@ -94,7 +94,7 @@ const compactNews = (xs: Row[]) => xs.slice(0, 15).map((r) => pick(r, NEWS_FIELD
 
 /** SEC ownership: 13D/13G beneficial-ownership filings (>5%) + tracked 13F legend
  *  holders + insider transactions (SEC Form 4, rich: code + 10b5-1). 13D/13G pct/shares
- *  are best-effort; only rostered filers' 13D/13G. insiderSource "fmp" = SEC fallback. */
+ *  are best-effort; only rostered filers' 13D/13G. insiderSource is "sec" or "none". */
 function compactOwnership(
   o: Awaited<ReturnType<typeof getOwnershipForSymbol>>,
   ins: Awaited<ReturnType<typeof getInsidersForSymbol>>,
@@ -111,7 +111,7 @@ function compactOwnership(
       firstFiledDate: f.firstFiledDate,
     })),
     legendHolders: o.legendHolders.map((h) => ({ filer: h.filerLabel ?? h.filerName, shares: h.shares, value: h.value, quarter: h.quarter })),
-    insiderSource: ins.source, // "sec" | "fmp" | "none"
+    insiderSource: ins.source, // "sec" | "none"
     insiders: ins.insiders.slice(0, 25).map((t) => ({
       filer: t.reportingName,
       role: t.officerTitle ?? t.relationship,
