@@ -9,6 +9,32 @@ import { z } from "zod";
 import { getSymbolResearch, RESEARCH_SECTIONS } from "@/lib/mcp/research";
 import { getInvestorsList, getInvestorDetail, THIRTEENF_SECTIONS } from "@/lib/mcp/thirteenf";
 
+// EDGAR full-text search is a LIVE external call, so (unlike the read-only DB tools)
+// it forwards to data — the sole external-data receiver — rather than hitting efts
+// from web. DATA_URL is read statically (Next inlines it; see lib/db.ts). deliverJson
+// drops the response body, so use a plain fetch and unwrap the ok()/fail() envelope.
+function dataUrl(): string {
+  const u = process.env.DATA_URL;
+  if (!u) throw new Error("Missing required env var: DATA_URL");
+  return u;
+}
+
+async function searchFilingsViaData(body: Record<string, unknown>): Promise<unknown> {
+  const resp = await fetch(`${dataUrl()}/edgar/search`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = (await resp.json().catch(() => null)) as
+    | { ok?: boolean; data?: unknown; error?: { message?: string } | string }
+    | null;
+  if (!resp.ok || !json?.ok) {
+    const err = json?.error;
+    throw new Error((typeof err === "object" ? err?.message : err) ?? `data /edgar/search returned ${resp.status}`);
+  }
+  return json.data;
+}
+
 export function registerPublicTools(server: McpServer): void {
   server.registerTool(
     "get_symbol_research",
@@ -93,6 +119,30 @@ export function registerPublicTools(server: McpServer): void {
     },
     async ({ investor, topN, sections }) => {
       const data = await getInvestorDetail(investor, { topN, sections });
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    "search_filings",
+    {
+      title: "Full-text search SEC EDGAR filings",
+      description:
+        "Search the full text of every SEC EDGAR filing since 2001 by keyword or \"quoted phrase\". Returns the " +
+        "matching filings — company, ticker, form type, filing date, 8-K item codes (when present), and a direct " +
+        "link to the matched document — plus the total match count. Optionally restrict by form type(s) and a " +
+        "filing-date range. Use for cross-company theme/keyword discovery (e.g. 'which companies disclosed " +
+        "<topic> this year', 'who mentions <technology>') or to locate a specific filing. Public SEC data, not per-account.",
+      inputSchema: {
+        query: z.string().describe("Keywords, or a \"quoted phrase\" for an exact-phrase match."),
+        forms: z.array(z.string()).optional().describe("Restrict to these form types, e.g. [\"8-K\"] or [\"10-K\",\"10-Q\"]."),
+        startDate: z.string().optional().describe("Earliest filing date (YYYY-MM-DD)."),
+        endDate: z.string().optional().describe("Latest filing date (YYYY-MM-DD)."),
+        limit: z.number().int().positive().max(100).optional().describe("Max results to return (default 20)."),
+      },
+    },
+    async ({ query, forms, startDate, endDate, limit }) => {
+      const data = await searchFilingsViaData({ query, forms, startDate, endDate, limit });
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     },
   );
