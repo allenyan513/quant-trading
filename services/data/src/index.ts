@@ -28,7 +28,8 @@ import { addOwnershipFiler } from "./ownership/filers.js";
 import { sync8KAll, sync8KForSymbol } from "./eightk/sync.js";
 import { syncForm4All, syncForm4ForSymbol } from "./form4/sync.js";
 import { searchFilings } from "@qt/shared/edgar-fts";
-import { fetchMovers, fetchEarningsCalendar, fetchEconomicCalendar } from "@qt/shared/markets";
+import { fetchMovers, fetchEarningsCalendar, fetchEconomicCalendar, fetchEarningsHistory } from "@qt/shared/markets";
+import { syncEarningsCalendar } from "./earnings/sync.js";
 import { route } from "./route.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
@@ -441,6 +442,21 @@ async function syncForm4(c: Context) {
 app.post("/jobs/pull-form4", route("form4.sync", syncForm4));
 app.post("/form4/pull", route("form4.sync", syncForm4));
 
+// ---- Earnings calendar enrich (Discover grid). Joins FMP earnings-calendar + profile
+// (market cap / logo / sector) into data_earnings_calendar so the grid ranks the top-N
+// by market cap. data owns the write; web reads the table directly (T12). #141. ----
+async function syncEarnings(c: Context) {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const weeksAhead = Number(body.weeksAhead);
+  const weeksBack = Number(body.weeksBack);
+  return syncEarningsCalendar(
+    Number.isFinite(weeksAhead) && weeksAhead > 0 ? weeksAhead : undefined,
+    Number.isFinite(weeksBack) && weeksBack >= 0 ? weeksBack : undefined,
+  );
+}
+app.post("/jobs/sync-earnings", route("earnings.sync", syncEarnings));
+app.post("/earnings/sync", route("earnings.sync", syncEarnings));
+
 // ---- EDGAR full-text search (live passthrough; data is the sole external receiver,
 // so web's MCP search_filings tool forwards here rather than calling efts itself). ----
 app.post("/edgar/search", async (c) => {
@@ -498,6 +514,18 @@ app.get("/markets/earnings-calendar", async (c) => {
   } catch (err) {
     log.error("markets.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("markets_earnings_failed", err instanceof Error ? err.message : String(err)), 502);
+  }
+});
+
+// Per-symbol beat/miss history for the earnings detail drawer (live FMP).
+app.get("/markets/earnings-history", async (c) => {
+  try {
+    const symbol = (c.req.query("symbol") || "").trim().toUpperCase();
+    if (!symbol) return c.json(fail("bad_request", "missing symbol"), 400);
+    return c.json(ok(await fetchEarningsHistory(symbol)));
+  } catch (err) {
+    log.error("markets.earnings_history.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("markets_earnings_history_failed", err instanceof Error ? err.message : String(err)), 502);
   }
 });
 

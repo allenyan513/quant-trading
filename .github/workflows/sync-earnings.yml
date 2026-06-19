@@ -1,0 +1,30 @@
+name: Sync earnings calendar
+
+# Enriches the upcoming earnings calendar into the data service's
+# data_earnings_calendar table: FMP earnings-calendar joined with company profiles
+# (market cap / logo / sector) so the Discover grid can rank the top-N companies by
+# market cap per day. Triggers the data service's JOB_TOKEN-guarded endpoint.
+#
+# Required repo secrets:
+#   DATA_URL   — base URL of the deployed data service (no trailing slash)
+#   JOB_TOKEN  — shared secret; must match the data service's JOB_TOKEN env
+
+on:
+  schedule:
+    # 11:00 UTC daily — estimates/actuals and market caps drift slowly, so a single
+    # daily refresh is plenty. Idempotent: the enrich upserts on (symbol, report_date)
+    # and reuses profiles cached <7d, so re-runs are cheap. GitHub cron is UTC, no DST.
+    - cron: "0 11 * * *"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger earnings calendar enrich
+        run: |
+          curl --fail-with-body --show-error --silent \
+            --max-time 600 \
+            --retry 2 --retry-delay 30 \
+            -X POST "${{ secrets.DATA_URL }}/jobs/sync-earnings" \
+            -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"

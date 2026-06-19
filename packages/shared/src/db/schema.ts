@@ -498,6 +498,32 @@ export const form4Transactions = pgTable(
   ],
 );
 
+// ---- Enriched earnings calendar (Discover; data owns the write, web reads). Cached
+// daily by the enrich job (FMP earnings-calendar + getProfile market cap / logo /
+// sector) so the grid can rank the top-N by market cap per day. Mutable: estimates
+// firm up and actuals/market cap refresh, so it's an upsert (not an immutable PIT row).
+export const earningsCalendar = pgTable(
+  "data_earnings_calendar",
+  {
+    symbol: text("symbol").notNull(),
+    reportDate: date("report_date").notNull(),
+    name: text("name"),
+    epsEstimated: doublePrecision("eps_estimated"),
+    epsActual: doublePrecision("eps_actual"),
+    revenueEstimated: doublePrecision("revenue_estimated"),
+    revenueActual: doublePrecision("revenue_actual"),
+    marketCap: doublePrecision("market_cap"),
+    sector: text("sector"),
+    logoUrl: text("logo_url"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.symbol, t.reportDate] }),
+    index("idx_earnings_cal_date").on(t.reportDate),
+    index("idx_earnings_cal_date_cap").on(t.reportDate, t.marketCap),
+  ],
+);
+
 // ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(
