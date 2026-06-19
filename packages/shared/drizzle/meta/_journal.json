@@ -190,6 +190,13 @@
       "when": 1781832215540,
       "tag": "0026_fast_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1781834025662,
+      "tag": "0027_magenta_katie_power",
+      "breakpoints": true
     }
   ]
 }

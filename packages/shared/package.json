@@ -15,6 +15,8 @@
     "./ownership-read": "./src/ownership-read.ts",
     "./edgar-8k": "./src/edgar-8k.ts",
     "./edgar-8k-read": "./src/edgar-8k-read.ts",
+    "./form4": "./src/form4.ts",
+    "./form4-read": "./src/form4-read.ts",
     "./openfigi": "./src/openfigi.ts",
     "./http": "./src/http.ts",
     "./config": "./src/config.ts",

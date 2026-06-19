@@ -24,6 +24,7 @@ import { addFiler } from "./thirteenf/filers.js";
 import { syncOwnershipAll, syncOwnershipForFiler } from "./ownership/sync.js";
 import { addOwnershipFiler } from "./ownership/filers.js";
 import { sync8KAll, sync8KForSymbol } from "./eightk/sync.js";
+import { syncForm4All, syncForm4ForSymbol } from "./form4/sync.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
@@ -472,6 +473,23 @@ async function run8KSync(c: Context) {
 }
 app.post("/jobs/pull-8k", (c) => run8KSync(c));
 app.post("/eightk/pull", (c) => run8KSync(c));
+
+// ---- SEC Form 4 insider transactions (symbol-centric, direct from SEC). data owns
+// data_form4; web reads (Ownership tab). FMP data_insider stays as a read-time fallback
+// until SEC coverage is verified (then retired). #104 ----
+async function runForm4Sync(c: Context) {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbol = String(body.symbol ?? "").trim();
+    const res = symbol ? await syncForm4ForSymbol(symbol) : await syncForm4All();
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("form4.sync.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("sync_form4_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+}
+app.post("/jobs/pull-form4", (c) => runForm4Sync(c));
+app.post("/form4/pull", (c) => runForm4Sync(c));
 
 // Reference valuation (System A) — deterministic, no LLM. Lives in data (moved
 // from alpha): it's computed from data-owned marketdata caches. alpha fetches it
