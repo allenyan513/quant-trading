@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shapeMover, shapeEarnings, shapeEconEvent, dedupBy } from "./markets.js";
+import { shapeMover, shapeEarnings, shapeEarningsHist, shapeEconEvent, dedupBy } from "./markets.js";
 
 describe("dedupBy", () => {
   it("keeps the first row per key (FMP returns dup calendar rows)", () => {
@@ -35,6 +35,22 @@ describe("shapeEarnings", () => {
       revenueEstimated: 1300000,
       revenueActual: null,
     });
+  });
+});
+
+describe("shapeEarningsHist", () => {
+  it("computes beat + positive surprise %", () => {
+    const r = shapeEarningsHist({ symbol: "AAPL", date: "2026-03-31", epsEstimated: 2.0, epsActual: 2.2, revenueEstimated: null, revenueActual: null });
+    expect(r).toMatchObject({ date: "2026-03-31", beat: true });
+    expect(r.surprisePct).toBeCloseTo(10);
+  });
+  it("computes miss with a negative estimate base (abs denominator)", () => {
+    const r = shapeEarningsHist({ symbol: "X", date: "2026-03-31", epsEstimated: -0.5, epsActual: -0.6, revenueEstimated: null, revenueActual: null });
+    expect(r.beat).toBe(false);
+    expect(r.surprisePct).toBeCloseTo(-20); // (-0.6 - -0.5) / 0.5 * 100
+  });
+  it("null surprise when no estimate", () => {
+    expect(shapeEarningsHist({ symbol: "X", date: "2026-03-31", epsEstimated: null, epsActual: 1, revenueEstimated: null, revenueActual: null })).toMatchObject({ surprisePct: null, beat: null });
   });
 });
 
