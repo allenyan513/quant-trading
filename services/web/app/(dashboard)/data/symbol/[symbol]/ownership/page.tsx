@@ -74,7 +74,9 @@ export default function OwnershipTab() {
   if (!data) return null;
 
   const ins = insidersRes.data;
-  const empty = data.filings.length === 0 && data.legendHolders.length === 0 && (ins?.insiders.length ?? 0) === 0;
+  // Only conclude "empty" once insiders have actually loaded (ins !== undefined),
+  // else the empty notice flashes before the insider fetch resolves.
+  const empty = data.filings.length === 0 && data.legendHolders.length === 0 && ins !== undefined && ins.insiders.length === 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
