@@ -14,6 +14,7 @@ export {
   isAnnualDuration,
   selectByEnd,
   padCik,
+  INCOME_CONCEPTS,
   EdgarError,
   type CompanyFacts,
   type XbrlFact,

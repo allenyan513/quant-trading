@@ -67,6 +67,55 @@ interface CandidateRow {
   lastSeenAt: string;
 }
 
+/** On-demand trigger for the XBRL Frames fundamental screener (#106). Forwards to
+ *  the data service (which owns /scan/*), then revalidates the candidates table.
+ *  The scan pulls a few SEC frames + ranks market-wide, so it takes a few seconds. */
+function RunScreenerButton() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/scan/fundamentals`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: { period?: string; candidates?: number }; error?: string };
+      if (!res.ok || !j.ok) {
+        setMsg(`扫描失败：${j.error ?? res.status}`);
+        return;
+      }
+      setMsg(`✓ ${j.data?.period ?? ""} 扫出 ${j.data?.candidates ?? 0} 个候选`);
+      await mutate((k) => typeof k === "string" && k.startsWith("/api/candidates"));
+    } catch (err) {
+      setMsg(`扫描失败：${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      <button
+        disabled={busy}
+        onClick={run}
+        style={{
+          fontSize: 13,
+          padding: "5px 12px",
+          borderRadius: 4,
+          cursor: busy ? "default" : "pointer",
+          border: "1px solid #2f81f7",
+          background: "transparent",
+          color: "#2f81f7",
+          opacity: busy ? 0.5 : 1,
+        }}
+      >
+        {busy ? "扫描中…（拉 SEC frames，约几秒）" : "运行基本面筛股（营收同比增速）"}
+      </button>
+      {msg && <span style={{ fontSize: 12, color: "var(--muted)" }}>{msg}</span>}
+    </span>
+  );
+}
+
 const columns: Column<CandidateRow>[] = [
   { key: "lastSeenAt", header: "Last seen", render: (r) => <TimeText ts={r.lastSeenAt} />, width: 128 },
   { key: "symbol", header: "Symbol", render: (r) => <Badge>{r.symbol}</Badge> },
@@ -85,12 +134,13 @@ export default function CandidatesPage() {
         Discovery review queue. 升级进 watchlist 已暂停（watchlist 现为每用户私有，见 follow-up issue）；
         当前仅支持 Dismiss 噪音。
       </p>
+      <RunScreenerButton />
       <LiveTable
         path="/api/candidates"
         rowKey={(r) => r.symbol}
         columns={columns}
         pageSize={50}
-        emptyText="No candidates — run POST /scan/earnings."
+        emptyText="暂无候选 —— 点上方「运行基本面筛股」，或跑 POST /scan/earnings。"
         filters={[
           {
             key: "status",
