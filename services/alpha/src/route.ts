@@ -2,6 +2,15 @@ import type { Context, Handler } from "hono";
 import { ok, fail } from "@qt/shared";
 import { log } from "./log.js";
 
+// A handler may attach optional per-request log context (e.g. { symbol, userId }) via
+// `c.set("logContext", …)`; the wrapper merges it into the error log so centralizing the
+// catch doesn't lose the contextual metadata the inline catches carried.
+declare module "hono" {
+  interface ContextVariableMap {
+    logContext?: Record<string, unknown>;
+  }
+}
+
 /**
  * Wrap a Hono handler with the service's standard envelope + error handling: run
  * `fn`, wrap its return as `ok(data)`; on a thrown error, log the dotted `<name>.failed`
@@ -19,7 +28,7 @@ export function route<T>(name: string, fn: (c: Context) => Promise<T>): Handler 
       return res instanceof Response ? res : c.json(ok(res));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log.error(`${name}.failed`, { error: msg });
+      log.error(`${name}.failed`, { error: msg, ...(c.get("logContext") ?? {}) });
       return c.json(fail(`${name.replace(/\./g, "_")}_failed`, msg), 500);
     }
   };
