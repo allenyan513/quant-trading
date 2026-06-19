@@ -10,8 +10,9 @@
 import { db } from "@/lib/db";
 import { getLatestValuation, getFinancials, getPrices, getAnalystsData, getSymbolNews } from "@qt/shared/research";
 import { getOwnershipForSymbol } from "@qt/shared/ownership-read";
+import { get8KForSymbol } from "@qt/shared/edgar-8k-read";
 
-export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts", "ownership"] as const;
+export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts", "ownership", "events"] as const;
 export type ResearchSection = (typeof RESEARCH_SECTIONS)[number];
 
 // ---- compaction helpers ----
@@ -109,6 +110,20 @@ function compactOwnership(o: Awaited<ReturnType<typeof getOwnershipForSymbol>>) 
   };
 }
 
+/** SEC 8-K material events: official current-report filings with decoded item codes
+ *  (2.02 earnings, 5.02 leadership, 1.03 bankruptcy, …) + materiality category. */
+function compactEvents(o: Awaited<ReturnType<typeof get8KForSymbol>>) {
+  return {
+    symbol: o.symbol,
+    events: o.events.map((e) => ({
+      filedDate: e.filedDate,
+      reportDate: e.reportDate,
+      category: e.category, // "high" | "material" | "routine"
+      items: e.items.map((i) => `${i.code} ${i.label}`),
+    })),
+  };
+}
+
 // ---- bundle ----
 
 async function fetchSection(section: ResearchSection, sym: string): Promise<unknown> {
@@ -126,6 +141,8 @@ async function fetchSection(section: ResearchSection, sym: string): Promise<unkn
       return compactNews(await getSymbolNews(d, sym, 15));
     case "ownership":
       return compactOwnership(await getOwnershipForSymbol(d, sym));
+    case "events":
+      return compactEvents(await get8KForSymbol(d, sym));
   }
 }
 

@@ -13,6 +13,8 @@
     "./thirteenf-read": "./src/thirteenf-read.ts",
     "./ownership": "./src/ownership.ts",
     "./ownership-read": "./src/ownership-read.ts",
+    "./edgar-8k": "./src/edgar-8k.ts",
+    "./edgar-8k-read": "./src/edgar-8k-read.ts",
     "./openfigi": "./src/openfigi.ts",
     "./http": "./src/http.ts",
     "./config": "./src/config.ts",
