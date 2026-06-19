@@ -470,6 +470,17 @@ function calendarWindow(days: number): { from: string; to: string } {
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 
+// LiveTable paginates server-side via ?limit&offset (it fetches pageSize+1 to probe
+// for a next page). The calendars return a bounded array, so honor it by slicing —
+// without this, Next/Prev change the offset but the same first page is returned.
+function paginate<T>(rows: T[], c: Context): T[] {
+  const limit = Number(c.req.query("limit"));
+  if (!Number.isFinite(limit) || limit <= 0) return rows;
+  const offsetRaw = Number(c.req.query("offset"));
+  const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
+  return rows.slice(offset, offset + limit);
+}
+
 app.get("/markets/movers", async (c) => {
   try {
     return c.json(ok(await fetchMovers()));
@@ -483,7 +494,7 @@ app.get("/markets/earnings-calendar", async (c) => {
   try {
     const win = calendarWindow(14);
     const res = await fetchEarningsCalendar(c.req.query("from") || win.from, c.req.query("to") || win.to);
-    return c.json(ok(res));
+    return c.json(ok(paginate(res, c)));
   } catch (err) {
     log.error("markets.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("markets_earnings_failed", err instanceof Error ? err.message : String(err)), 502);
@@ -494,7 +505,7 @@ app.get("/markets/economic-calendar", async (c) => {
   try {
     const win = calendarWindow(14);
     const res = await fetchEconomicCalendar(c.req.query("from") || win.from, c.req.query("to") || win.to);
-    return c.json(ok(res));
+    return c.json(ok(paginate(res, c)));
   } catch (err) {
     log.error("markets.economic.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("markets_economic_failed", err instanceof Error ? err.message : String(err)), 502);
