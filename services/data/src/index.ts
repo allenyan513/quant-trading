@@ -29,6 +29,7 @@ import { sync8KAll, sync8KForSymbol } from "./eightk/sync.js";
 import { syncForm4All, syncForm4ForSymbol } from "./form4/sync.js";
 import { searchFilings } from "@qt/shared/edgar-fts";
 import { fetchMovers, fetchEarningsCalendar, fetchEconomicCalendar } from "@qt/shared/markets";
+import { route } from "./route.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
@@ -69,15 +70,14 @@ function newsWindow(days: number): { from: string; to: string } {
 
 // Pull (no symbol filter, bounded by window + page cap) -> stage in news_items.
 // Does NOT deliver to alpha — that's the separate /news/notify step.
-app.post("/news/pull", async (c) => {
-  try {
+app.post(
+  "/news/pull",
+  route("news.pull", async (c) => {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const days = Number(body.days ?? 7);
     const win = newsWindow(Number.isFinite(days) && days > 0 ? days : 7);
     const requested = Array.isArray(body.categories) ? (body.categories as string[]) : NEWS_CATEGORIES;
-    const categories = requested.filter((x): x is NewsCategory =>
-      (NEWS_CATEGORIES as string[]).includes(x),
-    );
+    const categories = requested.filter((x): x is NewsCategory => (NEWS_CATEGORIES as string[]).includes(x));
     if (categories.length === 0) {
       return c.json(fail("bad_request", `categories must be a subset of ${NEWS_CATEGORIES.join(", ")}`), 400);
     }
@@ -91,103 +91,83 @@ app.post("/news/pull", async (c) => {
     log.info("news.pull.start", { from: args.from, to: args.to, maxPages: args.maxPages, categories });
     const { items, byCategory } = await pullNewsFeed(args);
     const { pulled, inserted, insertedIds } = await stageNews(items);
-    // Async ACK: hand the freshly-staged rows straight to triage in the
-    // background and return now — triage is a slow LLM loop, so blocking the
-    // pull on it would stall the request (and risk a gateway timeout). Failures
-    // leave rows untriaged for the /news/triage cron sweep to retry. Mirrors
-    // alpha's intake→background-process split.
+    // Async ACK: hand the freshly-staged rows straight to triage in the background
+    // and return now — triage is a slow LLM loop, so blocking the pull on it would
+    // stall the request. Failures leave rows untriaged for the /news/triage cron sweep.
     if (insertedIds.length > 0) {
       void triageNewsItems(insertedIds).catch((err) =>
         log.error("news.pull.triage_failed", { error: err instanceof Error ? err.message : String(err) }),
       );
     }
     log.info("news.pull.done", { pulled, inserted, byCategory });
-    return c.json(ok({ pulled, inserted, queued: insertedIds.length, byCategory }));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error("news.pull.failed", { error: msg });
-    return c.json(fail("news_pull_failed", msg), 500);
-  }
-});
+    return { pulled, inserted, queued: insertedIds.length, byCategory };
+  }),
+);
 
 // Screen + LLM-triage staged news (issue #59): deterministic rule pipeline first
 // (market cap etc.), then the triage agent on survivors — it judges materiality/
 // priority and warms the symbol's marketdata caches. Writes suggestions back onto
 // the rows for human review. Empty body triages all untriaged `new` rows; pass
 // `{ ids: [...] }` to (re)triage specific rows.
-app.post("/news/triage", async (c) => {
-  try {
+app.post(
+  "/news/triage",
+  route("news.triage", async (c) => {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const ids = Array.isArray(body.ids) ? (body.ids as unknown[]).map(String) : undefined;
-    const res = await triageNewsItems(ids);
-    return c.json(ok(res));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error("news.triage.failed", { error: msg });
-    return c.json(fail("news_triage_failed", msg), 500);
-  }
-});
+    return triageNewsItems(ids);
+  }),
+);
 
 // Push selected staged news rows to alpha (one notification per resolved symbol).
-app.post("/news/notify", async (c) => {
-  try {
+app.post(
+  "/news/notify",
+  route("news.notify", async (c) => {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const ids = Array.isArray(body.ids) ? (body.ids as unknown[]).map(String) : [];
     if (ids.length === 0) return c.json(fail("bad_request", "ids required"), 400);
     const symbolOverride =
-      body.symbolOverride && typeof body.symbolOverride === "object"
-        ? (body.symbolOverride as Record<string, string>)
-        : {};
-    const res = await notifyNews(ids, symbolOverride);
-    return c.json(ok(res));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error("news.notify.failed", { error: msg });
-    return c.json(fail("news_notify_failed", msg), 500);
-  }
-});
+      body.symbolOverride && typeof body.symbolOverride === "object" ? (body.symbolOverride as Record<string, string>) : {};
+    return notifyNews(ids, symbolOverride);
+  }),
+);
 
-app.post("/internal/redeliver", async (c) => {
-  try {
+app.post(
+  "/internal/redeliver",
+  route("redeliver", async () => {
     const res = await redeliverPending();
     log.info("redeliver.done", { tried: res.tried, delivered: res.delivered });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("redeliver.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("redeliver_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return res;
+  }),
+);
 
 // ---- Discovery / universe selection (deterministic, no LLM) ----
 
 // Earnings-surprise scanner (cron): flag out-of-watchlist surprises as candidates.
-app.post("/scan/earnings", async (c) => {
-  try {
+app.post(
+  "/scan/earnings",
+  route("scan.earnings", async (c) => {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const win = defaultWindow();
-    const res = await scanEarnings({
+    return scanEarnings({
       from: (body.from as string) ?? win.from,
       to: (body.to as string) ?? win.to,
       minSurprisePct: (body.minSurprisePct as number | undefined) ?? config.scanEarningsSurprisePct(),
     });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("scan.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("scan_earnings_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+  }),
+);
 
 // XBRL Frames fundamental screener (#106): rank revenue YoY growth across ALL
 // filers for a settled calendar quarter → out-of-universe discovery candidates.
-app.post("/scan/fundamentals", async (c) => {
-  try {
+app.post(
+  "/scan/fundamentals",
+  route("scan.fundamentals", async (c) => {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const period = typeof body.period === "string" ? body.period : settledPeriod(new Date());
     // Guard the user-supplied period so it can't build a garbage frame URL.
     if (!/^CY\d{4}Q[1-4]$/.test(period)) {
       return c.json(fail("bad_request", "period must look like CY2025Q3"), 400);
     }
-    const res = await scanFundamentals({
+    return scanFundamentals({
       period,
       agoPeriod: priorYear(period),
       concepts: INCOME_CONCEPTS.revenue ?? [],
@@ -195,12 +175,8 @@ app.post("/scan/fundamentals", async (c) => {
       topN: typeof body.topN === "number" ? body.topN : config.scanFundamentalsTopN(),
       minGrowthPct: typeof body.minGrowthPct === "number" ? body.minGrowthPct : config.scanFundamentalsMinGrowthPct(),
     });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("scan.fundamentals.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("scan_fundamentals_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+  }),
+);
 
 // SEVERED: candidate promotion is parked. Promote used to insert into the global
 // house watchlist; the watchlist is per-user now, so there's no shared universe to
@@ -210,97 +186,86 @@ app.post("/candidates/promote", (c) =>
   c.json(fail("severed", "candidate promotion is disabled — watchlist is now per-user (see follow-up issue)"), 410),
 );
 
-app.post("/candidates/dismiss", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const symbol = String(body.symbol ?? "").trim();
-  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
-  try {
+app.post(
+  "/candidates/dismiss",
+  route("candidate.dismiss", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbol = String(body.symbol ?? "").trim();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
     const res = await dismissCandidate(symbol);
     if (!res.dismissed) return c.json(fail("not_found", `no candidate ${symbol.toUpperCase()}`), 404);
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("candidate.dismiss.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("dismiss_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return res;
+  }),
+);
 
 // Per-user watchlist (data owns data_watchlist, T12). web forwards add/remove with
 // the session user's id; reads stay in web (DB-direct, scoped to the user, with the
 // valuation/position join). The old house "universe" crons that read this table
 // were SEVERED when it became per-user (see follow-up issue).
-app.post("/watchlist", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const userId = String(body.userId ?? "").trim();
-  const symbol = String(body.symbol ?? "").trim();
-  if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
-  const note = typeof body.note === "string" ? body.note : undefined;
-  try {
+app.post(
+  "/watchlist",
+  route("watchlist.add", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const symbol = String(body.symbol ?? "").trim();
+    if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
+    const note = typeof body.note === "string" ? body.note : undefined;
     const res = await addWatchlist(userId, symbol, note);
     // Warm the newly-added symbol so its detail page / the MCP aren't empty. Await
     // warm + news (deterministic, a few seconds); fire the valuation best-effort so
     // the add button doesn't block on an LLM repricing. Per-symbol, not watchlist-wide.
     const refresh = await warmAndPullNews(symbol);
     void revalue(symbol);
-    return c.json(ok({ ...res, refresh }));
-  } catch (err) {
-    log.error("watchlist.add.failed", { userId, symbol, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("watchlist_add_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return { ...res, refresh };
+  }),
+);
 
-app.post("/watchlist/remove", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const userId = String(body.userId ?? "").trim();
-  const symbol = String(body.symbol ?? "").trim();
-  if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
-  try {
-    const res = await removeWatchlist(userId, symbol);
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("watchlist.remove.failed", { userId, symbol, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("watchlist_remove_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+app.post(
+  "/watchlist/remove",
+  route("watchlist.remove", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const symbol = String(body.symbol ?? "").trim();
+    if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
+    return removeWatchlist(userId, symbol);
+  }),
+);
 
 // Morning brief (#97): the user's own Claude (skill + web search) generates the brief
 // and posts it back via the OAuth MCP `submit_morning_brief` tool → web forwards here
 // (T12). data just stores it — no LLM. Idempotent by (userId, date).
-app.post("/morning-brief/submit", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const userId = String(body.userId ?? "").trim();
-  const date = String(body.date ?? "").trim();
-  const markdown = typeof body.markdown === "string" ? body.markdown : "";
-  if (!userId || !date || !markdown.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return c.json(fail("bad_request", "userId, valid date (YYYY-MM-DD) and markdown required"), 400);
-  }
-  const summary = body.summary && typeof body.summary === "object" ? body.summary : undefined;
-  try {
+app.post(
+  "/morning-brief/submit",
+  route("morning_brief.submit", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const date = String(body.date ?? "").trim();
+    const markdown = typeof body.markdown === "string" ? body.markdown : "";
+    if (!userId || !date || !markdown.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return c.json(fail("bad_request", "userId, valid date (YYYY-MM-DD) and markdown required"), 400);
+    }
+    const summary = body.summary && typeof body.summary === "object" ? body.summary : undefined;
     const res = await submitMorningBrief(userId, date, markdown, summary);
     log.info("morning_brief.submit", { userId, date });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("morning_brief.submit.failed", { userId, date, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("morning_brief_submit_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return res;
+  }),
+);
 
 // On-demand cache warming for the per-symbol detail page. web is read-only and
 // can't reach FMP, so the "刷新数据" button forwards here. Deterministically
 // read-through fills the symbol's marketdata caches (statements/ratios/prices/
 // ratings/insider/pt) so the Chart/Financials tabs populate. Synchronous (a few
 // FMP calls) — the caller shows a spinner. Reuses the triage warmer.
-app.post("/warm", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const symbol = String(body.symbol ?? "").trim();
-  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
-  try {
+app.post(
+  "/warm",
+  route("warm", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbol = String(body.symbol ?? "").trim();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
     const res = await warmAndPullNews(symbol);
-    return c.json(ok({ ...res, warmed: true }));
-  } catch (err) {
-    log.error("warm.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("warm_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return { ...res, warmed: true };
+  }),
+);
 
 // SEVERED (cron, JOB_TOKEN-guarded): the daily full-watchlist refresh lost its
 // driver when the watchlist became per-user (no global house universe to iterate).
@@ -311,34 +276,21 @@ app.post("/jobs/refresh-watchlist", (c) => c.json(ok({ severed: true, scanned: 0
 // Save/update the IBKR Flex credentials (token + query id) for the configured
 // account. Written here (data owns data_holdings_accounts); the web "Connect
 // IBKR" form forwards to this endpoint so the dashboard stays read-only on DB.
-app.post("/holdings/credentials", async (c) => {
-  try {
-    const body = (await c.req.json().catch(() => ({}))) as {
-      accountId?: unknown;
-      token?: unknown;
-      queryId?: unknown;
-      label?: unknown;
-    };
+app.post(
+  "/holdings/credentials",
+  route("holdings.credentials", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { accountId?: unknown; token?: unknown; queryId?: unknown; label?: unknown };
     const accountId = typeof body.accountId === "string" ? body.accountId : "";
     const token = typeof body.token === "string" ? body.token : "";
     const queryId = typeof body.queryId === "string" ? body.queryId : "";
     if (!accountId.trim() || !token.trim() || !queryId.trim()) {
       return c.json(fail("bad_request", "accountId, token and queryId are required"), 400);
     }
-    const res = await setHoldingsCredentials({
-      accountId,
-      token,
-      queryId,
-      label: typeof body.label === "string" ? body.label : undefined,
-    });
+    const res = await setHoldingsCredentials({ accountId, token, queryId, label: typeof body.label === "string" ? body.label : undefined });
     log.info("holdings.credentials.set", { accountId: res.accountId });
-    return c.json(ok({ accountId: res.accountId, connected: true }));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error("holdings.credentials.failed", { error: msg });
-    return c.json(fail("holdings_credentials_failed", msg), 500);
-  }
-});
+    return { accountId: res.accountId, connected: true };
+  }),
+);
 
 // Sync the live IBKR Flex statement into the data_holdings_* tables (daily NAV,
 // trades, positions) + warm the SPY benchmark. Idempotent. Two entry points,
@@ -368,17 +320,14 @@ async function runHoldingsSync(c: Context) {
 }
 
 // Cron (JOB_TOKEN): sync EVERY connected account. Per-account failure is skipped.
-app.post("/jobs/sync-holdings", async (c) => {
-  try {
+app.post(
+  "/jobs/sync-holdings",
+  route("holdings.sync.all", async () => {
     const res = await syncAllHoldings();
     log.info("holdings.sync.all.done", { synced: res.synced, failed: res.failed });
-    return c.json(ok(res));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error("holdings.sync.all.failed", { error: msg });
-    return c.json(fail("sync_holdings_all_failed", msg), 500);
-  }
-});
+    return res;
+  }),
+);
 // Manual (web forward): sync the signed-in user's account (accountId in body).
 app.post("/holdings/sync", (c) => runHoldingsSync(c));
 
@@ -389,65 +338,50 @@ app.post("/holdings/sync", (c) => runHoldingsSync(c));
 // `/jobs/sync-13f` (cron, JOB_TOKEN — quarterly cadence; 13F lands 45d after
 // quarter end so frequent runs are cheap no-ops) and `/13f/sync` (manual; an
 // optional `cik` syncs a single filer).
-async function run13FSync(c: Context) {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const cik = String(body.cik ?? "").trim();
-    const res = cik ? await sync13FForFiler(cik) : await sync13FAll();
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("13f.sync.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("sync_13f_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-}
-app.post("/jobs/sync-13f", (c) => run13FSync(c));
-app.post("/13f/sync", (c) => run13FSync(c));
-
-// Add/refresh a tracked manager (data owns the roster; mirrors /watchlist).
-app.post("/13f/filers", async (c) => {
+async function sync13F(c: Context) {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   const cik = String(body.cik ?? "").trim();
-  const name = String(body.name ?? "").trim();
-  if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
-  try {
-    const res = await addFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("13f.filer.add.failed", { cik, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("add_filer_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+  return cik ? sync13FForFiler(cik) : sync13FAll();
+}
+app.post("/jobs/sync-13f", route("13f.sync", sync13F));
+app.post("/13f/sync", route("13f.sync", sync13F));
+
+// Add/refresh a tracked manager (data owns the roster; mirrors /watchlist).
+app.post(
+  "/13f/filers",
+  route("13f.filer.add", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const cik = String(body.cik ?? "").trim();
+    const name = String(body.name ?? "").trim();
+    if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
+    return addFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
+  }),
+);
 
 // Backfill CUSIP→ticker via OpenFIGI for holdings still unmapped. Idempotent
 // (only scans unmapped CUSIPs); `limit` bounds one run — call repeatedly for a
 // large initial backfill. Folded into /13f/sync too, but exposed for on-demand.
-app.post("/13f/resolve-tickers", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const limit = Number(body.limit ?? 1000);
-  try {
-    const res = await resolveUnmappedCusips(Number.isFinite(limit) && limit > 0 ? limit : 1000);
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("13f.resolve.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("resolve_tickers_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+app.post(
+  "/13f/resolve-tickers",
+  route("13f.resolve", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const limit = Number(body.limit ?? 1000);
+    return resolveUnmappedCusips(Number.isFinite(limit) && limit > 0 ? limit : 1000);
+  }),
+);
 
 // Self-maintained CUSIP→ticker mapping (manual override / supplement to OpenFIGI).
 // Resolved at read time, so adding one enriches existing snapshots immediately.
-app.post("/13f/cusip-map", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const cusip = String(body.cusip ?? "").trim();
-  const ticker = String(body.ticker ?? "").trim();
-  if (!cusip || !ticker) return c.json(fail("bad_request", "cusip and ticker required"), 400);
-  try {
-    const res = await setCusipMapping(cusip, ticker, typeof body.name === "string" ? body.name : undefined);
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("13f.cusip.map.failed", { cusip, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("cusip_map_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+app.post(
+  "/13f/cusip-map",
+  route("13f.cusip.map", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const cusip = String(body.cusip ?? "").trim();
+    const ticker = String(body.ticker ?? "").trim();
+    if (!cusip || !ticker) return c.json(fail("bad_request", "cusip and ticker required"), 400);
+    return setCusipMapping(cusip, ticker, typeof body.name === "string" ? body.name : undefined);
+  }),
+);
 
 // ---- SEC 13D/13G beneficial ownership (symbol-centric companion to 13F). data
 // owns data_ownership_* tables; web reads them. SEC-only (no FMP). See #105. ----
@@ -455,70 +389,49 @@ app.post("/13f/cusip-map", async (c) => {
 // Sync every tracked activist's SC 13D/13G filings. `/jobs/sync-ownership` (cron,
 // JOB_TOKEN — daily is fine; accession-skip makes re-runs cheap) and
 // `/ownership/sync` (manual; optional `cik` syncs a single filer).
-async function runOwnershipSync(c: Context) {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const cik = String(body.cik ?? "").trim();
-    const res = cik ? await syncOwnershipForFiler(cik) : await syncOwnershipAll();
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("ownership.sync.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("sync_ownership_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-}
-app.post("/jobs/sync-ownership", (c) => runOwnershipSync(c));
-app.post("/ownership/sync", (c) => runOwnershipSync(c));
-
-// Add/refresh a tracked activist filer (data owns the roster; mirrors /13f/filers).
-app.post("/ownership/filers", async (c) => {
+async function syncOwnership(c: Context) {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   const cik = String(body.cik ?? "").trim();
-  const name = String(body.name ?? "").trim();
-  if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
-  try {
-    const res = await addOwnershipFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("ownership.filer.add.failed", { cik, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("add_ownership_filer_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+  return cik ? syncOwnershipForFiler(cik) : syncOwnershipAll();
+}
+app.post("/jobs/sync-ownership", route("ownership.sync", syncOwnership));
+app.post("/ownership/sync", route("ownership.sync", syncOwnership));
+
+// Add/refresh a tracked activist filer (data owns the roster; mirrors /13f/filers).
+app.post(
+  "/ownership/filers",
+  route("ownership.filer.add", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const cik = String(body.cik ?? "").trim();
+    const name = String(body.name ?? "").trim();
+    if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
+    return addOwnershipFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
+  }),
+);
 
 // ---- SEC 8-K material events (symbol-centric). data owns data_8k_filings; web reads.
 // Item codes come structured from submissions (no doc parse). The 8-K → alpha repricing
 // feed is a separate follow-up (#103 part 2). ----
 // `/jobs/pull-8k` (cron, JOB_TOKEN — daily; accession-skip makes re-runs cheap) and
 // `/eightk/pull` (manual; optional `symbol` pulls one).
-async function run8KSync(c: Context) {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const symbol = String(body.symbol ?? "").trim();
-    const res = symbol ? await sync8KForSymbol(symbol) : await sync8KAll();
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("8k.sync.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("sync_8k_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
+async function sync8K(c: Context) {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  return symbol ? sync8KForSymbol(symbol) : sync8KAll();
 }
-app.post("/jobs/pull-8k", (c) => run8KSync(c));
-app.post("/eightk/pull", (c) => run8KSync(c));
+app.post("/jobs/pull-8k", route("8k.sync", sync8K));
+app.post("/eightk/pull", route("8k.sync", sync8K));
 
 // ---- SEC Form 4 insider transactions (symbol-centric, direct from SEC). data owns
 // data_form4; web reads (Ownership tab). Sole insider source — the legacy FMP
 // `data_insider` cache was retired (#104/#132). ----
-async function runForm4Sync(c: Context) {
-  try {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const symbol = String(body.symbol ?? "").trim();
-    const res = symbol ? await syncForm4ForSymbol(symbol) : await syncForm4All();
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("form4.sync.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("sync_form4_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
+async function syncForm4(c: Context) {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const symbol = String(body.symbol ?? "").trim();
+  return symbol ? syncForm4ForSymbol(symbol) : syncForm4All();
 }
-app.post("/jobs/pull-form4", (c) => runForm4Sync(c));
-app.post("/form4/pull", (c) => runForm4Sync(c));
+app.post("/jobs/pull-form4", route("form4.sync", syncForm4));
+app.post("/form4/pull", route("form4.sync", syncForm4));
 
 // ---- EDGAR full-text search (live passthrough; data is the sole external receiver,
 // so web's MCP search_filings tool forwards here rather than calling efts itself). ----
@@ -586,19 +499,16 @@ app.get("/markets/economic-calendar", async (c) => {
 
 // Per-symbol reference valuation — backs the detail page's "刷新数据" button + the
 // auto-refresh on watchlist add. forceRefresh: the caller just warmed marketdata.
-app.post("/internal/valuation", async (c) => {
-  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-  const symbol = String(body.symbol ?? "").trim();
-  if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
-  const forceRefresh = body.forceRefresh !== false; // default true (caller just warmed)
-  try {
-    const res = await computeReferenceValuation(symbol, { forceRefresh });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("valuation.compute.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("valuation_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+app.post(
+  "/internal/valuation",
+  route("valuation.compute", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbol = String(body.symbol ?? "").trim();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    const forceRefresh = body.forceRefresh !== false; // default true (caller just warmed)
+    return computeReferenceValuation(symbol, { forceRefresh });
+  }),
+);
 
 // SEVERED: the watchlist-wide valuation sweep lost its driver (house universe →
 // per-user). No-op; per-symbol reference valuation is still at /internal/valuation.

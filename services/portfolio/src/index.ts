@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import { ok, fail, config, type TradingSignalDTO } from "@qt/shared";
 import { handleSignal } from "./portfolio.js";
 import { settlePositions } from "./track.js";
+import { route } from "./route.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -39,16 +40,14 @@ app.post("/signals", async (c) => {
 });
 
 // Settle open positions (cron-triggered): close those that hit target/stop/expiry.
-app.post("/jobs/track", async (c) => {
-  try {
+app.post(
+  "/jobs/track",
+  route("track", async () => {
     const res = await settlePositions();
     log.info("track.done", { scanned: res.scanned, closed: res.closed });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("track.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("track_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return res;
+  }),
+);
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });
