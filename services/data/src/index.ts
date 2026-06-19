@@ -25,6 +25,7 @@ import { syncOwnershipAll, syncOwnershipForFiler } from "./ownership/sync.js";
 import { addOwnershipFiler } from "./ownership/filers.js";
 import { sync8KAll, sync8KForSymbol } from "./eightk/sync.js";
 import { syncForm4All, syncForm4ForSymbol } from "./form4/sync.js";
+import { searchFilings } from "@qt/shared/edgar-fts";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
@@ -490,6 +491,27 @@ async function runForm4Sync(c: Context) {
 }
 app.post("/jobs/pull-form4", (c) => runForm4Sync(c));
 app.post("/form4/pull", (c) => runForm4Sync(c));
+
+// ---- EDGAR full-text search (live passthrough; data is the sole external receiver,
+// so web's MCP search_filings tool forwards here rather than calling efts itself). ----
+app.post("/edgar/search", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const q = String(body.query ?? body.q ?? "").trim();
+    if (!q) return c.json(fail("bad_request", "missing query"), 400);
+    const forms = Array.isArray(body.forms) ? body.forms.filter((x: unknown): x is string => typeof x === "string") : undefined;
+    const res = await searchFilings(q, {
+      forms,
+      startDate: typeof body.startDate === "string" ? body.startDate : undefined,
+      endDate: typeof body.endDate === "string" ? body.endDate : undefined,
+      limit: typeof body.limit === "number" ? body.limit : undefined,
+    });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("edgar.search.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("edgar_search_failed", err instanceof Error ? err.message : String(err)), 502);
+  }
+});
 
 // Reference valuation (System A) — deterministic, no LLM. Lives in data (moved
 // from alpha): it's computed from data-owned marketdata caches. alpha fetches it
