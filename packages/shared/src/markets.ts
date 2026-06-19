@@ -93,10 +93,12 @@ const arr = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? (v as
 
 /** Top gainers / losers / most-active (each capped to `limit`). One snapshot. */
 export async function fetchMovers(limit = 25): Promise<MoversResult> {
+  // Isolate each list — one failed FMP call shouldn't 502 the whole page; that
+  // list just comes back empty while the others render.
   const [g, l, a] = await Promise.all([
-    fmpGet<unknown>("biggest-gainers"),
-    fmpGet<unknown>("biggest-losers"),
-    fmpGet<unknown>("most-actives"),
+    fmpGet<unknown>("biggest-gainers").catch(() => []),
+    fmpGet<unknown>("biggest-losers").catch(() => []),
+    fmpGet<unknown>("most-actives").catch(() => []),
   ]);
   const take = (v: unknown) => arr(v).slice(0, limit).map(shapeMover);
   return { gainers: take(g), losers: take(l), actives: take(a) };

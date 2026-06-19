@@ -11,7 +11,7 @@ function dataUrl(): string {
 }
 
 export async function dataGet<T>(path: string): Promise<T> {
-  const resp = await fetch(`${dataUrl()}${path}`);
+  const resp = await fetch(`${dataUrl()}${path}`, { signal: AbortSignal.timeout(10_000) });
   const json = (await resp.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { message?: string } | string } | null;
   if (!resp.ok || !json?.ok) {
     const e = json?.error;

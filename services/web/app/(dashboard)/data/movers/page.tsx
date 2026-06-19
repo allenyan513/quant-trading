@@ -27,7 +27,7 @@ function MoverList({ rows }: { rows: MoverRow[] }) {
           <span style={{ minWidth: 58, fontWeight: 600, flexShrink: 0 }}>{r.symbol}</span>
           <span style={{ flex: 1, minWidth: 0, color: "var(--muted)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
           <span style={{ minWidth: 64, textAlign: "right" }}>{r.price == null ? "—" : fmtMoney(r.price)}</span>
-          <span style={{ minWidth: 72, textAlign: "right", fontWeight: 600, color: (r.changePct ?? 0) >= 0 ? GREEN : RED }}>{pct(r.changePct)}</span>
+          <span style={{ minWidth: 72, textAlign: "right", fontWeight: 600, color: r.changePct == null ? "var(--muted)" : r.changePct >= 0 ? GREEN : RED }}>{pct(r.changePct)}</span>
         </div>
       ))}
     </div>
