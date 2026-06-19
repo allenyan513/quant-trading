@@ -20,7 +20,8 @@ export function registerPublicTools(server: McpServer): void {
         "consensus, verdict + upside), financials (income/balance/cash-flow + key " +
         "ratios, multi-year), price history (OHLCV with a fair-value overlay), recent " +
         "news, analyst activity (ratings, price targets, estimates), ownership " +
-        "(SEC 13D/13G activist/passive >5% filings + which tracked 13F legends hold it), " +
+        "(SEC 13D/13G activist/passive >5% filings + which tracked 13F legends hold it + " +
+        "insider transactions from SEC Form 4, with transaction codes and the 10b5-1 flag), " +
         "and material events (SEC 8-K current reports with item codes: earnings, leadership " +
         "changes, M&A, bankruptcy, …). Use whenever the user asks to research, analyze, value, " +
         "or deep-dive a specific stock symbol.",

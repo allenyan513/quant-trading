@@ -470,6 +470,43 @@ export const eightKFilings = pgTable(
   (t) => [index("idx_8k_symbol").on(t.symbol), index("idx_8k_filed").on(t.filedDate)],
 );
 
+// ---- SEC Form 4 insider transactions (data; symbol-centric, direct from SEC) ----
+// Direct-from-SEC replacement for FMP insider data: Form 4 (statement of changes in
+// beneficial ownership) carries the transaction CODE (P open-market buy, S sell, M
+// option exercise, A grant, F tax, G gift, …), the 10b5-1 plan flag, and derivative
+// vs non-derivative — all of which FMP flattens away. One row per transaction within a
+// filing (PK = accession + ordinal). data owns; web reads (Ownership tab). FMP
+// data_insider stays as a transition fallback (source-tagged at read time). See #104.
+export const form4Transactions = pgTable(
+  "data_form4",
+  {
+    accessionNumber: text("accession_number").notNull(),
+    txnIndex: integer("txn_index").notNull(), // ordinal within the filing (multi-txn forms)
+    symbol: text("symbol").notNull(), // issuerTradingSymbol from the form
+    issuerCik: text("issuer_cik").notNull(),
+    reportingName: text("reporting_name").notNull(),
+    reportingCik: text("reporting_cik"),
+    relationship: text("relationship"), // "Director" / "Officer" / "10% Owner" (joined)
+    officerTitle: text("officer_title"),
+    transactionCode: text("transaction_code").notNull(), // P|S|M|A|F|G|D|C|X|W|…
+    acquiredDisposed: text("acquired_disposed"), // "A" | "D"
+    shares: doublePrecision("shares"),
+    pricePerShare: doublePrecision("price_per_share"), // null for grants/gifts
+    securityTitle: text("security_title"),
+    isDerivative: boolean("is_derivative").default(false).notNull(),
+    sharesOwnedAfter: doublePrecision("shares_owned_after"),
+    is10b5_1: boolean("is_10b5_1").default(false).notNull(),
+    transactionDate: date("transaction_date"),
+    filedDate: date("filed_date").notNull(),
+    knownAt: timestamp("known_at", { withTimezone: true }).notNull(), // acceptance datetime (PIT)
+  },
+  (t) => [
+    primaryKey({ columns: [t.accessionNumber, t.txnIndex] }),
+    index("idx_form4_symbol").on(t.symbol, t.filedDate),
+    index("idx_form4_filed").on(t.filedDate),
+  ],
+);
+
 // ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(

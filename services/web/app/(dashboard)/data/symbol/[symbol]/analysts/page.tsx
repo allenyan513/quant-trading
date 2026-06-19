@@ -24,7 +24,6 @@ interface Analysts {
   symbol: string;
   ratings: Dated[];
   priceTargets: Dated[];
-  insider: Dated[];
   estimates: EstRow[];
 }
 
@@ -46,18 +45,17 @@ export default function AnalystsTab() {
   if (error) return <p style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</p>;
   if (!data) return null;
 
-  const empty =
-    data.estimates.length === 0 && data.ratings.length === 0 && data.priceTargets.length === 0 && data.insider.length === 0;
+  const empty = data.estimates.length === 0 && data.ratings.length === 0 && data.priceTargets.length === 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {empty && (
-        <p style={{ color: "var(--muted)" }}>暂无分析师/内部人数据（点头部「⟳ 刷新数据」预热该 symbol）。</p>
+        <p style={{ color: "var(--muted)" }}>暂无分析师数据（点头部「⟳ 刷新数据」预热该 symbol）。</p>
       )}
       <Estimates rows={data.estimates} />
       <PriceTargets rows={data.priceTargets} />
       <Ratings rows={data.ratings} />
-      <Insider rows={data.insider} />
+      {/* 内部人交易已迁到 Ownership tab(SEC Form 4 直连) */}
     </div>
   );
 }
@@ -166,41 +164,6 @@ function Ratings({ rows }: { rows: Dated[] }) {
                 <span style={{ color: "var(--text)" }}>{next ?? "—"}</span>
               </span>
               {action !== "" && <Badge color={ACTION_COLOR[action] ?? "#8a97ab"}>{action}</Badge>}
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
-// ---------- insider trades ----------
-function Insider({ rows }: { rows: Dated[] }) {
-  if (rows.length === 0) return null;
-  return (
-    <Card title="内部人交易 (Form 4)">
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {rows.slice(0, 20).map((r, i) => {
-          const d = r.data;
-          const tx = s(d, "transactionType") ?? "";
-          const isBuy = /^p/i.test(tx) || /purchase/i.test(tx);
-          const isSell = /^s/i.test(tx) || /sale/i.test(tx);
-          const shares = n(d, "securitiesTransacted");
-          const price = n(d, "price");
-          const value = shares != null && price != null ? shares * price : null;
-          const color = isBuy ? "#3fb950" : isSell ? "#f85149" : "#8a97ab";
-          return (
-            <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "7px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
-              <span style={{ color: "var(--muted)", minWidth: 92, fontSize: 12 }}>
-                <TimeText ts={s(d, "transactionDate") ?? s(d, "filingDate") ?? r.observedAt} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                {s(d, "reportingName") ?? "—"}
-                {s(d, "typeOfOwner") && <span style={{ color: "var(--muted)", fontSize: 11 }}> · {s(d, "typeOfOwner")}</span>}
-              </span>
-              <Badge color={color}>{isBuy ? "buy" : isSell ? "sell" : tx || "—"}</Badge>
-              <span style={{ ...mono, fontSize: 12, color: "var(--muted)", minWidth: 70, textAlign: "right" }}>{shares == null ? "—" : formatLargeNumber(shares, { prefix: "", decimals: 0 })}</span>
-              <span style={{ ...mono, minWidth: 72, textAlign: "right" }}>{value == null ? "—" : formatLargeNumber(value)}</span>
             </div>
           );
         })}

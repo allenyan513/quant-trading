@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { getLatestValuation, getFinancials, getPrices, getAnalystsData, getSymbolNews } from "@qt/shared/research";
 import { getOwnershipForSymbol } from "@qt/shared/ownership-read";
 import { get8KForSymbol } from "@qt/shared/edgar-8k-read";
+import { getInsidersForSymbol } from "@qt/shared/form4-read";
 
 export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts", "ownership", "events"] as const;
 export type ResearchSection = (typeof RESEARCH_SECTIONS)[number];
@@ -35,7 +36,6 @@ const RATIO_FIELDS = ["fiscalYear", "priceToEarningsRatio", "priceToSalesRatio",
 const ESTIMATE_FIELDS = ["revenueAvg", "ebitdaAvg", "netIncomeAvg", "epsAvg", "numAnalystsRevenue", "numAnalystsEps"];
 const RATING_FIELDS = ["gradingCompany", "previousGrade", "newGrade", "action"];
 const PT_FIELDS = ["priceTarget", "adjPriceTarget", "analystName", "analystCompany", "publishedDate", "priceWhenPosted"];
-const INSIDER_FIELDS = ["transactionDate", "transactionType", "securitiesTransacted", "price", "typeOfOwner", "reportingName", "acquisitionOrDisposition"];
 const NEWS_FIELDS = ["title", "site", "url", "symbol", "category", "publishedAt"];
 
 type Dated = { fiscalDate: string | null; data: unknown };
@@ -86,15 +86,19 @@ function compactAnalysts(a: Awaited<ReturnType<typeof getAnalystsData>>) {
     symbol: a.symbol,
     ratings: obs(a.ratings, RATING_FIELDS, 20),
     priceTargets: obs(a.priceTargets, PT_FIELDS, 25),
-    insider: obs(a.insider, INSIDER_FIELDS, 15),
+    // insider moved to the ownership section (SEC Form 4, richer)
   };
 }
 
 const compactNews = (xs: Row[]) => xs.slice(0, 15).map((r) => pick(r, NEWS_FIELDS));
 
 /** SEC ownership: 13D/13G beneficial-ownership filings (>5%) + tracked 13F legend
- *  holders. pct/shares are best-effort (often null); only rostered filers' 13D/13G. */
-function compactOwnership(o: Awaited<ReturnType<typeof getOwnershipForSymbol>>) {
+ *  holders + insider transactions (SEC Form 4, rich: code + 10b5-1). 13D/13G pct/shares
+ *  are best-effort; only rostered filers' 13D/13G. insiderSource "fmp" = SEC fallback. */
+function compactOwnership(
+  o: Awaited<ReturnType<typeof getOwnershipForSymbol>>,
+  ins: Awaited<ReturnType<typeof getInsidersForSymbol>>,
+) {
   return {
     symbol: o.symbol,
     filings: o.filings.map((f) => ({
@@ -107,6 +111,19 @@ function compactOwnership(o: Awaited<ReturnType<typeof getOwnershipForSymbol>>) 
       firstFiledDate: f.firstFiledDate,
     })),
     legendHolders: o.legendHolders.map((h) => ({ filer: h.filerLabel ?? h.filerName, shares: h.shares, value: h.value, quarter: h.quarter })),
+    insiderSource: ins.source, // "sec" | "fmp" | "none"
+    insiders: ins.insiders.slice(0, 25).map((t) => ({
+      filer: t.reportingName,
+      role: t.officerTitle ?? t.relationship,
+      code: t.code, // P buy / S sell / M exercise / F tax / A grant / G gift …
+      action: t.codeLabel,
+      signal: t.signal,
+      shares: t.shares,
+      price: t.price,
+      value: t.value,
+      is10b5_1: t.is10b5_1,
+      date: t.date,
+    })),
   };
 }
 
@@ -139,8 +156,10 @@ async function fetchSection(section: ResearchSection, sym: string): Promise<unkn
       return compactAnalysts(await getAnalystsData(d, sym));
     case "news":
       return compactNews(await getSymbolNews(d, sym, 15));
-    case "ownership":
-      return compactOwnership(await getOwnershipForSymbol(d, sym));
+    case "ownership": {
+      const [own, ins] = await Promise.all([getOwnershipForSymbol(d, sym), getInsidersForSymbol(d, sym)]);
+      return compactOwnership(own, ins);
+    }
     case "events":
       return compactEvents(await get8KForSymbol(d, sym));
   }

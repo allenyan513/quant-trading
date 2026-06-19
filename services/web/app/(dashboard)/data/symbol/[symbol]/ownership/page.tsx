@@ -39,32 +39,59 @@ interface Ownership {
   legendHolders: Holder[];
 }
 
+interface InsiderTxn {
+  reportingName: string;
+  relationship: string | null;
+  officerTitle: string | null;
+  code: string | null;
+  codeLabel: string | null;
+  signal: "buy" | "sell" | "neutral";
+  shares: number | null;
+  price: number | null;
+  value: number | null;
+  is10b5_1: boolean;
+  date: string | null;
+}
+interface Insiders {
+  symbol: string;
+  source: "sec" | "fmp" | "none";
+  insiders: InsiderTxn[];
+}
+
 // 13D = activist (intent to influence) → attention color; 13G = passive → muted.
 const SCHED_COLOR: Record<string, string> = { "13D": "#f0883e", "13G": "#8a97ab" };
+// Insider transaction signal: open-market buy/sell are the strong ones.
+const SIGNAL_COLOR: Record<string, string> = { buy: "#3fb950", sell: "#f85149", neutral: "#8a97ab" };
 
 export default function OwnershipTab() {
   const params = useParams<{ symbol: string }>();
-  const symbol = (params.symbol ?? "").toUpperCase();
+  const symbol = (params?.symbol ?? "").toUpperCase();
   const { data, error } = useLive<Ownership>(`/api/data/symbol/${symbol}/ownership`);
+  const insidersRes = useLive<Insiders>(`/api/data/symbol/${symbol}/insiders`);
 
   if (!data && !error) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   if (error) return <p style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</p>;
   if (!data) return null;
 
-  const empty = data.filings.length === 0 && data.legendHolders.length === 0;
+  const ins = insidersRes.data;
+  // Only conclude "empty" once insiders have actually loaded (ins !== undefined),
+  // else the empty notice flashes before the insider fetch resolves.
+  const empty = data.filings.length === 0 && data.legendHolders.length === 0 && ins !== undefined && ins.insiders.length === 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {empty && (
-        <p style={{ color: "var(--muted)" }}>
-          无 13D/13G 举牌申报，且追踪的 13F 投资人均未持有 {symbol}。
-        </p>
+        <p style={{ color: "var(--muted)" }}>无 13D/13G 举牌、13F 投资人未持有 {symbol}、近一年无内部人交易。</p>
       )}
       <Filings rows={data.filings} />
       <Holders rows={data.legendHolders} />
+      {ins && <Insiders data={ins} />}
       <p style={{ color: "var(--muted)", fontSize: 11, lineHeight: 1.6 }}>
-        13D/13G = SEC 受益所有权披露（&gt;5% 才触发、约 10 天内申报）；仅覆盖追踪的维权方名单，
-        非全市场。持股% / 股数取自申报封面，best-effort，常缺。13F 持有为季度快照（滞后约 45 天）。
+        13D/13G = SEC 受益所有权披露（&gt;5% 才触发）；13F 为季度快照（滞后约 45 天）。
+        内部人交易 = SEC Form 4(直连,含 transaction code 与 10b5-1):
+        <span style={{ color: SIGNAL_COLOR.buy }}>P 买</span> /
+        <span style={{ color: SIGNAL_COLOR.sell }}> S 卖</span> 为开放市场强信号,
+        其余(M 行权 / F 税 / A 授予 / G 赠)为常规。
       </p>
     </div>
   );
@@ -123,6 +150,42 @@ function Holders({ rows }: { rows: Holder[] }) {
             </span>
             <span style={{ ...mono, fontWeight: 600, minWidth: 80, textAlign: "right" }}>{fmtMoney(h.value)}</span>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 64, textAlign: "right" }}>{h.quarter.slice(0, 7)}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// ---------- insider transactions (SEC Form 4, FMP fallback) ----------
+function Insiders({ data }: { data: Insiders }) {
+  if (data.insiders.length === 0) return null;
+  return (
+    <Card title={`内部人交易 · Form 4 (${data.insiders.length})${data.source === "fmp" ? " · FMP 兜底" : ""}`}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {data.insiders.map((t, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+            <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 92 }}>
+              <TimeText ts={t.date} />
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {t.reportingName}
+              {(t.officerTitle || t.relationship) && (
+                <span style={{ color: "var(--muted)", fontSize: 11 }}> · {t.officerTitle ?? t.relationship}</span>
+              )}
+            </span>
+            {t.is10b5_1 && <Badge color="#8a97ab">10b5-1</Badge>}
+            {t.code && (
+              <span style={{ minWidth: 46 }} title={t.codeLabel ?? undefined}>
+                <Badge color={SIGNAL_COLOR[t.signal]}>{t.signal === "buy" ? "buy" : t.signal === "sell" ? "sell" : t.code}</Badge>
+              </span>
+            )}
+            <span style={{ ...mono, fontSize: 12, color: "var(--muted)", minWidth: 68, textAlign: "right" }}>
+              {t.shares == null ? "—" : formatLargeNumber(t.shares, { prefix: "", decimals: 0 })}
+            </span>
+            <span style={{ ...mono, minWidth: 72, textAlign: "right" }}>
+              {t.value != null ? formatLargeNumber(t.value) : t.price != null ? fmtMoney(t.price) : "—"}
+            </span>
           </div>
         ))}
       </div>
