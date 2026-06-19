@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { ok, fail, config, type NotificationPayload } from "@qt/shared";
 import { intakeNotification, processNotification, reprocessStuck } from "./pipeline.js";
 import { redeliverPendingSignals } from "./deliver.js";
+import { route } from "./route.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -57,28 +58,24 @@ app.post("/notifications", async (c) => {
   }
 });
 
-app.post("/internal/redeliver", async (c) => {
-  try {
+app.post(
+  "/internal/redeliver",
+  route("redeliver", async () => {
     const res = await redeliverPendingSignals();
     log.info("redeliver.done", { tried: res.tried, delivered: res.delivered });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("redeliver.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("redeliver_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return res;
+  }),
+);
 
 // Recover notifications stuck in `processing` (background run died). Cron-triggered.
-app.post("/internal/reprocess", async (c) => {
-  try {
+app.post(
+  "/internal/reprocess",
+  route("reprocess", async () => {
     const res = await reprocessStuck();
     log.info("reprocess.done", { tried: res.tried, recovered: res.recovered });
-    return c.json(ok(res));
-  } catch (err) {
-    log.error("reprocess.failed", { error: err instanceof Error ? err.message : String(err) });
-    return c.json(fail("reprocess_failed", err instanceof Error ? err.message : String(err)), 500);
-  }
-});
+    return res;
+  }),
+);
 
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
