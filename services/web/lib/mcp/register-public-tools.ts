@@ -19,14 +19,15 @@ export function registerPublicTools(server: McpServer): void {
         "structured JSON to summarize/analyze: reference valuation (fair value, DCF/" +
         "consensus, verdict + upside), financials (income/balance/cash-flow + key " +
         "ratios, multi-year), price history (OHLCV with a fair-value overlay), recent " +
-        "news, and analyst activity (ratings, price targets, estimates). Use whenever " +
-        "the user asks to research, analyze, value, or deep-dive a specific stock symbol.",
+        "news, analyst activity (ratings, price targets, estimates), and ownership " +
+        "(SEC 13D/13G activist/passive >5% filings + which tracked 13F legends hold it). " +
+        "Use whenever the user asks to research, analyze, value, or deep-dive a specific stock symbol.",
       inputSchema: {
         symbol: z.string().describe("Stock ticker, e.g. AAPL, NVDA, TSLA"),
         sections: z
           .array(z.enum(RESEARCH_SECTIONS))
           .optional()
-          .describe("Limit to these sections; defaults to all (valuation, financials, chart, news, analysts)."),
+          .describe("Limit to these sections; defaults to all (valuation, financials, chart, news, analysts, ownership)."),
       },
     },
     async ({ symbol, sections }) => {

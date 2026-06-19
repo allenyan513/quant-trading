@@ -387,6 +387,67 @@ export const thirteenFCusipMap = pgTable("data_13f_cusip_map", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
 
+// ---- SEC 13D/13G beneficial ownership (data) ----
+// Schedule 13D (activist, >5%, ~10-day deadline) / 13G (passive, >5%) disclosures —
+// the symbol-centric companion to 13F: for a stock, who has filed a >5% stake on it.
+// Roster-driven like 13F (we track ~15-20 activist filers; only their filings appear).
+// SEC-only (no FMP fallback). See @qt/shared/ownership.
+
+/** Curated roster of activist / large-stake filers we track, by CIK (e.g. Icahn). */
+export const ownershipFilers = pgTable("data_ownership_filers", {
+  cik: text("cik").primaryKey(), // 10-digit zero-padded
+  name: text("name").notNull(),
+  label: text("label"), // short display handle, e.g. "Icahn"
+  active: boolean("active").default(true).notNull(),
+  addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+// One immutable row per filing, keyed by accession (globally unique — a 13D/13G is an
+// atomic document; no quarter/period concept, PIT key is filed_date only). An
+// amendment (…/A) is its own filing with its own accession → its own row; the read
+// layer picks the latest filed per (filer, subject, schedule) as the current position.
+// subject_ticker is denormalized at write time (resolved from the filing header's
+// SUBJECT-COMPANY CIK → that company's submissions tickers[0]) so symbol queries are a
+// direct indexed lookup. cusip / pct_of_class / shares_owned come from the unstructured
+// cover page and are BEST-EFFORT NULLABLE (often unparseable). Written only by data.
+export const ownershipFilings = pgTable(
+  "data_ownership_filings",
+  {
+    accessionNumber: text("accession_number").primaryKey(),
+    filerCik: text("filer_cik").notNull(),
+    filerName: text("filer_name").notNull(),
+    formType: text("form_type").notNull(), // "SC 13D" | "SC 13G" | "SC 13D/A" | "SC 13G/A"
+    schedule: text("schedule").notNull(), // "13D" | "13G" (derived, for query convenience)
+    isAmendment: boolean("is_amendment").notNull(),
+    subjectCik: text("subject_cik").notNull(),
+    subjectName: text("subject_name").notNull(),
+    subjectTicker: text("subject_ticker"), // resolved tickers[0]; null = unresolved (foreign/private/delisted)
+    cusip: text("cusip"), // cover page, best-effort
+    pctOfClass: doublePrecision("pct_of_class"), // cover page, best-effort (often null)
+    sharesOwned: doublePrecision("shares_owned"), // cover page, best-effort (often null)
+    filedDate: date("filed_date").notNull(),
+    /** Filing date — what was knowable when (PIT). */
+    knownAt: timestamp("known_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("idx_ownership_subject_ticker").on(t.subjectTicker),
+    index("idx_ownership_subject_cik").on(t.subjectCik),
+    index("idx_ownership_filer").on(t.filerCik),
+    index("idx_ownership_filed").on(t.filedDate),
+  ],
+);
+
+// Subject CIK → ticker cache (the one external lookup this pipeline does: the 13D/13G
+// header gives the subject company's CIK; its ticker comes from that company's
+// submissions `tickers[0]`). A NULL `ticker` is a negative-cache tombstone (subject
+// isn't a US-listed equity), so sync stops re-fetching it. Written only by data.
+export const ownershipSubjects = pgTable("data_ownership_subjects", {
+  cik: text("cik").primaryKey(), // subject company CIK, 10-digit
+  ticker: text("ticker"), // null = resolved, no ticker (tombstone)
+  name: text("name"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
 // ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(

@@ -9,8 +9,9 @@
  */
 import { db } from "@/lib/db";
 import { getLatestValuation, getFinancials, getPrices, getAnalystsData, getSymbolNews } from "@qt/shared/research";
+import { getOwnershipForSymbol } from "@qt/shared/ownership-read";
 
-export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts"] as const;
+export const RESEARCH_SECTIONS = ["valuation", "financials", "chart", "news", "analysts", "ownership"] as const;
 export type ResearchSection = (typeof RESEARCH_SECTIONS)[number];
 
 // ---- compaction helpers ----
@@ -90,6 +91,24 @@ function compactAnalysts(a: Awaited<ReturnType<typeof getAnalystsData>>) {
 
 const compactNews = (xs: Row[]) => xs.slice(0, 15).map((r) => pick(r, NEWS_FIELDS));
 
+/** SEC ownership: 13D/13G beneficial-ownership filings (>5%) + tracked 13F legend
+ *  holders. pct/shares are best-effort (often null); only rostered filers' 13D/13G. */
+function compactOwnership(o: Awaited<ReturnType<typeof getOwnershipForSymbol>>) {
+  return {
+    symbol: o.symbol,
+    filings: o.filings.map((f) => ({
+      schedule: f.schedule, // "13D" activist | "13G" passive
+      filer: f.filerLabel ?? f.filerName,
+      pctOfClass: f.pctOfClass,
+      sharesOwned: f.sharesOwned,
+      filedDate: f.filedDate,
+      amendments: f.amendmentCount - 1,
+      firstFiledDate: f.firstFiledDate,
+    })),
+    legendHolders: o.legendHolders.map((h) => ({ filer: h.filerLabel ?? h.filerName, shares: h.shares, value: h.value, quarter: h.quarter })),
+  };
+}
+
 // ---- bundle ----
 
 async function fetchSection(section: ResearchSection, sym: string): Promise<unknown> {
@@ -105,6 +124,8 @@ async function fetchSection(section: ResearchSection, sym: string): Promise<unkn
       return compactAnalysts(await getAnalystsData(d, sym));
     case "news":
       return compactNews(await getSymbolNews(d, sym, 15));
+    case "ownership":
+      return compactOwnership(await getOwnershipForSymbol(d, sym));
   }
 }
 

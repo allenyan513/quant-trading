@@ -21,6 +21,7 @@ import {
   getAnalystsData as sharedGetAnalystsData,
   getFinancials as sharedGetFinancials,
 } from "@qt/shared/research";
+import { getOwnershipForSymbol as sharedGetOwnership } from "@qt/shared/ownership-read";
 import { listPositions, listNews, listSignals } from "./lists.js";
 
 /** Latest reference-valuation snapshot. Shared with data's MCP (see @qt/shared/research). */
@@ -35,6 +36,11 @@ export const getPrices = (symbol: string, opts: { days?: number } = {}) => share
  * estimates, none of which were displayed before. Raw FMP `data` jsonb; the UI
  * reads fields defensively. */
 export const getAnalystsData = (symbol: string) => sharedGetAnalystsData(db(), symbol);
+
+/** SEC ownership for the Ownership tab: this symbol's 13D/13G beneficial-ownership
+ * filings + which tracked 13F legends hold it. Shared with the MCP get_symbol_research
+ * ownership section (see @qt/shared/ownership-read). */
+export const getOwnershipData = (symbol: string) => sharedGetOwnership(db(), symbol);
 
 /** Latest financial-ratios row for a symbol (newest filing first). `data` is the
  * raw FMP ratios jsonb; callers pick the fields they show. */
