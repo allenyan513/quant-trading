@@ -181,3 +181,20 @@ export function subsystemByName(name: string): Subsystem | undefined {
 export function subsystemColor(name: string): string {
   return subsystemByName(name)?.color ?? "#8a97ab";
 }
+
+/** Which product nav section a path belongs to — the section owning the page whose
+ *  href is the longest prefix of `pathname` (so /data/holdings/positions → Portfolio).
+ *  Used by the page header chip so every page reads as its product area, not its
+ *  backend owner. */
+export function navSectionForPath(pathname: string | null): NavSection | undefined {
+  if (!pathname) return undefined; // usePathname() can be null (pre-render / no router ctx)
+  let best: { section: NavSection; len: number } | undefined;
+  for (const section of NAV_SECTIONS) {
+    for (const p of section.pages) {
+      if ((pathname === p.href || pathname.startsWith(`${p.href}/`)) && (!best || p.href.length > best.len)) {
+        best = { section, len: p.href.length };
+      }
+    }
+  }
+  return best?.section;
+}
