@@ -33,9 +33,18 @@ export function selectFundamentalCandidates(
   const withTicker = scores
     .map((s) => ({ s, ticker: cikToTicker.get(s.cik) }))
     .filter((w): w is { s: GrowthScore; ticker: string } => w.ticker !== undefined);
-  const tickerByCik = new Map(withTicker.map((w) => [w.s.cik, w.ticker] as const));
+  // Dedup by ticker BEFORE ranking — two CIKs can resolve to one symbol (a CIK change,
+  // or a ticker reused in company_tickers.json); keep the highest-growth one so a symbol
+  // yields exactly one candidate (no silent PK clobber in upsertCandidates, no wasted top-N slot).
+  const bestByTicker = new Map<string, { s: GrowthScore; ticker: string }>();
+  for (const w of withTicker) {
+    const prev = bestByTicker.get(w.ticker);
+    if (!prev || w.s.growth > prev.s.growth) bestByTicker.set(w.ticker, w);
+  }
+  const deduped = [...bestByTicker.values()];
+  const tickerByCik = new Map(deduped.map((w) => [w.s.cik, w.ticker] as const));
   const ranked = rankByGrowth(
-    withTicker.map((w) => w.s),
+    deduped.map((w) => w.s),
     { topN: opts.topN, minGrowthPct: opts.minGrowthPct },
   );
   const cands: CandidateInput[] = [];

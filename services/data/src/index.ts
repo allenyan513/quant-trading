@@ -182,6 +182,10 @@ app.post("/scan/fundamentals", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const period = typeof body.period === "string" ? body.period : settledPeriod(new Date());
+    // Guard the user-supplied period so it can't build a garbage frame URL.
+    if (!/^CY\d{4}Q[1-4]$/.test(period)) {
+      return c.json(fail("bad_request", "period must look like CY2025Q3"), 400);
+    }
     const res = await scanFundamentals({
       period,
       agoPeriod: priorYear(period),

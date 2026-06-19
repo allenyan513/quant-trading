@@ -24,4 +24,12 @@ describe("selectFundamentalCandidates", () => {
   it("applies the growth floor", () => {
     expect(selectFundamentalCandidates([score(1, 0.1)], new Map([[1, "AAA"]]), { period: "CY2025Q3", topN: 5, minGrowthPct: 0.25 })).toHaveLength(0);
   });
+
+  it("dedups two CIKs that resolve to one ticker (keeps the higher-growth one)", () => {
+    const scores = [score(1, 0.5), score(2, 0.9)]; // both CIKs → "DUP"
+    const map = new Map<number, string>([[1, "DUP"], [2, "DUP"]]);
+    const c = selectFundamentalCandidates(scores, map, { period: "CY2025Q3", topN: 5, minGrowthPct: 0.25 });
+    expect(c).toHaveLength(1);
+    expect(c[0]!.score).toBe(0.9);
+  });
 });
