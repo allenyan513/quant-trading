@@ -36,7 +36,7 @@ const CAT_COLOR: Record<string, string> = { high: "#f85149", material: "#f0883e"
 
 export default function EventsTab() {
   const params = useParams<{ symbol: string }>();
-  const symbol = (params.symbol ?? "").toUpperCase();
+  const symbol = (params?.symbol ?? "").toUpperCase();
   const { data, error } = useLive<Events>(`/api/data/symbol/${symbol}/events`);
 
   if (!data && !error) return <p style={{ color: "var(--muted)" }}>Loading…</p>;

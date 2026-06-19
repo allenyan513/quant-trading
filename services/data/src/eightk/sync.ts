@@ -20,6 +20,16 @@ const LOOKBACK_DAYS = 365;
 
 const isoDaysAgo = (days: number): string => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 
+/** PIT timestamp: the acceptance datetime when it's a valid date, else fall back to
+ *  the filing date (a malformed acceptanceDateTime must not drop the 8-K). */
+function knownAtFor(acceptedAt: string | null, filedDate: string): Date {
+  if (acceptedAt) {
+    const d = new Date(acceptedAt);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return new Date(`${filedDate}T00:00:00Z`);
+}
+
 async function existingAccessions(accns: string[]): Promise<Set<string>> {
   if (accns.length === 0) return new Set();
   const rows = await db()
@@ -66,7 +76,7 @@ export async function sync8KForSymbol(
           reportDate: f.reportDate,
           primaryDocument: f.primaryDocument || null,
           // PIT: acceptance datetime (when it went public); fall back to filing date.
-          knownAt: f.acceptedAt ? new Date(f.acceptedAt) : new Date(`${f.filedDate}T00:00:00Z`),
+          knownAt: knownAtFor(f.acceptedAt, f.filedDate),
         })
         .onConflictDoNothing({ target: eightKFilings.accessionNumber }); // 8-K is immutable
       inserted++;
