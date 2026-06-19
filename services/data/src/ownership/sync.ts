@@ -126,19 +126,25 @@ export async function syncOwnershipForFiler(cik: string): Promise<{ cik: string;
 
   let inserted = 0;
   for (const f of fresh) {
-    const row = await buildFilingRow(numCik, padded, subs.name ?? "", f);
-    if (!row) continue;
-    await db().insert(ownershipFilings).values(row).onConflictDoUpdate({
-      target: ownershipFilings.accessionNumber,
-      set: {
-        subjectTicker: row.subjectTicker,
-        subjectName: row.subjectName,
-        cusip: row.cusip,
-        pctOfClass: row.pctOfClass,
-        sharesOwned: row.sharesOwned,
-      },
-    });
-    inserted++;
+    // Isolate one filing's failure (SEC timeout / rate-limit on its header or cover)
+    // so the rest of this filer's filings still sync.
+    try {
+      const row = await buildFilingRow(numCik, padded, subs.name ?? "", f);
+      if (!row) continue;
+      await db().insert(ownershipFilings).values(row).onConflictDoUpdate({
+        target: ownershipFilings.accessionNumber,
+        set: {
+          subjectTicker: row.subjectTicker,
+          subjectName: row.subjectName,
+          cusip: row.cusip,
+          pctOfClass: row.pctOfClass,
+          sharesOwned: row.sharesOwned,
+        },
+      });
+      inserted++;
+    } catch (err) {
+      log.warn("ownership.sync.filing_failed", { cik: padded, accn: f.accessionNumber, error: err instanceof Error ? err.message : String(err) });
+    }
   }
   log.info("ownership.sync.filer", { cik: padded, candidates: candidates.length, inserted });
   return { cik: padded, filings: candidates.length, inserted };
@@ -149,9 +155,17 @@ export async function syncOwnershipAll(): Promise<{ filers: number; inserted: nu
   await ensureOwnershipFilersSeeded();
   const filers = await getActiveOwnershipFilers();
   let inserted = 0;
+  // Serial like 13F's sync13FAll: the sec-http throttle is a process-global 8 req/s
+  // bucket, so the SEC-bound work is rate-limited regardless of filer concurrency —
+  // parallelism would only overlap the cheap DB upserts. A filer-level failure
+  // (e.g. submissions fetch errored) is isolated so it can't abort the roster.
   for (const f of filers) {
-    const res = await syncOwnershipForFiler(f.cik);
-    inserted += res.inserted;
+    try {
+      const res = await syncOwnershipForFiler(f.cik);
+      inserted += res.inserted;
+    } catch (err) {
+      log.warn("ownership.sync.filer_failed", { cik: f.cik, error: err instanceof Error ? err.message : String(err) });
+    }
   }
   log.info("ownership.sync.done", { filers: filers.length, inserted });
   return { filers: filers.length, inserted };

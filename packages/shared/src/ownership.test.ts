@@ -121,4 +121,11 @@ describe("parseCoverPage (best-effort, nullable)", () => {
   it("returns all-null on an unparseable blob, never throws", () => {
     expect(parseCoverPage("<html>nothing useful here</html>")).toEqual({ cusip: null, pctOfClass: null, sharesOwned: null });
   });
+
+  it("only scans the first 250KB (perf guard) — content past the cap is ignored", () => {
+    const html = `<p>CUSIP No. 844895102</p>${"x".repeat(260_000)}<td>PERCENT OF CLASS REPRESENTED</td><td>99%</td>`;
+    const out = parseCoverPage(html);
+    expect(out.cusip).toBe("844895102"); // at the start → parsed
+    expect(out.pctOfClass).toBeNull(); // beyond 250KB → not scanned
+  });
 });

@@ -144,7 +144,9 @@ const stripTags = (html: string): string =>
  * token) is the most reliable. Treat null as "not disclosed/unparsed", not zero.
  */
 export function parseCoverPage(html: string): CoverData {
-  const text = stripTags(html);
+  // The cover page (CUSIP / % / shares) is always at the very start of the filing;
+  // a 13D/13G can carry MBs of exhibits, so cap the regex work to the first 250KB.
+  const text = stripTags(html.slice(0, 250_000));
 
   let cusip: string | null = null;
   const cm = text.match(/CUSIP\s*(?:No\.?|Number)?\s*[:.)]?\s*([0-9A-Z](?:[ ]?[0-9A-Z]){8})/i);
