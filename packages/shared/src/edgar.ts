@@ -90,7 +90,7 @@ export interface CompanyFacts {
 // Each FMP field maps to an ordered list of candidate us-gaap concepts; the
 // first one present in the filing wins (companies tag the same line differently).
 
-const INCOME_CONCEPTS: Record<string, string[]> = {
+export const INCOME_CONCEPTS: Record<string, string[]> = {
   revenue: [
     "RevenueFromContractWithCustomerExcludingAssessedTax",
     "Revenues",

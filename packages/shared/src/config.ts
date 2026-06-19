@@ -63,6 +63,14 @@ export const config = {
   /** Min |EPS surprise| (fraction) for the earnings scanner to flag a candidate. */
   scanEarningsSurprisePct: () => 0.2,
 
+  // ---- XBRL Frames fundamental screener (#106) ----
+  /** Year-ago revenue floor ($) for the fundamentals scanner — kills micro-cap 0→tiny growth noise. */
+  scanFundamentalsMinBase: () => 5e8,
+  /** Max candidates the fundamentals scanner queues per run (cross-sectional top-N). */
+  scanFundamentalsTopN: () => 50,
+  /** Min YoY growth (fraction) for the fundamentals scanner to flag a candidate. */
+  scanFundamentalsMinGrowthPct: () => 0.25,
+
   /** 10Y Treasury proxy for WACC's risk-free rate (decimal). v1 constant; wire FMP treasury later. */
   riskFreeRate: () => Number(optionalEnv("RISK_FREE_RATE", "0.043")),
 

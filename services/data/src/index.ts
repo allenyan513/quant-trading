@@ -7,9 +7,11 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
-import { ok, fail, config, isAuthorizedJob } from "@qt/shared";
+import { ok, fail, config, isAuthorizedJob, INCOME_CONCEPTS } from "@qt/shared";
+import { priorYear, settledPeriod } from "@qt/shared/xbrl-frames";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
+import { scanFundamentals } from "./scan/fundamentals.js";
 import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
@@ -171,6 +173,27 @@ app.post("/scan/earnings", async (c) => {
   } catch (err) {
     log.error("scan.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("scan_earnings_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// XBRL Frames fundamental screener (#106): rank revenue YoY growth across ALL
+// filers for a settled calendar quarter → out-of-universe discovery candidates.
+app.post("/scan/fundamentals", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const period = typeof body.period === "string" ? body.period : settledPeriod(new Date());
+    const res = await scanFundamentals({
+      period,
+      agoPeriod: priorYear(period),
+      concepts: INCOME_CONCEPTS.revenue ?? [],
+      minBase: typeof body.minBase === "number" ? body.minBase : config.scanFundamentalsMinBase(),
+      topN: typeof body.topN === "number" ? body.topN : config.scanFundamentalsTopN(),
+      minGrowthPct: typeof body.minGrowthPct === "number" ? body.minGrowthPct : config.scanFundamentalsMinGrowthPct(),
+    });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("scan.fundamentals.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("scan_fundamentals_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
