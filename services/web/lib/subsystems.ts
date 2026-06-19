@@ -142,7 +142,10 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Discover",
     color: "#58a6ff",
     pages: [
+      { href: "/data/movers", label: "市场榜单" },
       { href: "/data/candidates", label: "选股 Screener" },
+      { href: "/data/earnings", label: "财报日历" },
+      { href: "/data/economic", label: "经济日历" },
       { href: "/data/legends", label: "Legends 13F" },
     ],
   },

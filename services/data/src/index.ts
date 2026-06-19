@@ -28,6 +28,7 @@ import { addOwnershipFiler } from "./ownership/filers.js";
 import { sync8KAll, sync8KForSymbol } from "./eightk/sync.js";
 import { syncForm4All, syncForm4ForSymbol } from "./form4/sync.js";
 import { searchFilings } from "@qt/shared/edgar-fts";
+import { fetchMovers, fetchEarningsCalendar, fetchEconomicCalendar } from "@qt/shared/markets";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
@@ -537,6 +538,45 @@ app.post("/edgar/search", async (c) => {
   } catch (err) {
     log.error("edgar.search.failed", { error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("edgar_search_failed", err instanceof Error ? err.message : String(err)), 502);
+  }
+});
+
+// ---- Discover live market snapshots (FMP passthrough; data is the sole external
+// receiver, so web's /api/markets/* routes forward here). #141 Phase 2. ----
+function calendarWindow(days: number): { from: string; to: string } {
+  const from = new Date();
+  const to = new Date(from.getTime() + days * 24 * 3600 * 1000);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+app.get("/markets/movers", async (c) => {
+  try {
+    return c.json(ok(await fetchMovers()));
+  } catch (err) {
+    log.error("markets.movers.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("markets_movers_failed", err instanceof Error ? err.message : String(err)), 502);
+  }
+});
+
+app.get("/markets/earnings-calendar", async (c) => {
+  try {
+    const win = calendarWindow(14);
+    const res = await fetchEarningsCalendar(c.req.query("from") || win.from, c.req.query("to") || win.to);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("markets.earnings.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("markets_earnings_failed", err instanceof Error ? err.message : String(err)), 502);
+  }
+});
+
+app.get("/markets/economic-calendar", async (c) => {
+  try {
+    const win = calendarWindow(14);
+    const res = await fetchEconomicCalendar(c.req.query("from") || win.from, c.req.query("to") || win.to);
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("markets.economic.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("markets_economic_failed", err instanceof Error ? err.message : String(err)), 502);
   }
 });
 
