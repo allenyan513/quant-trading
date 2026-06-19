@@ -38,6 +38,8 @@ interface SubmissionsRecent {
 export interface Submissions {
   cik?: number;
   name?: string;
+  /** The entity's listed tickers (subject companies use this for CIK→ticker). */
+  tickers?: string[];
   filings?: { recent?: SubmissionsRecent };
 }
 

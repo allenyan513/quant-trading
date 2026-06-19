@@ -16,6 +16,7 @@ const TABS: { seg: string; label: string }[] = [
   { seg: "chart", label: "Chart" },
   { seg: "news", label: "News" },
   { seg: "analysts", label: "Analysts" },
+  { seg: "ownership", label: "Ownership" },
   { seg: "options", label: "Options" },
 ];
 

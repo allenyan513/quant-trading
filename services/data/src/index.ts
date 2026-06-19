@@ -21,6 +21,8 @@ import { computeReferenceValuation } from "./valuation/reference.js";
 import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
 import { addFiler } from "./thirteenf/filers.js";
+import { syncOwnershipAll, syncOwnershipForFiler } from "./ownership/sync.js";
+import { addOwnershipFiler } from "./ownership/filers.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
@@ -413,6 +415,41 @@ app.post("/13f/cusip-map", async (c) => {
   } catch (err) {
     log.error("13f.cusip.map.failed", { cusip, error: err instanceof Error ? err.message : String(err) });
     return c.json(fail("cusip_map_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+});
+
+// ---- SEC 13D/13G beneficial ownership (symbol-centric companion to 13F). data
+// owns data_ownership_* tables; web reads them. SEC-only (no FMP). See #105. ----
+
+// Sync every tracked activist's SC 13D/13G filings. `/jobs/sync-ownership` (cron,
+// JOB_TOKEN — daily is fine; accession-skip makes re-runs cheap) and
+// `/ownership/sync` (manual; optional `cik` syncs a single filer).
+async function runOwnershipSync(c: Context) {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const cik = String(body.cik ?? "").trim();
+    const res = cik ? await syncOwnershipForFiler(cik) : await syncOwnershipAll();
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("ownership.sync.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("sync_ownership_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+}
+app.post("/jobs/sync-ownership", (c) => runOwnershipSync(c));
+app.post("/ownership/sync", (c) => runOwnershipSync(c));
+
+// Add/refresh a tracked activist filer (data owns the roster; mirrors /13f/filers).
+app.post("/ownership/filers", async (c) => {
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const cik = String(body.cik ?? "").trim();
+  const name = String(body.name ?? "").trim();
+  if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
+  try {
+    const res = await addOwnershipFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("ownership.filer.add.failed", { cik, error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("add_ownership_filer_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
 
