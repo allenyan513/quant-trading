@@ -183,6 +183,13 @@
       "when": 1781826720532,
       "tag": "0025_young_blue_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781832215540,
+      "tag": "0026_fast_gunslinger",
+      "breakpoints": true
     }
   ]
 }

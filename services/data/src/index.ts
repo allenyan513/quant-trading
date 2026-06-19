@@ -23,6 +23,7 @@ import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } f
 import { addFiler } from "./thirteenf/filers.js";
 import { syncOwnershipAll, syncOwnershipForFiler } from "./ownership/sync.js";
 import { addOwnershipFiler } from "./ownership/filers.js";
+import { sync8KAll, sync8KForSymbol } from "./eightk/sync.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
@@ -452,6 +453,25 @@ app.post("/ownership/filers", async (c) => {
     return c.json(fail("add_ownership_filer_failed", err instanceof Error ? err.message : String(err)), 500);
   }
 });
+
+// ---- SEC 8-K material events (symbol-centric). data owns data_8k_filings; web reads.
+// Item codes come structured from submissions (no doc parse). The 8-K → alpha repricing
+// feed is a separate follow-up (#103 part 2). ----
+// `/jobs/pull-8k` (cron, JOB_TOKEN — daily; accession-skip makes re-runs cheap) and
+// `/eightk/pull` (manual; optional `symbol` pulls one).
+async function run8KSync(c: Context) {
+  try {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbol = String(body.symbol ?? "").trim();
+    const res = symbol ? await sync8KForSymbol(symbol) : await sync8KAll();
+    return c.json(ok(res));
+  } catch (err) {
+    log.error("8k.sync.failed", { error: err instanceof Error ? err.message : String(err) });
+    return c.json(fail("sync_8k_failed", err instanceof Error ? err.message : String(err)), 500);
+  }
+}
+app.post("/jobs/pull-8k", (c) => run8KSync(c));
+app.post("/eightk/pull", (c) => run8KSync(c));
 
 // Reference valuation (System A) — deterministic, no LLM. Lives in data (moved
 // from alpha): it's computed from data-owned marketdata caches. alpha fetches it

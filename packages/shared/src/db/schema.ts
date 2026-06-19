@@ -448,6 +448,28 @@ export const ownershipSubjects = pgTable("data_ownership_subjects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
 
+// ---- SEC 8-K material events (data; symbol-centric) ----
+// Official "current report" filings. The item codes (2.02 earnings, 5.02 leadership,
+// 1.03 bankruptcy, 8.01 other, …) come STRUCTURED from the submissions feed's `items`
+// field — no document parsing. One immutable row per filing (accession PK). data owns;
+// web reads. The alpha-feed (8-K → data_events → repricing) is a separate follow-up
+// (#103 part 2); this table is the foundation. symbol is the subject company ticker
+// (the filer IS the subject), denormalized for the symbol query.
+export const eightKFilings = pgTable(
+  "data_8k_filings",
+  {
+    accessionNumber: text("accession_number").primaryKey(),
+    cik: text("cik").notNull(),
+    symbol: text("symbol").notNull(),
+    items: text("items").notNull(), // raw item-code CSV from submissions, e.g. "2.02,9.01"
+    filedDate: date("filed_date").notNull(),
+    reportDate: date("report_date"), // date of the triggering event (8-K cover); may be null
+    primaryDocument: text("primary_document"),
+    knownAt: timestamp("known_at", { withTimezone: true }).notNull(), // acceptance datetime (PIT)
+  },
+  (t) => [index("idx_8k_symbol").on(t.symbol), index("idx_8k_filed").on(t.filedDate)],
+);
+
 // ---- Events (data -> alpha) + outbox ----
 
 export const events = pgTable(

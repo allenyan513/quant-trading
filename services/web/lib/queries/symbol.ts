@@ -22,6 +22,7 @@ import {
   getFinancials as sharedGetFinancials,
 } from "@qt/shared/research";
 import { getOwnershipForSymbol as sharedGetOwnership } from "@qt/shared/ownership-read";
+import { get8KForSymbol as sharedGet8K } from "@qt/shared/edgar-8k-read";
 import { listPositions, listNews, listSignals } from "./lists.js";
 
 /** Latest reference-valuation snapshot. Shared with data's MCP (see @qt/shared/research). */
@@ -41,6 +42,11 @@ export const getAnalystsData = (symbol: string) => sharedGetAnalystsData(db(), s
  * filings + which tracked 13F legends hold it. Shared with the MCP get_symbol_research
  * ownership section (see @qt/shared/ownership-read). */
 export const getOwnershipData = (symbol: string) => sharedGetOwnership(db(), symbol);
+
+/** SEC 8-K material events for the Events tab: recent current-report filings with
+ * decoded item codes (earnings / leadership / bankruptcy / …). Shared with the MCP
+ * get_symbol_research events section (see @qt/shared/edgar-8k-read). */
+export const getEventsData = (symbol: string) => sharedGet8K(db(), symbol);
 
 /** Latest financial-ratios row for a symbol (newest filing first). `data` is the
  * raw FMP ratios jsonb; callers pick the fields they show. */

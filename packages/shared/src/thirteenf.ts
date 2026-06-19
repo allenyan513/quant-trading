@@ -32,7 +32,9 @@ interface SubmissionsRecent {
   accessionNumber?: string[];
   filingDate?: string[];
   reportDate?: string[];
+  acceptanceDateTime?: string[];
   form?: string[];
+  items?: string[]; // 8-K item codes, e.g. "2.02,9.01"
   primaryDocument?: string[];
 }
 export interface Submissions {
