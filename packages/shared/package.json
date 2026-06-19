@@ -19,6 +19,7 @@
     "./form4-read": "./src/form4-read.ts",
     "./edgar-fts": "./src/edgar-fts.ts",
     "./xbrl-frames": "./src/xbrl-frames.ts",
+    "./markets": "./src/markets.ts",
     "./openfigi": "./src/openfigi.ts",
     "./http": "./src/http.ts",
     "./config": "./src/config.ts",
