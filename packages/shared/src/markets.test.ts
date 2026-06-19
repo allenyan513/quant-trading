@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { shapeMover, shapeEarnings, shapeEconEvent } from "./markets.js";
+import { shapeMover, shapeEarnings, shapeEconEvent, dedupBy } from "./markets.js";
+
+describe("dedupBy", () => {
+  it("keeps the first row per key (FMP returns dup calendar rows)", () => {
+    const rows = [
+      { sym: "NRSNW", date: "2026-06-22", v: 1 },
+      { sym: "NRSNW", date: "2026-06-22", v: 2 },
+      { sym: "AAPL", date: "2026-06-22", v: 3 },
+    ];
+    const out = dedupBy(rows, (r) => `${r.sym} ${r.date}`);
+    expect(out).toHaveLength(2);
+    expect(out.map((r) => r.v)).toEqual([1, 3]);
+  });
+});
 
 describe("shapeMover", () => {
   it("maps an FMP mover row (changesPercentage → changePct)", () => {

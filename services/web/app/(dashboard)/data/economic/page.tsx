@@ -21,7 +21,7 @@ export default function EconomicPage() {
   return (
     <div>
       <PageTitle sub="未来两周经济数据日历（FMP,High / Medium 影响,按时间排序）">经济日历</PageTitle>
-      <LiveTable path="/api/markets/economic" rowKey={(r) => `${r.date}-${r.event}`} columns={columns} pageSize={50} emptyText="近期无重要经济数据。" />
+      <LiveTable path="/api/markets/economic" rowKey={(r) => `${r.date}-${r.country ?? ""}-${r.event}`} columns={columns} pageSize={50} emptyText="近期无重要经济数据。" />
     </div>
   );
 }
