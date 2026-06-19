@@ -186,7 +186,8 @@ export function subsystemColor(name: string): string {
  *  href is the longest prefix of `pathname` (so /data/holdings/positions → Portfolio).
  *  Used by the page header chip so every page reads as its product area, not its
  *  backend owner. */
-export function navSectionForPath(pathname: string): NavSection | undefined {
+export function navSectionForPath(pathname: string | null): NavSection | undefined {
+  if (!pathname) return undefined; // usePathname() can be null (pre-render / no router ctx)
   let best: { section: NavSection; len: number } | undefined;
   for (const section of NAV_SECTIONS) {
     for (const p of section.pages) {
