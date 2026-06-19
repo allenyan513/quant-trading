@@ -10,7 +10,7 @@ export default function HoldingsLayout({ children }: { children: React.ReactNode
   return (
     <div>
       <PageTitle subsystem="data" sub="真实 IBKR 账户（Flex 同步）— NAV / 持仓 / 成交 / 连接">
-        Holdings
+        Portfolio
       </PageTitle>
       <HoldingsTabs />
       {children}

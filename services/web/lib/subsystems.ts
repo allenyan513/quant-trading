@@ -105,6 +105,74 @@ export const SYSTEM_PAGES: SubsystemPage[] = [
   { href: "/system/logs", label: "Logs" },
 ];
 
+/**
+ * Product-facing sidebar grouping (issue: nav restructure, Phase 1). The backend
+ * is still three services (SUBSYSTEMS above — that stays the source of truth for
+ * page chips, landing pages, the overview swimlanes and health). But the user-facing
+ * nav is grouped by TASK like a trading platform (IBKR/moomoo), not by which service
+ * owns the data: Portfolio / Watchlist / Discover / News / Alpha, plus a collapsed
+ * System area for the engineering/observability pages. Hrefs are unchanged — this is
+ * a presentation regroup only, no routes moved. The paper-trading ledger
+ * (/portfolio/positions) is intentionally omitted (hidden) for now.
+ */
+export interface NavSection {
+  label: string;
+  /** Accent colour for the section + its active page links. */
+  color: string;
+  pages: SubsystemPage[];
+  /** Collapsed by default (engineering/internal area). */
+  collapsed?: boolean;
+}
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    label: "Portfolio",
+    color: "#f0883e",
+    pages: [
+      { href: "/data/holdings", label: "Portfolio" }, // your real (IBKR-synced) holdings
+      { href: "/data/morning-brief", label: "Morning Brief" },
+    ],
+  },
+  {
+    label: "Watchlist",
+    color: "#3fb950",
+    pages: [{ href: "/data/watchlist", label: "Watchlist" }],
+  },
+  {
+    label: "Discover",
+    color: "#58a6ff",
+    pages: [
+      { href: "/data/candidates", label: "选股 Screener" },
+      { href: "/data/legends", label: "Legends 13F" },
+    ],
+  },
+  {
+    label: "News",
+    color: "#d29922",
+    pages: [{ href: "/data/news", label: "News" }],
+  },
+  {
+    label: "Alpha",
+    color: "#a371f7",
+    pages: [
+      { href: "/alpha/signals", label: "Signals" },
+      { href: "/alpha/valuations", label: "Valuations" },
+    ],
+  },
+  {
+    label: "System",
+    color: "#8a97ab",
+    collapsed: true,
+    pages: [
+      { href: "/system", label: "Overview" },
+      { href: "/system/logs", label: "Logs" },
+      { href: "/data/events", label: "Events" },
+      { href: "/data/notifications", label: "Notifications" },
+      { href: "/data/freshness", label: "Freshness" },
+    ],
+  },
+];
+
 
 export function subsystemByName(name: string): Subsystem | undefined {
   return SUBSYSTEMS.find((s) => s.name === name);

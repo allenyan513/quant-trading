@@ -1,32 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useLive } from "@/components/live";
-import { statusColor } from "@/components/ui";
-import { SUBSYSTEMS, SYSTEM_PAGES, type SubsystemPage } from "@/lib/subsystems";
+import { NAV_SECTIONS, type NavSection, type SubsystemPage } from "@/lib/subsystems";
 import { signOut } from "@/lib/auth-client";
-
-interface Heartbeat {
-  service: string;
-  last: string | null;
-  state: string;
-}
 
 const SIDEBAR_WIDTH = 212;
 
 /**
- * Vertical sidebar. The three backend services own disjoint sets of pages
- * (see lib/subsystems.ts), so the nav is grouped into sections — a cross-cutting
- * "System" section plus one per subsystem, each headed by its accent colour and a
- * live health dot. The section header links to that subsystem's landing page.
+ * Vertical sidebar, grouped by product task (Portfolio / Watchlist / Discover /
+ * News / Alpha) like a trading platform — see NAV_SECTIONS in lib/subsystems.ts.
+ * The engineering/observability pages live under a collapsed "System" section.
+ * (Backend service health moved to the System Overview page; the nav stays
+ * product-facing.)
  */
 export function Nav() {
   const pathname = usePathname();
-  // Cheap 5s poll just for the per-subsystem health dots.
-  const { data: beats } = useLive<Heartbeat[]>("/api/health");
-  const stateOf = (svc: string) => beats?.find((b) => b.service === svc)?.state ?? "unknown";
-
   return (
     <nav
       style={{
@@ -56,17 +46,8 @@ export function Nav() {
       </Link>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 10px 4px" }}>
-        <Section label="System" pages={SYSTEM_PAGES} pathname={pathname} />
-        {SUBSYSTEMS.map((s) => (
-          <Section
-            key={s.name}
-            label={s.label}
-            href={`/${s.name}`}
-            color={s.color}
-            dot={stateOf(s.name)}
-            pages={s.pages}
-            pathname={pathname}
-          />
+        {NAV_SECTIONS.map((s) => (
+          <Section key={s.label} section={s} pathname={pathname} />
         ))}
       </div>
 
@@ -92,72 +73,55 @@ export function Nav() {
   );
 }
 
-/** One labelled group: a header (optionally a subsystem link + health dot) over its pages. */
-function Section({
-  label,
-  href,
+const headerStyle = (color: string): React.CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
   color,
-  dot,
-  pages,
-  pathname,
-}: {
-  label: string;
-  href?: string;
-  color?: string;
-  dot?: string;
-  pages: SubsystemPage[];
-  pathname: string;
-}) {
-  const headerActive = href ? pathname === href || pathname.startsWith(`${href}/`) : false;
-  const header = (
-    <span
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        fontSize: 11,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: 0.5,
-        color: headerActive ? "#fff" : color ?? "var(--muted)",
-      }}
-    >
-      {dot && (
-        <span
-          title={`${label}: ${dot}`}
-          style={{ width: 7, height: 7, borderRadius: 999, background: statusColor(dot), flexShrink: 0 }}
-        />
-      )}
-      {label}
-    </span>
-  );
+});
+
+/** One product section: a coloured header over its page links. A `collapsed`
+ *  section (System) gets a click-to-toggle header, auto-expanded when you're on
+ *  one of its pages. */
+function Section({ section, pathname }: { section: NavSection; pathname: string }) {
+  const containsActive = section.pages.some((p) => pathname === p.href);
+  const [open, setOpen] = useState(!section.collapsed || containsActive);
 
   return (
     <div className="nav-section" style={{ marginBottom: 14 }}>
       <div className="nav-section-header" style={{ padding: "0 10px 6px" }}>
-        {href ? (
-          <Link href={href} title={`${label} 子系统`}>
-            {header}
-          </Link>
+        {section.collapsed ? (
+          <button
+            onClick={() => setOpen((o) => !o)}
+            style={{ ...headerStyle(section.color), background: "transparent", border: "none", padding: 0, width: "100%", cursor: "pointer" }}
+          >
+            <span style={{ fontSize: 9, width: 9 }}>{open ? "▾" : "▸"}</span>
+            {section.label}
+          </button>
         ) : (
-          header
+          <span style={headerStyle(section.color)}>{section.label}</span>
         )}
       </div>
-      <div className="nav-section-pages" style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {pages.map((p) => (
-          <NavItem key={p.href} page={p} color={color} pathname={pathname} />
-        ))}
-      </div>
+      {open && (
+        <div className="nav-section-pages" style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {section.pages.map((p) => (
+            <NavItem key={p.href} page={p} color={section.color} pathname={pathname} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/** A single page link with subsystem-accented active state. */
-function NavItem({ page, color, pathname }: { page: SubsystemPage; color?: string; pathname: string }) {
+/** A single page link with section-accented active state. */
+function NavItem({ page, color, pathname }: { page: SubsystemPage; color: string; pathname: string }) {
   // Exact match: every nav target is a leaf (or the /system index), and /system
   // is also the parent of /system/logs — a prefix match would light up both.
   const active = pathname === page.href;
-  const accent = color ?? "var(--text)";
   return (
     <Link
       href={page.href}
@@ -168,9 +132,9 @@ function NavItem({ page, color, pathname }: { page: SubsystemPage; color?: strin
         borderRadius: 7,
         fontSize: 13,
         fontWeight: 600,
-        borderLeft: `2px solid ${active ? accent : "transparent"}`,
-        color: active ? accent : "var(--muted)",
-        background: active ? (color ? `${color}1f` : "var(--panel-2)") : "transparent",
+        borderLeft: `2px solid ${active ? color : "transparent"}`,
+        color: active ? color : "var(--muted)",
+        background: active ? `${color}1f` : "transparent",
       }}
     >
       {page.label}
