@@ -21,10 +21,12 @@ export function dataUrl(): string {
 
 /** Unwrap data's ok(data) / fail(code, msg) envelope, or throw with its message. */
 async function unwrap<T>(resp: Response, path: string): Promise<T> {
-  const json = (await resp.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { message?: string } | string } | null;
+  const json = (await resp.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { message?: string; code?: string } | string } | null;
   if (!resp.ok || !json?.ok) {
     const e = json?.error;
-    throw new Error((typeof e === "object" ? e?.message : e) ?? `data ${path} returned ${resp.status}`);
+    // Fall back to the error code when the message is absent (data's fail(code, msg)).
+    const msg = typeof e === "object" ? (e?.message ?? e?.code) : e;
+    throw new Error(msg ?? `data ${path} returned ${resp.status}`);
   }
   return json.data as T;
 }

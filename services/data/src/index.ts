@@ -192,6 +192,7 @@ app.post(
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const symbol = String(body.symbol ?? "").trim();
     if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    c.set("logContext", { symbol });
     const res = await dismissCandidate(symbol);
     if (!res.dismissed) return c.json(fail("not_found", `no candidate ${symbol.toUpperCase()}`), 404);
     return res;
@@ -210,6 +211,7 @@ app.post(
     const symbol = String(body.symbol ?? "").trim();
     if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
     const note = typeof body.note === "string" ? body.note : undefined;
+    c.set("logContext", { userId, symbol });
     const res = await addWatchlist(userId, symbol, note);
     // Warm the newly-added symbol so its detail page / the MCP aren't empty. Await
     // warm + news (deterministic, a few seconds); fire the valuation best-effort so
@@ -227,6 +229,7 @@ app.post(
     const userId = String(body.userId ?? "").trim();
     const symbol = String(body.symbol ?? "").trim();
     if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
+    c.set("logContext", { userId, symbol });
     return removeWatchlist(userId, symbol);
   }),
 );
@@ -245,6 +248,7 @@ app.post(
       return c.json(fail("bad_request", "userId, valid date (YYYY-MM-DD) and markdown required"), 400);
     }
     const summary = body.summary && typeof body.summary === "object" ? body.summary : undefined;
+    c.set("logContext", { userId, date });
     const res = await submitMorningBrief(userId, date, markdown, summary);
     log.info("morning_brief.submit", { userId, date });
     return res;
@@ -262,6 +266,7 @@ app.post(
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const symbol = String(body.symbol ?? "").trim();
     if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    c.set("logContext", { symbol });
     const res = await warmAndPullNews(symbol);
     return { ...res, warmed: true };
   }),
@@ -354,6 +359,7 @@ app.post(
     const cik = String(body.cik ?? "").trim();
     const name = String(body.name ?? "").trim();
     if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
+    c.set("logContext", { cik });
     return addFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
   }),
 );
@@ -379,6 +385,7 @@ app.post(
     const cusip = String(body.cusip ?? "").trim();
     const ticker = String(body.ticker ?? "").trim();
     if (!cusip || !ticker) return c.json(fail("bad_request", "cusip and ticker required"), 400);
+    c.set("logContext", { cusip });
     return setCusipMapping(cusip, ticker, typeof body.name === "string" ? body.name : undefined);
   }),
 );
@@ -405,6 +412,7 @@ app.post(
     const cik = String(body.cik ?? "").trim();
     const name = String(body.name ?? "").trim();
     if (!cik || !name) return c.json(fail("bad_request", "cik and name required"), 400);
+    c.set("logContext", { cik });
     return addOwnershipFiler({ cik, name, label: typeof body.label === "string" ? body.label : undefined });
   }),
 );
