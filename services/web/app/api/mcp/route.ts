@@ -19,6 +19,7 @@ import { auth } from "@/lib/auth-server";
 import { registerPublicTools } from "@/lib/mcp/register-public-tools";
 import { getHoldingsExport, HOLDINGS_SECTIONS } from "@/lib/mcp/holdings";
 import { listWatchlistOverview } from "@/lib/queries";
+import { dataPost } from "@/lib/data-proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,15 +33,8 @@ function userIdFrom(extra?: { authInfo?: { extra?: Record<string, unknown> } }):
   return typeof uid === "string" && uid ? uid : null;
 }
 
-// web is read-only DB (T12): the one WRITE tool (submit_morning_brief) forwards to the
-// data service, which owns data_morning_briefs. Static process.env.DATA_URL (Next
-// inlines it; config.dataUrl would read empty in a route handler).
-function dataUrl(): string {
-  const u = process.env.DATA_URL;
-  if (!u) throw new Error("Missing required env var: DATA_URL");
-  return u;
-}
-
+// web is read-only DB (T12): the one WRITE tool (submit_morning_brief) forwards to
+// the data service (owner of data_morning_briefs) via dataPost.
 const mcpHandler = createMcpHandler(
   (server) => {
     // Public market-data tools (single source of truth).
@@ -114,25 +108,11 @@ const mcpHandler = createMcpHandler(
         const userId = userIdFrom(extra);
         if (!userId) return UNAUTH;
         try {
-          const resp = await fetch(`${dataUrl()}/morning-brief/submit`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ userId, date, markdown, summary }),
-          });
-          const json = (await resp.json().catch(() => ({}))) as {
-            ok?: boolean;
-            data?: unknown;
-            error?: { code?: string; message?: string } | string;
-          };
-          if (!resp.ok || !json.ok) {
-            const err = json.error;
-            const msg = typeof err === "string" ? err : (err?.message ?? err?.code ?? `data service returned ${resp.status}`);
-            return { content: [{ type: "text", text: `Failed to save brief: ${msg}` }], isError: true };
-          }
+          // dataPost throws on both an envelope error and a network failure — handle uniformly.
+          await dataPost("/morning-brief/submit", { userId, date, markdown, summary });
           return { content: [{ type: "text", text: `Saved morning brief for ${date}.` }] };
         } catch (e) {
-          // fetch can throw on network failure (data service down / DNS) — surface it, don't crash the MCP request.
-          return { content: [{ type: "text", text: `Failed to save brief (network error): ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+          return { content: [{ type: "text", text: `Failed to save brief: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
         }
       },
     );

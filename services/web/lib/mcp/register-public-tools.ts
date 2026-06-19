@@ -8,32 +8,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getSymbolResearch, RESEARCH_SECTIONS } from "@/lib/mcp/research";
 import { getInvestorsList, getInvestorDetail, THIRTEENF_SECTIONS } from "@/lib/mcp/thirteenf";
+import { dataPost } from "@/lib/data-proxy";
 
-// EDGAR full-text search is a LIVE external call, so (unlike the read-only DB tools)
-// it forwards to data — the sole external-data receiver — rather than hitting efts
-// from web. DATA_URL is read statically (Next inlines it; see lib/db.ts). deliverJson
-// drops the response body, so use a plain fetch and unwrap the ok()/fail() envelope.
-function dataUrl(): string {
-  const u = process.env.DATA_URL;
-  if (!u) throw new Error("Missing required env var: DATA_URL");
-  return u;
-}
-
-async function searchFilingsViaData(body: Record<string, unknown>): Promise<unknown> {
-  const resp = await fetch(`${dataUrl()}/edgar/search`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const json = (await resp.json().catch(() => null)) as
-    | { ok?: boolean; data?: unknown; error?: { message?: string } | string }
-    | null;
-  if (!resp.ok || !json?.ok) {
-    const err = json?.error;
-    throw new Error((typeof err === "object" ? err?.message : err) ?? `data /edgar/search returned ${resp.status}`);
-  }
-  return json.data;
-}
+// EDGAR full-text search is a LIVE external call (not a DB read), so it forwards to
+// data — the sole external-data receiver — rather than hitting efts from web.
+const searchFilingsViaData = (body: Record<string, unknown>): Promise<unknown> => dataPost("/edgar/search", body);
 
 export function registerPublicTools(server: McpServer): void {
   server.registerTool(
