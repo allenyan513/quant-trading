@@ -16,7 +16,8 @@
  * legends/quant-researcher/quant_researcher/signal_system/generator.py.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { config, marketdata, type SignalDraft, type ReferenceValuation } from "@qt/shared";
+import { config, db, marketdata, type SignalDraft, type ReferenceValuation } from "@qt/shared";
+import { getInsidersForSymbol } from "@qt/shared/form4-read";
 import type { NormalizedNotification } from "./classify.js";
 import { sanitizeSignalDraft } from "./signal-draft.js";
 import { log } from "./log.js";
@@ -25,7 +26,7 @@ const SYSTEM_PROMPT = `You are an event-driven pricing analyst inside an automat
 
 Critical: the reference fair value is just ONE input — it lags (quarterly data) and has NOT moved on today's events. Your job is to REPRICE from the events themselves, weighing them together: read what changed, optionally pull supporting context, then translate into a SINGLE actionable signal for the symbol. If the events are immaterial, return direction "hold".
 
-You can pull recent supporting context for the symbol: get_fundamentals (annual ratios), get_technicals (recent prices), get_ratings (analyst grade changes), get_insider (Form-4 open-market buys/sells), get_price_targets (analyst targets). Use them to corroborate or temper the event — e.g. a downgrade weighs more if it follows other bearish analyst action or insider selling.
+You can pull recent supporting context for the symbol: get_fundamentals (annual ratios), get_technicals (recent prices), get_ratings (analyst grade changes), get_insider (SEC Form 4 insider transactions), get_price_targets (analyst targets). Use them to corroborate or temper the event — e.g. a downgrade weighs more if it follows other bearish analyst action or insider selling.
 
 Workflow: (1) optionally call any of the read tools; (2) call emit_signal exactly once with your decision.
 
@@ -79,7 +80,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_insider",
-    description: "Recent insider (Form 4) open-market buys/sells for a symbol.",
+    description: "Recent insider transactions (SEC Form 4) for a symbol — transaction codes incl. buys/sells/grants/exercises, with the 10b5-1 flag.",
     input_schema: { type: "object", properties: { symbol: { type: "string" } }, required: ["symbol"] },
   },
   {
@@ -133,9 +134,9 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<st
       return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
     }
     case "get_insider": {
-      const rows = await marketdata.getInsider(String(input.symbol), 10);
-      // `at` after the spread so a raw `at` field can't clobber the PIT ts.
-      return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 4000);
+      // SEC Form 4 (data_form4, rich: code + 10b5-1), populated by data's /jobs/pull-form4.
+      const r = await getInsidersForSymbol(db(), String(input.symbol), 10);
+      return JSON.stringify(r.insiders).slice(0, 4000);
     }
     case "get_price_targets": {
       const rows = await marketdata.getPriceTargets(String(input.symbol), 10);

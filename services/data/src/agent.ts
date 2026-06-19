@@ -17,7 +17,8 @@
  * depends on warming — it's only a latency/quota optimization.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { config, marketdata } from "@qt/shared";
+import { config, db, marketdata } from "@qt/shared";
+import { getInsidersForSymbol } from "@qt/shared/form4-read";
 import { log } from "./log.js";
 
 const SYSTEM_PROMPT = `You are a news-triage analyst inside an automated trading system. You receive ONE market news item for a single company. Your job is narrow:
@@ -78,7 +79,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_insider",
-    description: "Recent insider (Form 4) open-market buys/sells for a symbol.",
+    description: "Recent insider transactions (SEC Form 4) for a symbol — transaction codes incl. buys/sells/grants/exercises, with the 10b5-1 flag.",
     input_schema: { type: "object", properties: { symbol: { type: "string" } }, required: ["symbol"] },
   },
   {
@@ -134,8 +135,8 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<st
         return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 3000);
       }
       case "get_insider": {
-        const rows = await marketdata.getInsider(sym, 10);
-        return JSON.stringify(rows.map((r) => ({ ...r.data, at: r.observedAt }))).slice(0, 3000);
+        const r = await getInsidersForSymbol(db(), sym, 10);
+        return JSON.stringify(r.insiders).slice(0, 3000);
       }
       case "get_price_targets": {
         const rows = await marketdata.getPriceTargets(sym, 10);

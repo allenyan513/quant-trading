@@ -16,7 +16,6 @@ import {
   analystEstimates,
   ratings,
   priceTargets,
-  insiderTrades,
   newsItems,
 } from "./db/schema.js";
 
@@ -73,12 +72,12 @@ export async function getPrices(db: ResearchDb, symbol: string, opts: { days?: n
   };
 }
 
-/** Analyst + insider activity: ratings, price targets, insider trades, forward estimates. */
+/** Sell-side analyst activity: ratings, price targets, forward estimates. (Insider
+ *  trades moved to the Ownership view — see @qt/shared/form4-read.) */
 export async function getAnalystsData(db: ResearchDb, symbol: string) {
-  const [rate, pt, ins, est] = await Promise.all([
+  const [rate, pt, est] = await Promise.all([
     db.select({ observedAt: ratings.observedAt, data: ratings.data }).from(ratings).where(eq(ratings.symbol, symbol)).orderBy(desc(ratings.observedAt)).limit(60),
     db.select({ observedAt: priceTargets.observedAt, data: priceTargets.data }).from(priceTargets).where(eq(priceTargets.symbol, symbol)).orderBy(desc(priceTargets.observedAt)).limit(25),
-    db.select({ observedAt: insiderTrades.observedAt, data: insiderTrades.data }).from(insiderTrades).where(eq(insiderTrades.symbol, symbol)).orderBy(desc(insiderTrades.observedAt)).limit(40),
     db
       .select({ fiscalDate: analystEstimates.fiscalDate, data: analystEstimates.data })
       .from(analystEstimates)
@@ -86,7 +85,7 @@ export async function getAnalystsData(db: ResearchDb, symbol: string) {
       .orderBy(desc(analystEstimates.fiscalDate))
       .limit(8),
   ]);
-  return { symbol, ratings: rate, priceTargets: pt, insider: ins, estimates: est.reverse() };
+  return { symbol, ratings: rate, priceTargets: pt, estimates: est.reverse() };
 }
 
 /** Multi-period statements (income/balance/cash-flow + ratios), oldest→newest so

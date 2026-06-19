@@ -36,7 +36,6 @@ const WARMERS: Array<[string, (s: string) => Promise<unknown>]> = [
   ["estimates", (s) => marketdata.getEstimates(s, "annual")],
   ["prices", (s) => marketdata.getDailyPrices(s, 60)],
   ["ratings", (s) => marketdata.getRatings(s)],
-  ["insider", (s) => marketdata.getInsider(s)],
   ["price_targets", (s) => marketdata.getPriceTargets(s)],
 ];
 

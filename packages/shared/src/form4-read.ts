@@ -1,14 +1,13 @@
 /**
  * Insider read queries — the symbol-centric insider-transaction view, shared by the
  * web dashboard (Ownership tab) and the MCP get_symbol_research ownership section.
- * SEC Form 4 (`data_form4`, rich: transaction code + 10b5-1 + derivative) is the
- * primary source; the legacy FMP cache (`data_insider`, P/S only, flattened) is a
- * read-time fallback for symbols SEC hasn't covered yet — tagged via `source`. The
+ * Source is SEC Form 4 (`data_form4`, rich: transaction code + 10b5-1 + derivative);
+ * the legacy FMP cache was retired (#132), so `source` is "sec" or "none". The
  * Drizzle db is injected (web = neon-http, data = pg Pool). All read-only.
  */
 import { desc, eq } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import { form4Transactions, insiderTrades } from "./db/schema.js";
+import { form4Transactions } from "./db/schema.js";
 import { decodeCode, type Signal } from "./form4.js";
 
 export type ReadDb = PgDatabase<any, any, any>;
@@ -32,7 +31,7 @@ export interface InsiderTxn {
 
 export interface InsidersForSymbol {
   symbol: string;
-  source: "sec" | "fmp" | "none";
+  source: "sec" | "none";
   insiders: InsiderTxn[];
 }
 
@@ -74,36 +73,7 @@ export function shapeSecTxn(r: SecRow): InsiderTxn {
   };
 }
 
-/** Pure: shape a legacy FMP `data_insider` row (raw jsonb) → InsiderTxn. FMP keeps
- *  only P/S, has no code/10b5-1/derivative — derive code from `transactionType`. */
-export function shapeFmpRow(data: Record<string, unknown>, observedAt: Date | string | null): InsiderTxn {
-  const tt = typeof data.transactionType === "string" ? data.transactionType : "";
-  const code = /^p/i.test(tt) ? "P" : /^s/i.test(tt) ? "S" : null;
-  const d = code ? decodeCode(code) : { code: null, label: null, signal: "neutral" as Signal };
-  const num = (k: string) => (typeof data[k] === "number" ? (data[k] as number) : null);
-  const s = (k: string) => (typeof data[k] === "string" && data[k] ? (data[k] as string) : null);
-  const shares = num("securitiesTransacted");
-  const price = num("price");
-  const obs = observedAt instanceof Date ? observedAt.toISOString().slice(0, 10) : typeof observedAt === "string" ? observedAt.slice(0, 10) : null;
-  return {
-    reportingName: s("reportingName") ?? "—",
-    relationship: s("typeOfOwner"),
-    officerTitle: null,
-    code: d.code,
-    codeLabel: d.label,
-    signal: d.signal,
-    acquiredDisposed: s("acquisitionOrDisposition"),
-    shares,
-    price,
-    value: mul(shares, price),
-    securityTitle: null,
-    isDerivative: false,
-    is10b5_1: false,
-    date: s("transactionDate") ?? s("filingDate") ?? obs,
-  };
-}
-
-/** A symbol's recent insider transactions — SEC Form 4 first, FMP fallback. */
+/** A symbol's recent insider transactions from SEC Form 4 (`data_form4`). */
 export async function getInsidersForSymbol(db: ReadDb, symbol: string, limit = 40): Promise<InsidersForSymbol> {
   const sym = symbol.trim().toUpperCase();
 
@@ -127,15 +97,6 @@ export async function getInsidersForSymbol(db: ReadDb, symbol: string, limit = 4
     .orderBy(desc(form4Transactions.filedDate), desc(form4Transactions.knownAt))
     .limit(limit);
   if (sec.length) return { symbol: sym, source: "sec", insiders: sec.map(shapeSecTxn) };
-
-  // Fallback: legacy FMP cache (until SEC coverage is verified, then retired).
-  const fmp = await db
-    .select({ observedAt: insiderTrades.observedAt, data: insiderTrades.data })
-    .from(insiderTrades)
-    .where(eq(insiderTrades.symbol, sym))
-    .orderBy(desc(insiderTrades.observedAt))
-    .limit(limit);
-  if (fmp.length) return { symbol: sym, source: "fmp", insiders: fmp.map((r) => shapeFmpRow((r.data ?? {}) as Record<string, unknown>, r.observedAt)) };
 
   return { symbol: sym, source: "none", insiders: [] };
 }

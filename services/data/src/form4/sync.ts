@@ -66,7 +66,7 @@ export async function syncForm4ForSymbol(
   for (const f of fresh) {
     // Isolate one filing's failure (SEC timeout / odd XML) so the rest still sync.
     try {
-      const xml = await fetch4Xml(Number(entry.cik), f.accessionNumber);
+      const xml = await fetch4Xml(Number(entry.cik), f.accessionNumber, f.primaryDocument);
       if (!xml) continue;
       const parsed = parseForm4(xml);
       if (!parsed || parsed.transactions.length === 0) continue;

@@ -36,8 +36,8 @@ paths:
 ## 边界
 
 - **摄入是 news 驱动**(issue #59):`/news/pull` 拉市场新闻入 `data_news_items` staging,并**后台异步**对本次新增行触发 triage（fire-and-forget,pull 立即返回；失败行留给 `/news/triage` cron sweep 重试——同 alpha 的 intake→后台 process 拆分）→ 人工在仪表板选 → `/news/notify` 投 alpha。旧的 6 个 `/pull/*` per-source 触发器已删（同一真实事件被多源重复触发）。
-- **triage 每条的顺序**(`triage.ts`):profile 初筛(`runScreen`,只需 profile/市值)→ 不过 → 写 `triage_priority='low'`,**不进 LLM**;过 → `warmSymbol()` 确定性读穿预热该 symbol 全套 marketdata 缓存(三财报/ratios/estimates/prices/grade/insider/pt)→ Haiku agent 定级。即「淘汰=最低优先级」,不是单独状态。
-- data 含**一处轻量 LLM**——news 分诊 agent(`src/agent.ts`，跑最便宜的 `config.triageModel()`/Haiku)。**两层**:先过确定性**规则管道**硬筛(`src/screening/`,市值≥$1B 等客观门槛,`runScreen` 短路+记 `screen_failed_rule`),过筛者再交 agent 判**材料性/优先级**(不判方向——那是 alpha 的活)并调 fetch tool **预热**该 symbol 的 marketdata 缓存(ratings/insider/price_targets/statements/prices)。其余仍是确定性拉取/落库/投递。
+- **triage 每条的顺序**(`triage.ts`):profile 初筛(`runScreen`,只需 profile/市值)→ 不过 → 写 `triage_priority='low'`,**不进 LLM**;过 → `warmSymbol()` 确定性读穿预热该 symbol 全套 marketdata 缓存(三财报/ratios/estimates/prices/grade/pt;内部人不再预热——已退役 FMP,改读 SEC `data_form4`)→ Haiku agent 定级。即「淘汰=最低优先级」,不是单独状态。
+- data 含**一处轻量 LLM**——news 分诊 agent(`src/agent.ts`，跑最便宜的 `config.triageModel()`/Haiku)。**两层**:先过确定性**规则管道**硬筛(`src/screening/`,市值≥$1B 等客观门槛,`runScreen` 短路+记 `screen_failed_rule`),过筛者再交 agent 判**材料性/优先级**(不判方向——那是 alpha 的活)并调 fetch tool **预热**该 symbol 的 marketdata 缓存(ratings/price_targets/statements/prices;`get_insider` 读 SEC `data_form4`,非 FMP 预热)。其余仍是确定性拉取/落库/投递。
 - 也含**选股发现 scanner**(`/scan/*`):市场级确定性扫描 → 产 `data_candidates`(**绝不直送 alpha**;只读发现队列)。**注意**:旧的「promote 候选进 `data_watchlist` + `source='discovery'`/TTL + `expire-watchlist` 清理」已**切断**——`data_watchlist` 改为 **per-user 私有自选**(列 `user_id/symbol/note/added_at`,无 source/TTL),`/candidates/promote`、`/jobs/refresh-watchlist`、`/internal/valuation-sweep`、`/internal/expire-watchlist` 均 no-op(返回 `severed`),见重连 issue #120。
 - 真正 agentic 的**定价/决策** agent 只在 alpha（多轮 tool-use 重定价,见 `.claude/rules/alpha-agent.md`）。data 的分诊 agent 只做轻量筛选/路由+缓存预热,不出交易决策。两者都用 plain Messages API + 手写 tool loop（**不用** Agent SDK `query()`）。
 - portfolio 无 LLM：信号入场时对 `portfolio_positions` 做开仓 / 再决策平仓 / 结算平仓，独占该表。
@@ -47,7 +47,7 @@ paths:
 每张表的**创建写**只有一个 owner，其它服务只读（表名按 owner 加前缀，见 `database.md`「表命名」）：
 
 - `data_events` / `data_notifications` / `data_candidates` / `data_watchlist` / `data_news_items`（及其余 `data_*` 拉取表）← **data**。
-- marketdata 读穿缓存（`data_daily_prices` / `data_income_statement` / `data_balance_sheet` / `data_cash_flow` / `data_financial_ratios` / `data_analyst_estimates` / `data_ratings` / `data_insider` / `data_price_targets` / `data_marketdata_fetches`）经 `@qt/shared/marketdata` 写入 ← 逻辑上归 **data**（data 的分诊 agent 主动预热；alpha 命中热缓存,miss 时同一读穿层回填——这是允许的共享 read-through,非乱写）。
+- marketdata 读穿缓存（`data_daily_prices` / `data_income_statement` / `data_balance_sheet` / `data_cash_flow` / `data_financial_ratios` / `data_analyst_estimates` / `data_ratings` / `data_price_targets` / `data_marketdata_fetches`）经 `@qt/shared/marketdata` 写入 ← 逻辑上归 **data**（data 的分诊 agent 主动预热；alpha 命中热缓存,miss 时同一读穿层回填——这是允许的共享 read-through,非乱写）。
 - `data_valuation_snapshots` ← **data**（确定性 reference valuation 引擎住在 data，`src/valuation/`；写不可变快照。alpha 经 `POST /internal/valuation` 取回作为重定价输入，不写该表）。
 - `alpha_trading_signals` / `alpha_signal_audits` / `alpha_signal_deliveries` ← **alpha**（alpha 投递前必已写入 `alpha_trading_signals`；信号带 `snapshot_id` 指向 `data_valuation_snapshots`；portfolio **绝不 insert** 它）。
 - `portfolio_positions` ← **portfolio**。portfolio 拥有持仓生命周期，并把它**镜像**到 `alpha_trading_signals.status`（开→平/止损/止盈/到期）——这是唯一允许的"非 owner 写"，且只写 `status` 一列。

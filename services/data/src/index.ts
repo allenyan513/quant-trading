@@ -475,8 +475,8 @@ app.post("/jobs/pull-8k", (c) => run8KSync(c));
 app.post("/eightk/pull", (c) => run8KSync(c));
 
 // ---- SEC Form 4 insider transactions (symbol-centric, direct from SEC). data owns
-// data_form4; web reads (Ownership tab). FMP data_insider stays as a read-time fallback
-// until SEC coverage is verified (then retired). #104 ----
+// data_form4; web reads (Ownership tab). Sole insider source — the legacy FMP
+// `data_insider` cache was retired (#104/#132). ----
 async function runForm4Sync(c: Context) {
   try {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);

@@ -1,10 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   mapGradeRecords,
-  mapInsiderRecords,
   mapPriceTargetRecords,
   type FmpGrade,
-  type FmpInsider,
   type FmpPriceTarget,
 } from "./records.js";
 
@@ -39,37 +37,6 @@ describe("mapGradeRecords", () => {
 
   it("skips rows without a date", () => {
     expect(mapGradeRecords("AAPL", [{ symbol: "AAPL", action: "upgrade" }])).toHaveLength(0);
-  });
-});
-
-describe("mapInsiderRecords", () => {
-  it("keeps open-market buys/sells, drops gifts/awards/exercises", () => {
-    const rows: FmpInsider[] = [
-      { transactionType: "P-Purchase", filingDate: "2026-05-15", securitiesTransacted: 100 },
-      { transactionType: "S-Sale", filingDate: "2026-05-15", securitiesTransacted: 50 },
-      { transactionType: "G-Gift", filingDate: "2026-05-15" },
-      { transactionType: "A-Award", filingDate: "2026-05-15" },
-    ];
-    expect(mapInsiderRecords("AAPL", rows)).toHaveLength(2);
-  });
-
-  it("parses an intraday filingDate ET→UTC (no look-ahead), falls back to transactionDate", () => {
-    // filingDate is naive ET with a time → must convert (18:30 EDT = 22:30 UTC),
-    // NOT truncate to UTC midnight (which would read as 20:00 ET the day before).
-    const [withFiling] = mapInsiderRecords("AAPL", [
-      { transactionType: "P-Purchase", filingDate: "2026-05-15 18:30:00", securitiesTransacted: 1 },
-    ]);
-    expect(withFiling!.observedAt.toISOString()).toBe("2026-05-15T22:30:00.000Z");
-
-    // date-only transactionDate fallback → UTC midnight is correct.
-    const [withTxnOnly] = mapInsiderRecords("AAPL", [
-      { transactionType: "P-Purchase", transactionDate: "2026-05-14", securitiesTransacted: 1 },
-    ]);
-    expect(withTxnOnly!.observedAt.toISOString()).toBe("2026-05-14T00:00:00.000Z");
-  });
-
-  it("skips rows with no filing/transaction date", () => {
-    expect(mapInsiderRecords("AAPL", [{ transactionType: "P-Purchase" }])).toHaveLength(0);
   });
 });
 
