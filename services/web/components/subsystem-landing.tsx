@@ -80,7 +80,7 @@ export function SubsystemLanding({ name }: { name: SubsystemName }) {
       </Grid>
 
       <Grid min={300}>
-        <Card title="独占表 (single-writer owner)" accent={sub.color}>
+        <Card title="Owned tables (single-writer owner)" accent={sub.color}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {sub.tables.map((t) => (
               <Badge key={t}>{t}</Badge>

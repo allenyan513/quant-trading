@@ -21,14 +21,14 @@ export function RatioGroups({ income, balance, cashflow, ratios }: { income: Row
   const fcf = num(lc, "freeCashFlow") ?? add(num(lc, "operatingCashFlow"), num(lc, "capitalExpenditure"));
 
   const groups: { title: string; items: [string, string][] }[] = [
-    { title: "估值", items: [["P/E", ratioX(num(lr, "priceToEarningsRatio"))], ["P/S", ratioX(num(lr, "priceToSalesRatio"))], ["P/B", ratioX(num(lr, "priceToBookRatio"))], ["EV/EBITDA", ratioX(num(lr, "enterpriseValueMultiple"))]] },
-    { title: "盈利", items: [["毛利率", pct(div(num(li, "grossProfit"), num(li, "revenue")))], ["营业利润率", pct(div(num(li, "operatingIncome"), num(li, "revenue")))], ["净利率", pct(div(num(li, "netIncome"), num(li, "revenue")))], ["ROE", pct(div(num(li, "netIncome"), num(lb, "totalStockholdersEquity")))], ["ROA", pct(div(num(li, "netIncome"), num(lb, "totalAssets")))]] },
-    { title: "财务健康", items: [["Debt/Equity", ratioX(div(num(lb, "totalDebt"), num(lb, "totalStockholdersEquity")))], ["NetDebt/EBITDA", ratioX(div(num(lb, "netDebt"), num(li, "ebitda")))], ["利息覆盖", ratioX(div(num(li, "operatingIncome"), num(li, "interestExpense")))]] },
-    { title: "每股", items: [["EPS (摊薄)", usd(num(li, "epsDiluted"))], ["FCF/股", usd(div(fcf, shares))], ["每股净资产", usd(div(num(lb, "totalStockholdersEquity"), shares))]] },
+    { title: "Valuation", items: [["P/E", ratioX(num(lr, "priceToEarningsRatio"))], ["P/S", ratioX(num(lr, "priceToSalesRatio"))], ["P/B", ratioX(num(lr, "priceToBookRatio"))], ["EV/EBITDA", ratioX(num(lr, "enterpriseValueMultiple"))]] },
+    { title: "Profitability", items: [["Gross margin", pct(div(num(li, "grossProfit"), num(li, "revenue")))], ["Operating margin", pct(div(num(li, "operatingIncome"), num(li, "revenue")))], ["Net margin", pct(div(num(li, "netIncome"), num(li, "revenue")))], ["ROE", pct(div(num(li, "netIncome"), num(lb, "totalStockholdersEquity")))], ["ROA", pct(div(num(li, "netIncome"), num(lb, "totalAssets")))]] },
+    { title: "Financial health", items: [["Debt/Equity", ratioX(div(num(lb, "totalDebt"), num(lb, "totalStockholdersEquity")))], ["NetDebt/EBITDA", ratioX(div(num(lb, "netDebt"), num(li, "ebitda")))], ["Interest coverage", ratioX(div(num(li, "operatingIncome"), num(li, "interestExpense")))]] },
+    { title: "Per share", items: [["EPS (diluted)", usd(num(li, "epsDiluted"))], ["FCF/share", usd(div(fcf, shares))], ["Book value/share", usd(div(num(lb, "totalStockholdersEquity"), shares))]] },
   ];
 
   return (
-    <Card title={`比率分组${asOf ? ` · 最新 FY${asOf}` : ""}`}>
+    <Card title={`Ratios${asOf ? ` · Latest FY${asOf}` : ""}`}>
       <Grid min={200}>
         {groups.map((g) => (
           <div key={g.title}>

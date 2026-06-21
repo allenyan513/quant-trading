@@ -86,7 +86,7 @@ function PullBar() {
       const by = Object.entries(d.byCategory)
         .map(([k, v]) => `${k}:${v}`)
         .join(" · ");
-      alert(`拉取 ${d.pulled} 条，新入库 ${d.inserted} 条，已自动排队分诊 ${d.queued} 条\n${by}`);
+      alert(`Pulled ${d.pulled}, ${d.inserted} new in staging, ${d.queued} auto-queued for triage\n${by}`);
       await refreshNews();
     } finally {
       setBusy(false);
@@ -111,7 +111,7 @@ function PullBar() {
         return;
       }
       const d = j.data!;
-      alert(`分诊 ${d.considered} 条：通过 ${d.triaged} · 初筛淘汰 ${d.screenedOut} · 失败 ${d.failed}`);
+      alert(`Triaged ${d.considered}: passed ${d.triaged} · screened out ${d.screenedOut} · failed ${d.failed}`);
       await refreshNews();
     } finally {
       setBusy(false);
@@ -121,7 +121,7 @@ function PullBar() {
   return (
     <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
       <label style={{ fontSize: 13, color: "var(--muted)" }}>
-        近{" "}
+        Last{" "}
         <input
           type="number"
           min={1}
@@ -130,13 +130,13 @@ function PullBar() {
           onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))}
           style={{ ...inputStyle, width: 64, minWidth: 0 }}
         />{" "}
-        天
+        days
       </label>
       <button onClick={pull} disabled={busy} style={primaryBtn(busy)}>
-        {busy ? "拉取中…" : "拉取新闻"}
+        {busy ? "Pulling…" : "Pull news"}
       </button>
       <button onClick={triage} disabled={busy} style={ghostBtn(busy)}>
-        {busy ? "处理中…" : "分诊未处理"}
+        {busy ? "Processing…" : "Triage pending"}
       </button>
     </div>
   );
@@ -178,7 +178,7 @@ export default function NewsPage() {
         return;
       }
       const d = j.data!;
-      alert(`已通知 ${d.notified} 条（分组成 ${d.notifications} 条通知发给 alpha）${d.skipped ? `，跳过 ${d.skipped} 条无 ticker` : ""}`);
+      alert(`Notified ${d.notified} (bundled into ${d.notifications} notifications sent to alpha)${d.skipped ? `, skipped ${d.skipped} with no ticker` : ""}`);
       await refreshNews();
     } finally {
       setBusy(false);
@@ -189,7 +189,7 @@ export default function NewsPage() {
     // Prefer the triage agent's resolved symbol over the article's raw tag.
     const sym = r.triageSymbol ?? r.symbol;
     if (!sym) {
-      const s = window.prompt("该新闻没有股票代码，输入要通知 alpha 的 symbol（留空取消）:")?.trim();
+      const s = window.prompt("This article has no ticker. Enter the symbol to notify alpha (leave blank to cancel):")?.trim();
       if (!s) return;
       void postNotify([r.id], { [r.id]: s.toUpperCase() });
       return;
@@ -200,7 +200,7 @@ export default function NewsPage() {
 
   return (
     <div>
-      <PageTitle subsystem="data" sub="拉取 FMP 市场新闻 → 初筛+LLM 分诊（优先级/材料性）→ 人工选择 → 通知 alpha（issue #59）">
+      <PageTitle subsystem="data" sub="Pull FMP market news → screen + LLM triage (priority / materiality) → manual review → notify alpha (issue #59)">
         News
       </PageTitle>
 
@@ -257,7 +257,7 @@ export default function NewsPage() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={8} style={{ ...tdStyle, color: "var(--muted)" }}>
-                  No staged news — click 拉取新闻.
+                  No staged news — click Pull news.
                 </td>
               </tr>
             )}
@@ -290,7 +290,7 @@ export default function NewsPage() {
                 </td>
                 <td style={tdStyle}>
                   <button onClick={() => notifyOne(r)} disabled={busy || notified} style={smallBtn(busy || notified)}>
-                    {notified ? "已通知" : "通知 alpha"}
+                    {notified ? "Notified" : "Notify alpha"}
                   </button>
                 </td>
               </tr>

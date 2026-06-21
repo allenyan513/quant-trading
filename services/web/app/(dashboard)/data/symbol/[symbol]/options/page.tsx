@@ -4,7 +4,7 @@ export default function OptionsTab() {
   return (
     <TabStub
       title="Options"
-      note="暂无期权数据源（FMP 不含期权）。待评估并接入数据源（IV / greeks / 期权链）后实现 —— 服务卖 put 选 strike。"
+      note="No options data source yet (FMP has no options). To be implemented once a data source is evaluated and connected (IV / greeks / option chain) — supports picking a strike for selling puts."
     />
   );
 }

@@ -3,7 +3,7 @@ import { dataPost } from "@/lib/data-proxy";
 
 export const runtime = "nodejs";
 
-// The detail page's "刷新数据" refreshes everything shown for a symbol. web is
+// The detail page's "Refresh data" refreshes everything shown for a symbol. web is
 // read-only, so it forwards to the data service: data warms the marketdata caches
 // + pulls news, then recomputes the reference valuation (the deterministic engine
 // lives in data).

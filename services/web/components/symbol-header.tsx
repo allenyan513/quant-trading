@@ -40,7 +40,7 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
     setBusy(true);
     try {
       if (added) {
-        if (!window.confirm(`从 watchlist 移除 ${symbol}？`)) return;
+        if (!window.confirm(`Remove ${symbol} from watchlist?`)) return;
         const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
         const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
         if (!res.ok || !j.ok) return void alert(`remove failed: ${j.error ?? res.status}`);
@@ -67,7 +67,7 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
     <button
       onClick={toggle}
       disabled={busy}
-      title={added ? "点击从 watchlist 移除" : "加入 watchlist"}
+      title={added ? "Click to remove from watchlist" : "Add to watchlist"}
       style={{
         background: added ? "transparent" : "#1f6feb",
         border: `1px solid ${added ? "var(--border)" : "#388bfd"}`,
@@ -81,7 +81,7 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
         whiteSpace: "nowrap",
       }}
     >
-      {busy ? "…" : added ? "✓ 已自选" : "+ 加自选"}
+      {busy ? "…" : added ? "✓ In watchlist" : "+ Add to watchlist"}
     </button>
   );
 }
@@ -98,7 +98,7 @@ function RefreshButton({ symbol }: { symbol: string }) {
       const res = await fetch(`/api/data/symbol/${encodeURIComponent(symbol)}/warm`, { method: "POST" });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !j.ok) {
-        alert(`刷新失败: ${j.error ?? res.status}`);
+        alert(`Refresh failed: ${j.error ?? res.status}`);
         return;
       }
       // Revalidate shell/overview/financials/prices (/api/data/symbol/<sym>/…)
@@ -116,7 +116,7 @@ function RefreshButton({ symbol }: { symbol: string }) {
             k.startsWith(`/api/news?symbol=${enc}`)),
       );
     } catch (e) {
-      alert(`刷新失败: ${e instanceof Error ? e.message : String(e)}`);
+      alert(`Refresh failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -125,7 +125,7 @@ function RefreshButton({ symbol }: { symbol: string }) {
     <button
       onClick={refresh}
       disabled={busy}
-      title="从 FMP 拉取并预热该标的的财报/日线缓存（Chart、Financials 用）"
+      title="Pull from FMP and warm this symbol's financials/daily-bar caches (used by Chart and Financials)"
       style={{
         background: "transparent",
         border: "1px solid var(--border)",
@@ -139,7 +139,7 @@ function RefreshButton({ symbol }: { symbol: string }) {
         whiteSpace: "nowrap",
       }}
     >
-      {busy ? "刷新中…" : "⟳ 刷新数据"}
+      {busy ? "Refreshing…" : "⟳ Refresh data"}
     </button>
   );
 }

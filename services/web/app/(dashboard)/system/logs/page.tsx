@@ -38,7 +38,7 @@ export default function LogsPage() {
 
   return (
     <div>
-      <PageTitle sub="跨服务结构化日志（三个子系统都写）">Logs</PageTitle>
+      <PageTitle sub="Cross-service structured logs (written by all three subsystems)">Logs</PageTitle>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         <select value={f.service ?? ""} onChange={(e) => setF({ ...f, service: e.target.value })} style={inputStyle}>
           <option value="">service: all</option>

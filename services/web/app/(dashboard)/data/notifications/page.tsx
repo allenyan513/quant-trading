@@ -37,7 +37,7 @@ const columns: Column<NotifRow>[] = [
 export default function NotificationsPage() {
   return (
     <div>
-      <PageTitle subsystem="data" sub="生产侧 delivery_status 归 data · 消费侧 status 由 alpha 推进">
+      <PageTitle subsystem="data" sub="Producer-side delivery_status owned by data · consumer-side status advanced by alpha">
         Notifications
       </PageTitle>
       <LiveTable

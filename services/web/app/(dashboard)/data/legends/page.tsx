@@ -31,7 +31,7 @@ export default async function LegendsPage() {
   return (
     <div>
       <style>{`.legend-row:hover{background:var(--panel-2)}`}</style>
-      <PageTitle subsystem="data" sub="传奇投资人 13F 季度持仓 — SEC EDGAR 自解析">
+      <PageTitle subsystem="data" sub="Legendary investors' 13F quarterly holdings — parsed from SEC EDGAR">
         Legends 13F
       </PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>

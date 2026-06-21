@@ -19,6 +19,7 @@ paths:
 - **Server Component 读 DB 必须 `export const dynamic="force-dynamic"`**：否则 `next build` 静态预渲染时没有 `DATABASE_URL` → 构建报 "Missing required env var: DATABASE_URL"。
 - **被路由 import 的模块别在模块顶层 `requireEnv`/throw**：`next build`(collecting page data)会以 `NODE_ENV=production`、但**无运行时 env** eval 这些模块（如 `lib/auth-server.ts` 经 `/.well-known/*`、`/api/auth/*` 路由被加载）。模块级的缺-env-就-throw 会让 Cloud Run `next build` 挂。用 `const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build"` 守卫：构建期返回占位值，运行时再强校验（懒连接的 Pool 用占位 URL 构造无害）。web build 脚本是裸 `next build`(不加载 `.env`)，所以本地 `pnpm --filter @qt/web build` 正好复现 Cloud 的无 env 环境、可验。
 - **改/删/移动路由后先 `rm -rf services/web/.next` 再 typecheck**：`.next/types` 残留旧路由的类型引用，`tsc` 会报 TS2307（找不到已删的 page/route 模块）。
+- **用户可见文案一律英文**：JSX 文本、标签/标题/占位符/按钮/徽章/CTA/aria-label，以及任何会渲染给用户的模板串，都用自然、简洁的英文（产品对外）。复用既有英文术语保持一致：Watchlist / Holdings / Positions / Valuation / Reference valuation / Earnings calendar / Economic calendar / Movers / Legends / Morning brief 等。这条只管 UI 文案；代码注释的英文要求见 `typescript.md`。新增页面/组件别再写中文文案。
 
 ## 组件 / 页面模式
 

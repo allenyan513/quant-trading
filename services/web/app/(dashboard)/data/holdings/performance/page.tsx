@@ -57,7 +57,7 @@ export default function HoldingsPerformancePage() {
       {data && data.points.length === 0 && (
         <Card>
           <p style={{ color: "var(--muted)", margin: 0 }}>
-            暂无 NAV 数据。去 Settings 连接 IBKR 后点「立即刷新」。
+            No NAV data yet. Connect IBKR in Settings, then click "Refresh now".
           </p>
         </Card>
       )}
@@ -90,7 +90,7 @@ export default function HoldingsPerformancePage() {
           >
             <NavChartLazy points={data.points} />
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
-              {data.points.length} 个交易日 · 比率类指标需 ≥63 日历史，不足时显示 “—”。
+              {data.points.length} trading days · ratio metrics need ≥63 days of history; shown as "—" when insufficient.
             </div>
           </Card>
         </div>

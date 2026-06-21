@@ -26,7 +26,7 @@ function dayPnl(summary: Record<string, unknown> | null) {
 const columns: Column<BriefRow>[] = [
   {
     key: "briefDate",
-    header: "日期",
+    header: "Date",
     render: (r) => (
       <Link href={`/data/morning-brief/${r.briefDate}`} style={{ color: "#58a6ff", fontWeight: 600, textDecoration: "none" }}>
         {r.briefDate}
@@ -34,21 +34,21 @@ const columns: Column<BriefRow>[] = [
     ),
     width: 130,
   },
-  { key: "dayPnl", header: "当日 P&L", render: (r) => dayPnl(r.summary), width: 110 },
-  { key: "createdAt", header: "生成时间", render: (r) => <TimeText ts={r.createdAt} />, width: 150 },
+  { key: "dayPnl", header: "Day P&L", render: (r) => dayPnl(r.summary), width: 110 },
+  { key: "createdAt", header: "Generated", render: (r) => <TimeText ts={r.createdAt} />, width: 150 },
 ];
 
 export default function MorningBriefListPage() {
   return (
     <div>
-      <PageTitle subsystem="data" sub="你的 Claude 经 MCP 生成、回存的每日持仓早报存档">
+      <PageTitle subsystem="data" sub="Archive of daily portfolio morning briefs your Claude generates and saves back via MCP">
         Morning Brief
       </PageTitle>
       <LiveTable
         path="/api/morning-brief"
         rowKey={(r: BriefRow) => r.briefDate}
         columns={columns}
-        emptyText="还没有早报 —— 在连了 MCP 的 Claude 里运行 morning-brief skill 即可生成并存档。"
+        emptyText="No briefs yet — run the morning-brief skill in a Claude connected to MCP to generate and archive one."
       />
     </div>
   );

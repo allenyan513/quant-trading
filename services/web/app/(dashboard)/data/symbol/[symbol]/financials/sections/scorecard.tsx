@@ -44,19 +44,19 @@ export function Scorecard({ income, cashflow, balance, ratios }: { income: Row[]
   };
 
   const items: { label: string; value: string; verdict: Verdict | null }[] = [
-    { label: "营收 CAGR", value: revCagr == null ? "—" : fmtPct(revCagr * 100), verdict: band(revCagr, 0.1, 0.03) },
-    { label: "毛利率", value: grossMargin == null ? "—" : formatRatio(grossMargin), verdict: band(grossMargin, 0.4, 0.2) },
-    { label: "净利率", value: netMargin == null ? "—" : formatRatio(netMargin), verdict: band(netMargin, 0.15, 0.05) },
+    { label: "Revenue CAGR", value: revCagr == null ? "—" : fmtPct(revCagr * 100), verdict: band(revCagr, 0.1, 0.03) },
+    { label: "Gross margin", value: grossMargin == null ? "—" : formatRatio(grossMargin), verdict: band(grossMargin, 0.4, 0.2) },
+    { label: "Net margin", value: netMargin == null ? "—" : formatRatio(netMargin), verdict: band(netMargin, 0.15, 0.05) },
     { label: "ROE", value: roe == null ? "—" : formatRatio(roe), verdict: band(roe, 0.15, 0.08) },
-    { label: "FCF 为正", value: fcfTotal ? `${fcfPos}/${fcfTotal} 年` : "—", verdict: fcfTotal ? band(fcfPos / fcfTotal, 0.99, 0.6) : null },
+    { label: "FCF positive", value: fcfTotal ? `${fcfPos}/${fcfTotal} yrs` : "—", verdict: fcfTotal ? band(fcfPos / fcfTotal, 0.99, 0.6) : null },
     { label: "NetDebt/EBITDA", value: netDebtEbitda == null ? "—" : `${netDebtEbitda.toFixed(1)}x`, verdict: band(netDebtEbitda, 1, 3, false) },
-    { label: "股本稀释/年", value: dilution == null ? "—" : fmtPct(dilution * 100), verdict: band(dilution, 0, 0.03, false) },
+    { label: "Dilution/yr", value: dilution == null ? "—" : fmtPct(dilution * 100), verdict: band(dilution, 0, 0.03, false) },
   ];
   const score = items.filter((i) => i.verdict === "good").length;
   const rated = items.filter((i) => i.verdict != null).length;
 
   return (
-    <Card title={`质量评分卡${rated ? ` · ${score}/${rated} 项优` : ""}`}>
+    <Card title={`Quality scorecard${rated ? ` · ${score}/${rated} strong` : ""}`}>
       <Grid min={150}>
         {items.map((it) => (
           <div key={it.label} style={{ display: "flex", flexDirection: "column", gap: 2 }}>

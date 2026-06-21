@@ -81,17 +81,17 @@ export default function OwnershipTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {empty && (
-        <p style={{ color: "var(--muted)" }}>无 13D/13G 举牌、13F 投资人未持有 {symbol}、近一年无内部人交易。</p>
+        <p style={{ color: "var(--muted)" }}>No 13D/13G filings, no 13F investors holding {symbol}, and no insider trades in the past year.</p>
       )}
       <Filings rows={data.filings} />
       <Holders rows={data.legendHolders} />
       {ins && <Insiders data={ins} />}
       <p style={{ color: "var(--muted)", fontSize: 11, lineHeight: 1.6 }}>
-        13D/13G = SEC 受益所有权披露（&gt;5% 才触发）；13F 为季度快照（滞后约 45 天）。
-        内部人交易 = SEC Form 4(直连,含 transaction code 与 10b5-1):
-        <span style={{ color: SIGNAL_COLOR.buy }}>P 买</span> /
-        <span style={{ color: SIGNAL_COLOR.sell }}> S 卖</span> 为开放市场强信号,
-        其余(M 行权 / F 税 / A 授予 / G 赠)为常规。
+        13D/13G = SEC beneficial-ownership disclosures (triggered only above &gt;5%); 13F is a quarterly snapshot (~45-day lag).
+        Insider trades = SEC Form 4 (direct, with transaction code and 10b5-1):
+        <span style={{ color: SIGNAL_COLOR.buy }}>P buy</span> /
+        <span style={{ color: SIGNAL_COLOR.sell }}> S sell</span> are strong open-market signals,
+        the rest (M exercise / F tax / A grant / G gift) are routine.
       </p>
     </div>
   );
@@ -101,7 +101,7 @@ export default function OwnershipTab() {
 function Filings({ rows }: { rows: Position[] }) {
   if (rows.length === 0) return null;
   return (
-    <Card title={`举牌 / 大股东申报 · 13D/13G (${rows.length})`}>
+    <Card title={`Ownership filings · 13D/13G (${rows.length})`}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {rows.map((r) => (
           <div
@@ -114,11 +114,11 @@ function Filings({ rows }: { rows: Position[] }) {
             <span style={{ flex: 1, minWidth: 0 }}>
               {r.filerLabel ?? r.filerName}
               {r.amendmentCount > 1 && (
-                <span style={{ color: "var(--muted)", fontSize: 11 }}> · 修订 ×{r.amendmentCount - 1}</span>
+                <span style={{ color: "var(--muted)", fontSize: 11 }}> · amended ×{r.amendmentCount - 1}</span>
               )}
             </span>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 110, textAlign: "right" }}>
-              {r.sharesOwned == null ? "" : `${formatLargeNumber(r.sharesOwned, { prefix: "", decimals: 0 })} 股`}
+              {r.sharesOwned == null ? "" : `${formatLargeNumber(r.sharesOwned, { prefix: "", decimals: 0 })} sh`}
             </span>
             <span style={{ ...mono, fontWeight: 600, minWidth: 64, textAlign: "right" }}>
               {r.pctOfClass == null ? "—" : `${r.pctOfClass.toFixed(2)}%`}
@@ -137,7 +137,7 @@ function Filings({ rows }: { rows: Position[] }) {
 function Holders({ rows }: { rows: Holder[] }) {
   if (rows.length === 0) return null;
   return (
-    <Card title={`传奇投资人持有 · 13F (${rows.length})`}>
+    <Card title={`Legend investors holding · 13F (${rows.length})`}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {rows.map((h) => (
           <div
@@ -146,7 +146,7 @@ function Holders({ rows }: { rows: Holder[] }) {
           >
             <span style={{ flex: 1, minWidth: 0 }}>{h.filerLabel ?? h.filerName}</span>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 100, textAlign: "right" }}>
-              {formatLargeNumber(h.shares, { prefix: "", decimals: 0 })} 股
+              {formatLargeNumber(h.shares, { prefix: "", decimals: 0 })} sh
             </span>
             <span style={{ ...mono, fontWeight: 600, minWidth: 80, textAlign: "right" }}>{fmtMoney(h.value)}</span>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 64, textAlign: "right" }}>{h.quarter.slice(0, 7)}</span>
@@ -161,7 +161,7 @@ function Holders({ rows }: { rows: Holder[] }) {
 function Insiders({ data }: { data: Insiders }) {
   if (data.insiders.length === 0) return null;
   return (
-    <Card title={`内部人交易 · Form 4 (${data.insiders.length})`}>
+    <Card title={`Insider trades · Form 4 (${data.insiders.length})`}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {data.insiders.map((t, i) => (
           <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>

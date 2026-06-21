@@ -43,7 +43,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     port: 8081,
     color: "#58a6ff",
     blurb:
-      "外部数据唯一接收者：定时拉取 watchlist、聚合成 notifications，并运行选股发现 scanner。无 LLM。",
+      "Sole receiver of external data: periodically pulls the watchlist, aggregates notifications, and runs the screener scanner. No LLM.",
     tables: [
       "universe",
       "watchlist",
@@ -80,7 +80,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     port: 8082,
     color: "#a371f7",
     blurb:
-      "系统中唯一的真 LLM agent：把 notifications 重定价为交易信号（读 data 算好的参考估值快照作为输入之一）。",
+      "The only real LLM agent in the system: reprices notifications into trading signals (reading data's precomputed reference valuation snapshot as one input).",
     tables: ["trading_signals", "signal_audits"],
     pages: [
       { href: "/alpha/signals", label: "Signals" },
@@ -93,7 +93,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     port: 8084,
     color: "#f0883e",
     blurb:
-      "positions 账本唯一 owner：确定性 sizing 开仓，按止损/止盈/到期结算平仓。无 LLM。",
+      "Sole owner of the positions ledger: deterministic sizing to open positions, settling closes on stop-loss / take-profit / expiry. No LLM.",
     tables: ["positions"],
     pages: [{ href: "/portfolio/positions", label: "Positions" }],
   },
@@ -142,10 +142,10 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Discover",
     color: "#58a6ff",
     pages: [
-      { href: "/data/movers", label: "市场榜单" },
-      { href: "/data/candidates", label: "选股 Screener" },
-      { href: "/data/earnings", label: "财报日历" },
-      { href: "/data/economic", label: "经济日历" },
+      { href: "/data/movers", label: "Market movers" },
+      { href: "/data/candidates", label: "Screener" },
+      { href: "/data/earnings", label: "Earnings calendar" },
+      { href: "/data/economic", label: "Economic calendar" },
       { href: "/data/legends", label: "Legends 13F" },
     ],
   },

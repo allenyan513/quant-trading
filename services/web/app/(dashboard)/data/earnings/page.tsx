@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Discover → 财报日历: a moomoo-style calendar grid. Each day shows the top-N
+ * Discover → Earnings calendar: a moomoo-style calendar grid. Each day shows the top-N
  * companies reporting that day ranked by market cap (logo + EPS + beat/miss),
  * with your watchlist/holdings highlighted. Click a company for the detail drawer
  * (estimate vs actual, past beat/miss streak, the original SEC 8-K, add-to-watchlist).
@@ -24,7 +24,7 @@ const RED = "#f85149";
 const MINE_BG = "rgba(210,153,34,0.14)";
 const WEEK_TOP_N = 10;
 const MONTH_TOP_N = 4;
-const WD = ["一", "二", "三", "四", "五", "六", "日"];
+const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // ---- local-date helpers (never UTC: the DB report_date is a plain calendar date) ----
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -87,12 +87,12 @@ export default function EarningsPage() {
       const start = startOfWeek(anchor);
       const ds = Array.from({ length: 7 }, (_, i) => iso(addDays(start, i)));
       const end = addDays(start, 6);
-      const lbl = `${start.getMonth() + 1}月${start.getDate()}日 – ${end.getMonth() + 1}月${end.getDate()}日`;
+      const lbl = `${start.getMonth() + 1}/${start.getDate()} – ${end.getMonth() + 1}/${end.getDate()}`;
       return { from: ds[0]!, to: ds[6]!, days: ds, label: lbl };
     }
     const gridStart = startOfWeek(addMonths(anchor, 0));
     const ds = Array.from({ length: 42 }, (_, i) => iso(addDays(gridStart, i)));
-    return { from: ds[0]!, to: ds[41]!, days: ds, label: `${anchor.getFullYear()}年${anchor.getMonth() + 1}月` };
+    return { from: ds[0]!, to: ds[41]!, days: ds, label: anchor.toLocaleDateString("en-US", { year: "numeric", month: "long" }) };
   }, [view, anchor]);
 
   const { data, error } = useLive<CalResp>(`/api/markets/earnings?from=${from}&to=${to}`);
@@ -122,13 +122,13 @@ export default function EarningsPage() {
 
   return (
     <div>
-      <PageTitle sub="按市值排序的每日重点财报；点击查看预期/实际、历史 beat/miss 与 SEC 原文。★ 为你的自选/持仓">财报日历</PageTitle>
+      <PageTitle sub="Top daily earnings ranked by market cap; click for estimate/actual, beat/miss history, and the SEC filing. ★ marks your watchlist/holdings">Earnings calendar</PageTitle>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
           {(["week", "month"] as const).map((v) => (
             <button key={v} onClick={() => setView(v)} style={{ padding: "5px 14px", background: view === v ? "var(--panel)" : "transparent", color: view === v ? "var(--fg)" : "var(--muted)", border: "none", cursor: "pointer", fontSize: 13 }}>
-              {v === "week" ? "周" : "月"}
+              {v === "week" ? "Week" : "Month"}
             </button>
           ))}
         </div>
@@ -137,8 +137,8 @@ export default function EarningsPage() {
           <span style={{ minWidth: 150, textAlign: "center", fontWeight: 600, fontSize: 14 }}>{label}</span>
           <button onClick={() => step(1)} style={navBtn}>›</button>
         </div>
-        <button onClick={() => setAnchor(new Date())} style={{ ...navBtn, width: "auto", padding: "0 12px", fontSize: 13 }}>今天</button>
-        {error && <span style={{ color: RED, fontSize: 12 }}>加载失败: {String(error.message ?? error)}</span>}
+        <button onClick={() => setAnchor(new Date())} style={{ ...navBtn, width: "auto", padding: "0 12px", fontSize: 13 }}>Today</button>
+        {error && <span style={{ color: RED, fontSize: 12 }}>Failed to load: {String(error.message ?? error)}</span>}
       </div>
 
       {view === "week" ? (
@@ -162,7 +162,7 @@ export default function EarningsPage() {
                   )}
                   {entries.length > WEEK_TOP_N && (
                     <button onClick={() => toggleDay(d)} style={{ background: "none", border: "none", color: "#58a6ff", fontSize: 11, cursor: "pointer", padding: "4px", textAlign: "left" }}>
-                      {open ? "收起" : `+${entries.length - WEEK_TOP_N} 更多`}
+                      {open ? "Show less" : `+${entries.length - WEEK_TOP_N} more`}
                     </button>
                   )}
                 </div>

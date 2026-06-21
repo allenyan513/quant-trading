@@ -55,7 +55,7 @@ export function selectFundamentalCandidates(
     cands.push({
       symbol: ticker,
       source: "fundamental_screen",
-      discoveryReason: `营收同比 ${s.growth >= 0 ? "+" : ""}${pct}% (${opts.period}: ${usd(s.valNow)} vs ${usd(s.valAgo)})`,
+      discoveryReason: `Revenue YoY ${s.growth >= 0 ? "+" : ""}${pct}% (${opts.period}: ${usd(s.valNow)} vs ${usd(s.valAgo)})`,
       score: s.growth,
       detail: {
         screen: "revenue_growth",

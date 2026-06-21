@@ -48,6 +48,7 @@ pnpm down
 - **响应 envelope**：每个 HTTP 端点都返回 `ok(data)` / `fail(code, msg)`（`@qt/shared`），不要手写裸 JSON。
 - **config 惰性 getter**：env 通过 `config.xxx()` 读取，缺必填项在调用处 fail-fast；不要在模块顶层读 `process.env`。
 - **服务间通信**：`deliverJson` + DB outbox（at-least-once）。生产者在同一事务里写业务数据 + outbox 行（`pending`），提交后再投递；消费端按 `(source, external_id)` 幂等去重。
+- **全英文文案/注释**：所有**用户可见文案**一律英文（JSX 文本、标签/标题/占位符/按钮/徽章/CTA/aria-label，以及 `discoveryReason` 等会渲染给用户的字符串）——产品对外，不留中文。代码注释也用英文（见 `.claude/rules/typescript.md`）。**例外**：`CLAUDE.md` 与 `.claude/rules/` 等面向开发者的文档保留中文。
 - **PIT 正确性**：金融数据落库时 `known_at = FMP acceptedDate`，绝不用 `now()`。
 - **金额存原始数字**，展示层再格式化；可重放性靠 `code_version` + 不可变快照。
 

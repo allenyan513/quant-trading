@@ -1,6 +1,6 @@
 /**
  * Per-symbol data refresh — the server-side equivalent of the dashboard's
- * "刷新数据" button (which orchestrates the same owners, T12):
+ * "Refresh data" button (which orchestrates the same owners, T12):
  *
  *   warm marketdata caches (data) + pull recent news (data) + recompute the
  *   reference valuation (data, /internal/valuation).

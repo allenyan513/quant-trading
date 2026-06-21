@@ -2,7 +2,7 @@
 export default function SellsTab() {
   return (
     <p style={{ color: "var(--muted)" }}>
-      Sells — trimmed &amp; exited positions this quarter. 尚未实现，后续完善。
+      Sells — trimmed &amp; exited positions this quarter. Not yet implemented; coming soon.
     </p>
   );
 }

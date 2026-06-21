@@ -46,9 +46,9 @@ export default function EventsTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {data.events.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>近一年无 8-K 重大事件申报。</p>
+        <p style={{ color: "var(--muted)" }}>No 8-K material events filed in the past year.</p>
       ) : (
-        <Card title={`重大事件 · SEC 8-K (${data.events.length})`}>
+        <Card title={`Events · SEC 8-K (${data.events.length})`}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             {data.events.map((e) => (
               <div
@@ -68,7 +68,7 @@ export default function EventsTab() {
                 </div>
                 {e.filingUrl && (
                   <a href={e.filingUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#58a6ff", fontSize: 12, whiteSpace: "nowrap", paddingTop: 1 }}>
-                    查看 ↗
+                    View ↗
                   </a>
                 )}
               </div>
@@ -77,10 +77,10 @@ export default function EventsTab() {
         </Card>
       )}
       <p style={{ color: "var(--muted)", fontSize: 11, lineHeight: 1.6 }}>
-        8-K = SEC 重大事件官方申报(&ldquo;current report&rdquo;);item code 直接取自 SEC 申报元数据。
-        颜色按重大性:<span style={{ color: CAT_COLOR.high }}>高</span>(破产/退市/重述/控制权)·
-        <span style={{ color: CAT_COLOR.material }}> 重要</span>(业绩/并购/高管)· 常规(附件/Reg FD/投票)。
-        仅覆盖追踪 universe 内标的、近一年。
+        8-K = official SEC filing for material events (&ldquo;current report&rdquo;); item codes come straight from SEC filing metadata.
+        Colored by materiality:<span style={{ color: CAT_COLOR.high }}>High</span> (bankruptcy / delisting / restatement / control)·
+        <span style={{ color: CAT_COLOR.material }}> Material</span> (earnings / M&A / leadership)· Routine (exhibits / Reg FD / votes).
+        Covers tracked-universe symbols only, past year.
       </p>
     </div>
   );

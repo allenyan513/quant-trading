@@ -44,7 +44,7 @@ export function ConnectClaude() {
             color: url ? "var(--text)" : "var(--muted)",
           }}
         >
-          {url || "加载中…"}
+          {url || "Loading…"}
         </code>
         <button
           onClick={copy}
@@ -62,13 +62,13 @@ export function ConnectClaude() {
             whiteSpace: "nowrap",
           }}
         >
-          {copied ? "已复制 ✓" : "复制"}
+          {copied ? "Copied ✓" : "Copy"}
         </button>
       </div>
       <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-        在 <b>Claude Desktop</b> 或 <b>claude.ai</b> 里添加一个自定义连接器(custom connector），URL 填上面这个。
-        Claude 会弹出授权页 —— 用你当前这个账号登录授权即可。之后就能在 Claude 里直接问
-        「我的持仓 / 我的自选 / 帮我研究某只票」。
+        In <b>Claude Desktop</b> or <b>claude.ai</b>, add a custom connector and paste the URL above.
+        Claude will open an authorization page — just sign in and authorize with this same account.
+        After that you can ask Claude directly: "my holdings / my watchlist / research a ticker for me".
       </p>
     </div>
   );
