@@ -64,7 +64,7 @@ function AddBar() {
         disabled={busy}
         style={{ background: "#1f6feb", border: "1px solid #388bfd", color: "#fff", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1 }}
       >
-        {busy ? "添加中…" : "添加"}
+        {busy ? "Adding…" : "Add"}
       </button>
     </div>
   );
@@ -73,7 +73,7 @@ function AddBar() {
 function RemoveButton({ symbol }: { symbol: string }) {
   const [busy, setBusy] = useState(false);
   async function remove() {
-    if (!window.confirm(`从 watchlist 移除 ${symbol}？`)) return;
+    if (!window.confirm(`Remove ${symbol} from watchlist?`)) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
@@ -94,7 +94,7 @@ function RemoveButton({ symbol }: { symbol: string }) {
         onClick={remove}
         style={{ fontSize: 12, padding: "2px 8px", borderRadius: 4, cursor: busy ? "default" : "pointer", border: "1px solid #f85149", background: "transparent", color: "#f85149", opacity: busy ? 0.5 : 1 }}
       >
-        移除
+        Remove
       </button>
     </span>
   );
@@ -150,18 +150,18 @@ const columns: Column<WatchRow>[] = [
 export default function WatchlistPage() {
   return (
     <div>
-      <PageTitle subsystem="data" sub="你的私有自选 · 估值 gap / 买入区（fair value vs price）· 是否持有">
+      <PageTitle subsystem="data" sub="Your private watchlist · valuation gap / buy zone (fair value vs price) · whether held">
         Watchlist
       </PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0, fontSize: 13 }}>
-        你的私有自选，按 upside 降序（最被低估在前 = 当前买入区）。估值在加入自选时即时计算，可在标的页手动刷新。
+        Your private watchlist, sorted by upside descending (most undervalued first = current buy zone). Valuation is computed when you add a symbol; refresh it manually on the symbol page.
       </p>
       <AddBar />
       <LiveTable
         path="/api/watchlist"
         rowKey={(r: WatchRow) => r.symbol}
         columns={columns}
-        emptyText="自选为空 — 上方添加，或在标的页点「加自选」。"
+        emptyText="Watchlist is empty — add above, or click “Add to watchlist” on a symbol page."
       />
     </div>
   );

@@ -50,12 +50,12 @@ export default function AnalystsTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {empty && (
-        <p style={{ color: "var(--muted)" }}>暂无分析师数据（点头部「⟳ 刷新数据」预热该 symbol）。</p>
+        <p style={{ color: "var(--muted)" }}>No analyst data yet (click &ldquo;⟳ Refresh data&rdquo; in the header to warm this symbol).</p>
       )}
       <Estimates rows={data.estimates} />
       <PriceTargets rows={data.priceTargets} />
       <Ratings rows={data.ratings} />
-      {/* 内部人交易已迁到 Ownership tab(SEC Form 4 直连) */}
+      {/* Insider trades moved to the Ownership tab (direct from SEC Form 4) */}
     </div>
   );
 }
@@ -64,12 +64,12 @@ export default function AnalystsTab() {
 function Estimates({ rows }: { rows: EstRow[] }) {
   if (rows.length === 0) return null;
   return (
-    <Card title="分析师预期 · 营收 / EPS 一致预期">
+    <Card title="Analyst estimates · Revenue / EPS consensus">
       <div style={{ overflowX: "auto" }}>
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
           <thead>
             <tr>
-              {["财年", "营收(avg)", "EPS(avg)", "营收区间", "EPS 区间", "#分析师"].map((h, i) => (
+              {["FY", "Revenue (avg)", "EPS (avg)", "Revenue range", "EPS range", "# Analysts"].map((h, i) => (
                 <th key={h} style={{ ...th, textAlign: i === 0 ? "left" : "right" }}>{h}</th>
               ))}
             </tr>
@@ -107,7 +107,7 @@ function PriceTargets({ rows }: { rows: Dated[] }) {
   const targets = rows.map((r) => n(r.data, "adjPriceTarget") ?? n(r.data, "priceTarget")).filter((v): v is number => v != null);
   const avg = targets.length ? targets.reduce((a, b) => a + b, 0) / targets.length : null;
   return (
-    <Card title={`目标价${avg != null ? ` · 近 ${targets.length} 条均值 ${fmtMoney(avg)}` : ""}`}>
+    <Card title={`Price target${avg != null ? ` · avg of last ${targets.length} ${fmtMoney(avg)}` : ""}`}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {rows.slice(0, 12).map((r, i) => {
           const d = r.data;
@@ -146,7 +146,7 @@ function Ratings({ rows }: { rows: Dated[] }) {
   // Cached full history; we show the most recent slice. Heavily-covered names
   // (e.g. META) get dozens of actions/year, so this is mostly the last ~year.
   return (
-    <Card title={`评级变动 · 最近 ${rows.length} 条`}>
+    <Card title={`Rating changes · last ${rows.length}`}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {rows.map((r, i) => {
           const d = r.data;

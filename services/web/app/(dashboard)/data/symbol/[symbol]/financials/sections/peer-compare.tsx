@@ -25,7 +25,7 @@ export function PeerCompare({ symbol, peers, income, balance }: { symbol: string
     roe: div(num(li, "netIncome"), num(lb, "totalStockholdersEquity")),
   };
   const med: Peer = {
-    ticker: "中位数",
+    ticker: "Median",
     market_cap: median(peers.map((p) => p.market_cap)),
     trailing_pe: median(peers.map((p) => p.trailing_pe)),
     ev_ebitda: median(peers.map((p) => p.ev_ebitda)),
@@ -40,8 +40,8 @@ export function PeerCompare({ symbol, peers, income, balance }: { symbol: string
     { h: "Mkt Cap", f: (p) => cap(p.market_cap) },
     { h: "P/E", f: (p) => x(p.trailing_pe) },
     { h: "EV/EBITDA", f: (p) => x(p.ev_ebitda) },
-    { h: "营收增速", f: (p) => pc(p.revenue_growth) },
-    { h: "净利率", f: (p) => pc(p.net_margin) },
+    { h: "Revenue growth", f: (p) => pc(p.revenue_growth) },
+    { h: "Net margin", f: (p) => pc(p.net_margin) },
     { h: "ROE", f: (p) => pc(p.roe) },
   ];
   const th: React.CSSProperties = { fontSize: 11, color: "var(--muted)", padding: "6px 10px", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" };
@@ -56,12 +56,12 @@ export function PeerCompare({ symbol, peers, income, balance }: { symbol: string
     </tr>
   );
   return (
-    <Card title="同业对比 · 来自估值快照的可比公司">
+    <Card title="Peer comparison · Comparables from the valuation snapshot">
       <div style={{ overflowX: "auto" }}>
         <table style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
             <tr>
-              <th style={{ ...th, textAlign: "left", position: "sticky", left: 0, background: "var(--panel)" }}>公司</th>
+              <th style={{ ...th, textAlign: "left", position: "sticky", left: 0, background: "var(--panel)" }}>Company</th>
               {cols.map((c) => (<th key={c.h} style={{ ...th, textAlign: "right" }}>{c.h}</th>))}
             </tr>
           </thead>
@@ -72,7 +72,7 @@ export function PeerCompare({ symbol, peers, income, balance }: { symbol: string
           </tbody>
         </table>
       </div>
-      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>本票 P/E、EV/EBITDA 需市场数据，未在此计算（见 Valuation tab）。</div>
+      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>The subject's P/E and EV/EBITDA require market data and are not computed here (see the Valuation tab).</div>
     </Card>
   );
 }

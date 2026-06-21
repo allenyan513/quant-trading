@@ -22,48 +22,48 @@ export default async function HomePage() {
   return (
     <div style={{ maxWidth: 720 }}>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 4px" }}>
-        {allDone ? "你已经准备就绪 🎉" : `开始上手${user.name ? `，${user.name}` : ""}`}
+        {allDone ? "You're all set 🎉" : `Get started${user.name ? `, ${user.name}` : ""}`}
       </h1>
       <p style={{ color: "var(--muted)", marginTop: 0, fontSize: 14, lineHeight: 1.6 }}>
         {allDone
-          ? "三步都完成了。随时回来管理，或直接去你的 Claude 里做研究。"
-          : "三步把平台接上你自己的 Claude —— 数据在我们这，智能在你那。"}
+          ? "All three steps are done. Come back anytime to manage them, or head straight into your Claude to research."
+          : "Three steps to connect the platform to your own Claude — the data lives here, the intelligence lives in your Claude."}
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 18 }}>
         <Step
           n={1}
           done={s.ibkrConnected}
-          title="连接你的 IBKR 账户"
-          desc="用 IBKR Flex 查询(只读)同步你的持仓、成交和净值曲线。"
-          badge={s.ibkrConnected ? "已连接" : "未连接"}
-          cta={{ href: "/data/holdings/settings", label: s.ibkrConnected ? "管理" : "去连接" }}
+          title="Connect your IBKR account"
+          desc="Sync your holdings, trades, and NAV curve via an IBKR Flex query (read-only)."
+          badge={s.ibkrConnected ? "Connected" : "Not connected"}
+          cta={{ href: "/data/holdings/settings", label: s.ibkrConnected ? "Manage" : "Connect" }}
         />
         <Step
           n={2}
           done={s.watchlistCount > 0}
-          title="建立你的自选"
-          desc="加入你关注的股票 —— 估值 / 买入区 / 是否持有一目了然，也能喂给你的 Claude。"
-          badge={s.watchlistCount > 0 ? `${s.watchlistCount} 只` : "空"}
-          cta={{ href: "/data/watchlist", label: s.watchlistCount > 0 ? "管理" : "去添加" }}
+          title="Build your watchlist"
+          desc="Add the stocks you follow — valuation, buy zone, and whether you hold them at a glance, ready to feed to your Claude."
+          badge={s.watchlistCount > 0 ? `${s.watchlistCount} symbols` : "Empty"}
+          cta={{ href: "/data/watchlist", label: s.watchlistCount > 0 ? "Manage" : "Add" }}
         />
         <Step
           n={3}
           done={s.claudeConnected}
-          title="连接你的 Claude（核心）"
-          desc="把下面的 MCP 地址接到你自己的 Claude，让它在可信数据 + 你的持仓上做研究。"
-          badge={s.claudeConnected ? "已授权" : "未连接"}
+          title="Connect your Claude (core)"
+          desc="Add the MCP URL below to your own Claude so it can research on trusted data plus your holdings."
+          badge={s.claudeConnected ? "Authorized" : "Not connected"}
         >
           <ConnectClaude />
         </Step>
       </div>
 
       <div style={{ marginTop: 24, display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, alignItems: "center" }}>
-        <span style={{ color: "var(--muted)" }}>探索:</span>
-        <Link href="/data/watchlist" style={LINK}>自选</Link>
-        <Link href="/data/holdings" style={LINK}>持仓</Link>
-        <Link href="/data/legends" style={LINK}>传奇投资人 13F</Link>
-        <Link href="/system" style={LINK}>系统总览</Link>
+        <span style={{ color: "var(--muted)" }}>Explore:</span>
+        <Link href="/data/watchlist" style={LINK}>Watchlist</Link>
+        <Link href="/data/holdings" style={LINK}>Holdings</Link>
+        <Link href="/data/legends" style={LINK}>Legendary investors 13F</Link>
+        <Link href="/system" style={LINK}>System overview</Link>
       </div>
     </div>
   );

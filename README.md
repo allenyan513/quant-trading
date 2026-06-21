@@ -1,38 +1,65 @@
 # Quant Trading System
 
-事件驱动的分布式量化交易系统。三个独立 HTTP 服务：
+An event-driven, distributed quant-trading system built around three internal HTTP
+services plus a public read-only web app.
 
 ```
-外部源 → data → (event) → alpha → (signal) → portfolio (sizing + 开/平仓结算)
+news → data (screen + triage + cache warm) → (event) → alpha (reprice) → (signal) → portfolio (sizing + open/close)
 ```
 
-技术栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic SDK（Messages API）。
-部署：Cloud Run / 本地 Docker Compose。
+**Stack:** TypeScript · Hono · Neon (Postgres) · Drizzle · Anthropic SDK (Messages
+API, not the Agent SDK). pnpm workspaces monorepo. Deploys to Cloud Run; runs locally
+via tsx or Docker Compose.
 
-编码约束见 `.claude/rules/`；设计讨论 / 路线图 / 任务状态用 GitHub issues（v2 总览见 #48）。
+Coding rules live in `.claude/rules/` (auto-loaded per directory); the schema source
+of truth is `packages/shared/src/db/schema.ts`. Design discussion, roadmap, and task
+status are tracked in **GitHub issues** — not in `docs/`.
 
-## 结构
+## Services
 
-- `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具
-- `services/data` —— 外部数据唯一接收者（v1 只做定时 pull），无 LLM
-- `services/alpha` —— 核心 LLM agent，事件 → 交易信号
-- `services/portfolio` —— `positions` 账本唯一 owner，无 LLM：记录信号 + 确定性 sizing 开仓 + 止损/止盈/到期结算平仓
-- `services/web` —— 只读监控仪表盘（Next.js）+ **唯一对外公网入口**；也托管 MCP 端点 `/api/mcp`（bearer `MCP_TOKEN` 门控）向第三方 LLM 吐调研/持仓/13F 数据。data/alpha/portfolio 为内部服务。
+- **`packages/shared`** — domain types, response envelope, lazy config, db (schema +
+  client), FMP client, and HTTP utilities. Consumed by every service as the `@qt/shared`
+  workspace dependency.
+- **`services/data`** — the sole receiver of external data, **news-driven** (#59):
+  `/news/pull` ingests market news, then auto-triages new rows (deterministic profile
+  screen → cache warm → a single lightweight Haiku LLM grades high/med/low). Also hosts
+  a deterministic reference-valuation engine, per-user watchlist, stock-discovery
+  scanners, quarterly 13F holdings, and the symbol-centric SEC trio (13D/13G ownership,
+  8-K events, Form 4 insiders) — all sourced directly from SEC EDGAR.
+- **`services/alpha`** — the single pricing/decision LLM agent: event → reprice →
+  trade signal, reading data's pre-warmed caches.
+- **`services/portfolio`** — sole owner of the `portfolio_positions` ledger, no LLM:
+  records signals → deterministic sizing to open → `/jobs/track` settles closes on
+  stop-loss / take-profit / expiry.
+- **`services/web`** — Next.js read-only dashboard and the **only public entry point**.
+  Also hosts an **OAuth-gated MCP endpoint** (`/api/mcp`) so users can connect their own
+  Claude. Public tools expose research / 13F data; private `get_holdings` /
+  `get_watchlist` are scoped to the token's user (tenant isolation). data / alpha /
+  portfolio stay internal.
 
-## 本地开发
+## Local development
 
 ```bash
 pnpm install
-cp .env.example .env   # 填入 DATABASE_URL / ANTHROPIC_API_KEY / FMP_API_KEY
+cp .env.example .env          # DATABASE_URL, ANTHROPIC_API_KEY, FMP_API_KEY, …
+
 pnpm db:generate && pnpm db:migrate
-# 一键起全部（本地 tsx 热重载）
-pnpm dev             # data:8081 alpha:8082 portfolio:8084 (+ web)
-# 或单服务热重载
-pnpm dev:data        # :8081
-# 或全栈容器
-pnpm up              # host 8081/8082/8084
+
+pnpm dev                      # all services with hot reload
+pnpm dev:data                 # data       → :8081
+pnpm dev:alpha                # alpha      → :8082
+pnpm dev:portfolio            # portfolio  → :8084
+pnpm dev:web                  # web        → :3001
+
+pnpm typecheck                # tsc --noEmit across the repo; run before committing
+pnpm test                     # vitest (pure-function units; no FMP/DB)
+
+pnpm up / pnpm down           # full stack via Docker Compose
 ```
 
-## 状态
+## Status
 
-闭环已打通（data → alpha → portfolio + web 仪表盘）。进行中的工作与路线图见 GitHub issues。
+The loop is closed: data ingests news → screens, triages, and warms caches → alpha
+reprices into signals → portfolio sizes and opens positions, then `/jobs/track` settles
+closes; the web dashboard provides read-only monitoring and manual triage review.
+Work in progress and the roadmap live in **GitHub issues**.

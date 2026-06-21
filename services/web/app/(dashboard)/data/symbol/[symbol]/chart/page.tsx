@@ -43,13 +43,13 @@ export default function ChartTab() {
 
   if (!data && !error) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   if (error) return <p style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</p>;
-  if (!data || data.bars.length === 0) return <p style={{ color: "var(--muted)" }}>暂无价格数据（该 symbol 的日线未预热）。</p>;
+  if (!data || data.bars.length === 0) return <p style={{ color: "var(--muted)" }}>No price data yet (daily bars for this symbol not warmed).</p>;
 
   return (
     <Card
       title={
         <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <span>价格 · K线</span>
+          <span>Price · Candles</span>
           <span style={{ display: "flex", gap: 4 }}>
             {RANGES.map((r) => (
               <button
@@ -77,8 +77,8 @@ export default function ChartTab() {
       {data.fairValue != null && (
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
           <span style={{ color: "#a371f7" }}>— — FV</span>{" "}
-          {data.fvHistory.length >= 2 ? "公允价（随时间）" : "公允价"} {fmtMoney(data.fairValue)}
-          {data.asOf && <span> · 估值于 {fmtFull(data.asOf)}</span>}
+          {data.fvHistory.length >= 2 ? "Fair value (over time)" : "Fair value"} {fmtMoney(data.fairValue)}
+          {data.asOf && <span> · valued {fmtFull(data.asOf)}</span>}
         </div>
       )}
     </Card>

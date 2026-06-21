@@ -257,7 +257,7 @@ app.post(
 );
 
 // On-demand cache warming for the per-symbol detail page. web is read-only and
-// can't reach FMP, so the "刷新数据" button forwards here. Deterministically
+// can't reach FMP, so the "Refresh data" button forwards here. Deterministically
 // read-through fills the symbol's marketdata caches (statements/ratios/prices/
 // ratings/insider/pt) so the Chart/Financials tabs populate. Synchronous (a few
 // FMP calls) — the caller shows a spinner. Reuses the triage warmer.
@@ -544,7 +544,7 @@ app.get("/markets/economic-calendar", async (c) => {
 // from alpha): it's computed from data-owned marketdata caches. alpha fetches it
 // over HTTP as one input to its LLM repricing; the dashboard reads the snapshots.
 
-// Per-symbol reference valuation — backs the detail page's "刷新数据" button + the
+// Per-symbol reference valuation — backs the detail page's "Refresh data" button + the
 // auto-refresh on watchlist add. forceRefresh: the caller just warmed marketdata.
 app.post(
   "/internal/valuation",

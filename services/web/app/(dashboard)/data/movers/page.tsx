@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Discover → 市场榜单: live top gainers / losers / most-active (FMP, forwarded by
+ * Discover → Movers: live top gainers / losers / most-active (FMP, forwarded by
  * data). A single-object snapshot (3 lists), so it uses useLive + hand-rendered
  * tables rather than LiveTable (which wants an array).
  */
@@ -38,18 +38,18 @@ export default function MoversPage() {
   const { data, error } = useLive<MoversResult>("/api/markets/movers");
   return (
     <div>
-      <PageTitle sub="美股当日涨幅 / 跌幅 / 成交活跃榜（FMP 实时,约 15 分钟延迟）">市场榜单</PageTitle>
+      <PageTitle sub="US gainers / losers / most active today (FMP real-time, ~15 min delay)">Movers</PageTitle>
       {error && <p style={{ color: RED }}>Error: {String(error.message ?? error)}</p>}
       {!data && !error && <p style={{ color: "var(--muted)" }}>Loading…</p>}
       {data && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
-          <Card title={`涨幅榜 (${data.gainers.length})`}>
+          <Card title={`Gainers (${data.gainers.length})`}>
             <MoverList rows={data.gainers} />
           </Card>
-          <Card title={`跌幅榜 (${data.losers.length})`}>
+          <Card title={`Losers (${data.losers.length})`}>
             <MoverList rows={data.losers} />
           </Card>
-          <Card title={`成交活跃 (${data.actives.length})`}>
+          <Card title={`Most active (${data.actives.length})`}>
             <MoverList rows={data.actives} />
           </Card>
         </div>

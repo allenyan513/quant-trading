@@ -55,7 +55,7 @@ export default function FinancialsTab() {
   if (!data && !error) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   if (error) return <p style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</p>;
   if (!data || data.income.length === 0)
-    return <p style={{ color: "var(--muted)" }}>暂无财报缓存（点头部「⟳ 刷新数据」预热该 symbol）。</p>;
+    return <p style={{ color: "var(--muted)" }}>No financials cached yet (click "⟳ Refresh data" in the header to warm this symbol).</p>;
 
   const stmtData = stmt ?? data;
   const stmtEmpty = period === "quarter" && stmtData.income.length === 0;
@@ -86,16 +86,16 @@ export default function FinancialsTab() {
       <TrendOverview trend={trend} range={range} />
       <RatioGroups income={data.income} balance={data.balance} cashflow={data.cashflow} ratios={data.ratios} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 700 }}>完整财务三表</span>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>Full financial statements</span>
         <PeriodToggle period={period} onChange={setPeriod} />
       </div>
       {stmtEmpty ? (
-        <p style={{ color: "var(--muted)", fontSize: 13 }}>暂无季报缓存（点头部「⟳ 刷新数据」预热；或该标的为非美股报送人）。</p>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>No quarterly statements cached yet (click "⟳ Refresh data" in the header to warm; or this symbol is a non-US filer).</p>
       ) : (
         <>
-          <StatementTable title="利润表 Income Statement" rows={stmtData.income} lines={INCOME_LINES} period={period} estimates={period === "annual" ? (data.estimates ?? []) : []} estimateMap={INCOME_ESTIMATE_MAP} />
-          <StatementTable title="资产负债表 Balance Sheet" rows={stmtData.balance} lines={BALANCE_LINES} period={period} />
-          <StatementTable title="现金流量表 Cash Flow" rows={stmtData.cashflow} lines={CASHFLOW_LINES} period={period} note={period === "quarter" ? "季度现金流多数公司按 YTD 申报，目前仅财年 Q1 有值（SEC EDGAR 限制，见 #98）。" : undefined} />
+          <StatementTable title="Income statement" rows={stmtData.income} lines={INCOME_LINES} period={period} estimates={period === "annual" ? (data.estimates ?? []) : []} estimateMap={INCOME_ESTIMATE_MAP} />
+          <StatementTable title="Balance sheet" rows={stmtData.balance} lines={BALANCE_LINES} period={period} />
+          <StatementTable title="Cash flow" rows={stmtData.cashflow} lines={CASHFLOW_LINES} period={period} note={period === "quarter" ? "Most companies file quarterly cash flow on a YTD basis, so currently only fiscal Q1 has values (SEC EDGAR limitation, see #98)." : undefined} />
         </>
       )}
       <PeerCompare symbol={symbol} peers={peers} income={data.income} balance={data.balance} />

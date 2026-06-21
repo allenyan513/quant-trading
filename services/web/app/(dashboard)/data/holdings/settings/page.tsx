@@ -4,7 +4,7 @@
  * Holdings · Settings — connect IBKR (set/update the Flex token + query id) and
  * trigger a sync. Submits to /api/holdings/credentials (forwarded to the data
  * service, owner of data_holdings_accounts; web stays read-only on the DB).
- * Saving auto-runs one sync; the "立即刷新" button re-syncs anytime. The current
+ * Saving auto-runs one sync; the "Refresh now" button re-syncs anytime. The current
  * token is never shown — only a masked tail from the status endpoint.
  */
 
@@ -75,11 +75,11 @@ export default function HoldingsSettingsPage() {
       const r = json.data as SyncResult;
       setSyncMsg({
         ok: true,
-        text: `同步完成：NAV ${r.navRowsUpserted} 行 · 成交 +${r.tradesInserted} · 持仓 ${r.positionsUpserted} · SPY ${r.spyRows}`,
+        text: `Sync complete: NAV ${r.navRowsUpserted} rows · Trades +${r.tradesInserted} · Holdings ${r.positionsUpserted} · SPY ${r.spyRows}`,
       });
       mutate();
     } catch (e) {
-      setSyncMsg({ ok: false, text: `同步失败：${e instanceof Error ? e.message : String(e)}` });
+      setSyncMsg({ ok: false, text: `Sync failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setSyncing(false);
     }
@@ -97,7 +97,7 @@ export default function HoldingsSettingsPage() {
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(errText(json.error, res.status));
-      setMsg({ ok: true, text: "凭证已保存，正在自动同步…" });
+      setMsg({ ok: true, text: "Credentials saved, syncing automatically…" });
       setToken("");
       setQueryId("");
       mutate();
@@ -114,24 +114,24 @@ export default function HoldingsSettingsPage() {
 
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 560 }}>
-      <Card title="当前连接">
+      <Card title="Current connection">
         {status?.connected ? (
           <div style={{ display: "grid", gap: 8 }}>
             <Meta label="query id" value={status.flexQueryId ?? "—"} />
             <Meta label="updated" value={status.updatedAt ? fmtFull(status.updatedAt) : "—"} />
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
               <button onClick={sync} disabled={syncing} style={btnStyle(syncing, false)}>
-                {syncing ? "同步中…" : "立即刷新"}
+                {syncing ? "Syncing…" : "Refresh now"}
               </button>
               {syncMsg && <span style={{ fontSize: 13, color: syncMsg.ok ? "#3fb950" : "#f85149" }}>{syncMsg.text}</span>}
             </div>
           </div>
         ) : (
-          <p style={{ color: "var(--muted)", margin: 0 }}>尚未连接。填入下方表单保存凭证（保存后会自动同步一次）。</p>
+          <p style={{ color: "var(--muted)", margin: 0 }}>Not connected. Fill in the form below to save your credentials (one sync runs automatically after saving).</p>
         )}
       </Card>
 
-      <Card title={status?.connected ? "更新凭证" : "连接 IBKR"}>
+      <Card title={status?.connected ? "Update credentials" : "Connect IBKR"}>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: 12, color: "var(--muted)" }}>
             Flex token
@@ -149,14 +149,14 @@ export default function HoldingsSettingsPage() {
             <input
               value={queryId}
               onChange={(e) => setQueryId(e.target.value)}
-              placeholder="须含 Trades + Open Positions + Change in NAV"
+              placeholder="Must include Trades + Open Positions + Change in NAV"
               style={inputStyle}
               autoComplete="off"
             />
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={save} disabled={saveDisabled} style={btnStyle(saveDisabled)}>
-              {busy ? "保存中…" : "保存并同步"}
+              {busy ? "Saving…" : "Save and sync"}
             </button>
             {msg && <span style={{ fontSize: 13, color: msg.ok ? "#3fb950" : "#f85149" }}>{msg.text}</span>}
           </div>

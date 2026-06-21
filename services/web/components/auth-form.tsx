@@ -24,7 +24,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       : await signIn.email({ email, password });
     setBusy(false);
     if (res.error) {
-      setError(res.error.message ?? (isSignUp ? "注册失败" : "邮箱或密码不正确"));
+      setError(res.error.message ?? (isSignUp ? "Sign up failed" : "Incorrect email or password"));
       return;
     }
     window.location.href = from;
@@ -55,17 +55,17 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         }}
       >
         <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>
-          {isSignUp ? "创建账户" : "登录"}{" "}
+          {isSignUp ? "Create account" : "Sign in"}{" "}
           <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: 13 }}>quant-trading</span>
         </div>
         {isSignUp && (
-          <input placeholder="名称(可选)" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+          <input placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         )}
         <input
           type="email"
           autoFocus
           required
-          placeholder="邮箱"
+          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           style={inputStyle}
@@ -74,7 +74,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           type="password"
           required
           minLength={8}
-          placeholder="密码(至少 8 位)"
+          placeholder="Password (at least 8 characters)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
@@ -95,13 +95,13 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
             cursor: busy ? "default" : "pointer",
           }}
         >
-          {busy ? "请稍候…" : isSignUp ? "注册" : "登录"}
+          {busy ? "Please wait…" : isSignUp ? "Sign up" : "Sign in"}
         </button>
         <div style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginTop: 4 }}>
           {isSignUp ? (
-            <>已有账户?<Link href="/sign-in" style={{ color: "#58a6ff" }}> 登录</Link></>
+            <>Already have an account?<Link href="/sign-in" style={{ color: "#58a6ff" }}> Sign in</Link></>
           ) : (
-            <>没有账户?<Link href="/sign-up" style={{ color: "#58a6ff" }}> 注册</Link></>
+            <>No account yet?<Link href="/sign-up" style={{ color: "#58a6ff" }}> Sign up</Link></>
           )}
         </div>
       </form>

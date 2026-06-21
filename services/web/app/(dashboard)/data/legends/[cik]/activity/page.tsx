@@ -3,7 +3,7 @@
 export default function ActivityTab() {
   return (
     <p style={{ color: "var(--muted)" }}>
-      Activity — buys &amp; sells this quarter. 尚未实现，后续完善。
+      Activity — buys &amp; sells this quarter. Not yet implemented; coming soon.
     </p>
   );
 }

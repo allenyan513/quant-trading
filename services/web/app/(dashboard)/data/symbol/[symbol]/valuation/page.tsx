@@ -50,8 +50,8 @@ export default function ValuationPage() {
       {error && <p className="text-red-400">Error: {String(error.message ?? error)}</p>}
       {data === null && (
         <p className="text-muted-foreground">
-          暂无估值快照。运行 alpha 的 <code>POST /internal/valuation-sweep</code>
-          （或 watchlist 每日巡检）后再看。
+          No valuation snapshot yet. Run alpha&rsquo;s <code>POST /internal/valuation-sweep</code>
+          (or the daily watchlist sweep), then check back.
         </p>
       )}
       {data && <Body snap={data} />}
@@ -65,7 +65,7 @@ function Body({ snap }: { snap: Snapshot }) {
   if (detail?.source === "engine_error") {
     return (
       <p className="text-red-400">
-        估值引擎报错：{detail.error ?? "unknown"}（snapshot {snap.snapshotId}）
+        Valuation engine error: {detail.error ?? "unknown"} (snapshot {snap.snapshotId})
       </p>
     );
   }
@@ -74,8 +74,8 @@ function Body({ snap }: { snap: Snapshot }) {
   if (!detail || !Array.isArray(detail.models) || detail.models.length === 0) {
     return (
       <p className="text-muted-foreground">
-        该 symbol 暂无完整估值（输入数据不足：缺财报或价格）。
-        {detail?.source ? `（${detail.source}）` : ""}
+        No full valuation for this symbol yet (insufficient input data: missing financials or price).
+        {detail?.source ? ` (${detail.source})` : ""}
       </p>
     );
   }
@@ -105,7 +105,7 @@ function Body({ snap }: { snap: Snapshot }) {
 
       <div className="text-xs text-muted-foreground border-t pt-6">
         <p>
-          <strong>Disclaimer:</strong> 估值为模型估算，仅供研究参考，非投资建议。所有模型都依赖可能与未来表现不符的假设。
+          <strong>Disclaimer:</strong> Valuations are model estimates for research reference only, not investment advice. All models rely on assumptions that may not match future performance.
         </p>
       </div>
     </div>

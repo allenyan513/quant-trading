@@ -46,11 +46,11 @@ function EstActual({ label, est, act, money, surprisePct }: { label: string; est
     <div style={{ flex: 1 }}>
       <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 4 }}>{label}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-        <span style={{ color: "var(--muted)" }}>预期</span>
+        <span style={{ color: "var(--muted)" }}>Est</span>
         <span>{fmt(est)}</span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 600 }}>
-        <span style={{ color: "var(--muted)" }}>实际</span>
+        <span style={{ color: "var(--muted)" }}>Actual</span>
         <span style={{ color: beat == null ? "var(--fg)" : beat ? GREEN : RED }}>{fmt(act)}</span>
       </div>
       {surprisePct != null && (
@@ -98,7 +98,7 @@ export function EarningsDrawer({ entry, mine, onClose, onAdded }: { entry: Earni
         setAdded(true);
         onAdded?.(entry.symbol);
       } else {
-        setAddErr(typeof j?.error === "object" ? (j.error?.message ?? "失败") : String(j?.error ?? "失败"));
+        setAddErr(typeof j?.error === "object" ? (j.error?.message ?? "Failed") : String(j?.error ?? "Failed"));
       }
     } catch (e) {
       setAddErr(e instanceof Error ? e.message : String(e));
@@ -119,30 +119,30 @@ export function EarningsDrawer({ entry, mine, onClose, onAdded }: { entry: Earni
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontWeight: 700, fontSize: 18 }}>{entry.symbol}</span>
-              {mine && <span style={{ fontSize: 11, color: "#d29922" }}>★ 自选/持仓</span>}
+              {mine && <span style={{ fontSize: 11, color: "#d29922" }}>★ Watchlist/holding</span>}
             </div>
             <div style={{ color: "var(--muted)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name ?? ""}</div>
           </div>
-          <button onClick={onClose} aria-label="关闭" style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
 
         <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--muted)", flexWrap: "wrap" }}>
           <span>📅 {entry.reportDate}</span>
-          {entry.marketCap != null && <span>市值 {formatLargeNumber(entry.marketCap)}</span>}
+          {entry.marketCap != null && <span>Market cap {formatLargeNumber(entry.marketCap)}</span>}
           {entry.sector && <span>{entry.sector}</span>}
         </div>
 
         <div style={{ display: "flex", gap: 16, padding: "12px 0", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
           <EstActual label="EPS" est={entry.epsEstimated} act={entry.epsActual} surprisePct={epsSurprise} />
-          <EstActual label="营收" est={entry.revenueEstimated} act={entry.revenueActual} money />
+          <EstActual label="Revenue" est={entry.revenueEstimated} act={entry.revenueActual} money />
         </div>
 
         <div>
-          <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 6 }}>过往 beat/miss(近 8 季 EPS)</div>
+          <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 6 }}>Past beat/miss (last 8 quarters EPS)</div>
           {hist == null ? (
-            <div style={{ color: "var(--muted)", fontSize: 12 }}>加载中…</div>
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>Loading…</div>
           ) : hist.length === 0 ? (
-            <div style={{ color: "var(--muted)", fontSize: 12 }}>无历史数据。</div>
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>No history.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {hist.map((h) => (
@@ -163,21 +163,21 @@ export function EarningsDrawer({ entry, mine, onClose, onAdded }: { entry: Earni
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
           {filingUrl ? (
             <a href={filingUrl} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, borderColor: "#1f6feb", color: "#58a6ff" }}>
-              📄 查看原始文件 — SEC 8-K 财报(Item 2.02) →
+              📄 View original filing — SEC 8-K earnings (Item 2.02) →
             </a>
           ) : filingUrl === null ? (
-            <div style={{ ...linkStyle, color: "var(--muted)", borderStyle: "dashed" }}>暂无 8-K 财报原文(尚未公布或未收录)</div>
+            <div style={{ ...linkStyle, color: "var(--muted)", borderStyle: "dashed" }}>No 8-K earnings filing yet (not yet released or not indexed)</div>
           ) : (
-            <div style={{ ...linkStyle, color: "var(--muted)" }}>查找原始文件…</div>
+            <div style={{ ...linkStyle, color: "var(--muted)" }}>Looking up filing…</div>
           )}
           <a href={`/data/symbol/${encodeURIComponent(entry.symbol)}`} style={linkStyle}>
-            🔎 在本站研究 {entry.symbol} →
+            🔎 Research {entry.symbol} on this site →
           </a>
           {added ? (
-            <div style={{ ...linkStyle, color: GREEN, textAlign: "center", borderColor: GREEN }}>✓ 已加入自选</div>
+            <div style={{ ...linkStyle, color: GREEN, textAlign: "center", borderColor: GREEN }}>✓ Added to watchlist</div>
           ) : (
             <button onClick={add} disabled={adding} style={{ ...linkStyle, background: "none", cursor: adding ? "default" : "pointer", textAlign: "center", opacity: adding ? 0.6 : 1 }}>
-              {adding ? "添加中…" : "＋ 加入自选"}
+              {adding ? "Adding…" : "＋ Add to watchlist"}
             </button>
           )}
           {addErr && <div style={{ color: RED, fontSize: 12 }}>{addErr}</div>}

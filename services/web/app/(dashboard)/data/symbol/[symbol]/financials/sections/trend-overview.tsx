@@ -19,12 +19,12 @@ export function TrendOverview({
   const hdr: React.CSSProperties = { fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, paddingBottom: 8, borderBottom: "1px solid var(--border)" };
   const mono: React.CSSProperties = { fontFamily: "ui-monospace, Menlo, monospace" };
   return (
-    <Card title={`关键指标 · 多年趋势${range ? ` · ${range}（annual）` : ""}`}>
+    <Card title={`Key metrics · Multi-year trend${range ? ` · ${range} (annual)` : ""}`}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto 132px", columnGap: 14, alignItems: "center" }}>
-        <div style={hdr}>指标</div>
-        <div style={{ ...hdr, textAlign: "right" }}>最新</div>
+        <div style={hdr}>Metric</div>
+        <div style={{ ...hdr, textAlign: "right" }}>Latest</div>
         <div style={{ ...hdr, textAlign: "right" }}>YoY</div>
-        <div style={{ ...hdr, textAlign: "right" }}>趋势</div>
+        <div style={{ ...hdr, textAlign: "right" }}>Trend</div>
         {trend.map(({ m, series, latest, yoy, improving }) => (
           <Fragment key={m.label}>
             <div style={{ ...cell, fontSize: 13 }}>{m.label}</div>

@@ -64,7 +64,7 @@ export default function HoldingsTradesPage() {
           { key: "symbol", label: "Symbol" },
           { key: "since", label: "Since (YYYY-MM-DD)" },
         ]}
-        emptyText="暂无成交。去 Settings 连接 IBKR 后点「立即刷新」。"
+        emptyText='No trades yet. Connect IBKR in Settings, then click "Refresh now".'
       />
     </div>
   );

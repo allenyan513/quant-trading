@@ -19,11 +19,11 @@ export default async function BriefDetailPage({ params }: { params: Promise<{ da
 
   return (
     <div>
-      <PageTitle subsystem="data" sub={`生成于 ${fmtFull(brief.createdAt)}`}>
-        {`早报 · ${brief.briefDate}`}
+      <PageTitle subsystem="data" sub={`Generated ${fmtFull(brief.createdAt)}`}>
+        {`Morning brief · ${brief.briefDate}`}
       </PageTitle>
       <Link href="/data/morning-brief" style={{ color: "#58a6ff", fontSize: 13, textDecoration: "none" }}>
-        ← 返回列表
+        ← Back to list
       </Link>
       <div style={{ marginTop: 14 }}>
         <BriefMarkdown markdown={brief.markdown} />

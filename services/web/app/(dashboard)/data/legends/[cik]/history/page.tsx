@@ -2,7 +2,7 @@
 export default function HistoryTab() {
   return (
     <p style={{ color: "var(--muted)" }}>
-      History — holdings across quarters. 尚未实现，后续完善。
+      History — holdings across quarters. Not yet implemented; coming soon.
     </p>
   );
 }

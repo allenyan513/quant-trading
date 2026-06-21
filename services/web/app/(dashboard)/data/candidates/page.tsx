@@ -81,13 +81,13 @@ function RunScreenerButton() {
       const res = await fetch(`/api/scan/fundamentals`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: { period?: string; candidates?: number }; error?: string };
       if (!res.ok || !j.ok) {
-        setMsg(`扫描失败：${j.error ?? res.status}`);
+        setMsg(`Scan failed: ${j.error ?? res.status}`);
         return;
       }
-      setMsg(`✓ ${j.data?.period ?? ""} 扫出 ${j.data?.candidates ?? 0} 个候选`);
+      setMsg(`✓ ${j.data?.period ?? ""} found ${j.data?.candidates ?? 0} candidates`);
       await mutate((k) => typeof k === "string" && k.startsWith("/api/candidates"));
     } catch (err) {
-      setMsg(`扫描失败：${err instanceof Error ? err.message : String(err)}`);
+      setMsg(`Scan failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
@@ -109,7 +109,7 @@ function RunScreenerButton() {
           opacity: busy ? 0.5 : 1,
         }}
       >
-        {busy ? "扫描中…（拉 SEC frames，约几秒）" : "运行基本面筛股（营收同比增速）"}
+        {busy ? "Scanning… (pulling SEC frames, ~a few seconds)" : "Run fundamental screener (YoY revenue growth)"}
       </button>
       {msg && <span style={{ fontSize: 12, color: "var(--muted)" }}>{msg}</span>}
     </span>
@@ -129,10 +129,10 @@ const columns: Column<CandidateRow>[] = [
 export default function CandidatesPage() {
   return (
     <div>
-      <PageTitle subsystem="data" sub="选股发现 scanner（只读发现队列）">Candidates</PageTitle>
+      <PageTitle subsystem="data" sub="Screener discovery (read-only discovery queue)">Candidates</PageTitle>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
-        Discovery review queue. 升级进 watchlist 已暂停（watchlist 现为每用户私有，见 follow-up issue）；
-        当前仅支持 Dismiss 噪音。
+        Discovery review queue. Promote-into-watchlist is paused (the watchlist is per-user now, see the follow-up issue);
+        only Dismiss (noise removal) is supported for now.
       </p>
       <RunScreenerButton />
       <LiveTable
@@ -140,7 +140,7 @@ export default function CandidatesPage() {
         rowKey={(r) => r.symbol}
         columns={columns}
         pageSize={50}
-        emptyText="暂无候选 —— 点上方「运行基本面筛股」，或跑 POST /scan/earnings。"
+        emptyText="No candidates yet — click “Run fundamental screener” above, or run POST /scan/earnings."
         filters={[
           {
             key: "status",

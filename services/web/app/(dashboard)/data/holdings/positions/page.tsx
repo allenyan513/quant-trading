@@ -55,7 +55,7 @@ export default function HoldingsPositionsPage() {
   return (
     <div>
       {data?.asOf && (
-        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>快照 {data.asOf}</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>Snapshot {data.asOf}</div>
       )}
 
       {error && <p style={{ color: "#f85149" }}>Error: {String(error.message ?? error)}</p>}
@@ -63,7 +63,7 @@ export default function HoldingsPositionsPage() {
 
       {data && rows.length === 0 && (
         <Card>
-          <p style={{ color: "var(--muted)", margin: 0 }}>暂无持仓快照。去 Settings 连接 IBKR 后点「立即刷新」。</p>
+          <p style={{ color: "var(--muted)", margin: 0 }}>No holdings snapshot yet. Connect IBKR in Settings, then click "Refresh now".</p>
         </Card>
       )}
 

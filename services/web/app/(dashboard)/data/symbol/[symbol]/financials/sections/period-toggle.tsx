@@ -4,8 +4,8 @@
 
 export function PeriodToggle({ period, onChange }: { period: "annual" | "quarter"; onChange: (p: "annual" | "quarter") => void }) {
   const opts: { key: "annual" | "quarter"; label: string }[] = [
-    { key: "annual", label: "年报 FY" },
-    { key: "quarter", label: "季报 Q" },
+    { key: "annual", label: "Annual" },
+    { key: "quarter", label: "Quarterly" },
   ];
   return (
     <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>

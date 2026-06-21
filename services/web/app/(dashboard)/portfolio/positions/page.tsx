@@ -66,7 +66,7 @@ const columns: Column<PositionRow>[] = [
 export default function PositionsPage() {
   return (
     <div>
-      <PageTitle subsystem="portfolio" sub="确定性 sizing 开仓 → 止损/止盈/到期结算平仓">
+      <PageTitle subsystem="portfolio" sub="Deterministic sizing on open → close via stop-loss / take-profit / expiry">
         Positions
       </PageTitle>
       <LiveTable

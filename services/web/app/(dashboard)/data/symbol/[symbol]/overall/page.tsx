@@ -55,16 +55,16 @@ function ValuationCard({ symbol, v }: { symbol: string; v: Overview["valuation"]
   const up = v?.upsidePct ?? null;
   return (
     <Link href={`/data/symbol/${symbol}/valuation`} style={cardLink}>
-      <Card title="估值 gap" accent="#a371f7">
+      <Card title="Valuation gap" accent="#a371f7">
         {v ? (
           <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
-            <Row label="现价" value={fmtMoney(v.currentPrice)} />
-            <Row label="公允价" value={fmtMoney(v.fairValuePerShare)} />
-            <Row label="upside" value={<span style={{ color: up == null ? "var(--muted)" : up >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(up)}</span>} />
+            <Row label="Price" value={fmtMoney(v.currentPrice)} />
+            <Row label="Fair value" value={fmtMoney(v.fairValuePerShare)} />
+            <Row label="Upside" value={<span style={{ color: up == null ? "var(--muted)" : up >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(up)}</span>} />
             <div style={{ marginTop: 2 }}><StatusBadge status={v.verdict} /></div>
           </div>
         ) : (
-          <span style={{ color: "var(--muted)", fontSize: 13 }}>暂无估值快照 →</span>
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>No valuation snapshot yet →</span>
         )}
       </Card>
     </Link>
@@ -75,16 +75,16 @@ function PositionCard({ p }: { p: NonNullable<Overview["positions"]> }) {
   const open = p[0];
   return (
     <Link href="/portfolio/positions" style={cardLink}>
-      <Card title="持仓" accent="#f0883e">
+      <Card title="Position" accent="#f0883e">
         {open ? (
           <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
-            <Row label="状态" value={<StatusBadge status={open.status} />} />
-            <Row label="股数" value={open.shares == null ? "—" : fmtNum(open.shares, 0)} />
-            <Row label="成本" value={fmtMoney(open.entryPrice)} />
-            <Row label="权重" value={open.targetWeight == null ? "—" : `${(open.targetWeight * 100).toFixed(1)}%`} />
+            <Row label="Status" value={<StatusBadge status={open.status} />} />
+            <Row label="Shares" value={open.shares == null ? "—" : fmtNum(open.shares, 0)} />
+            <Row label="Cost" value={fmtMoney(open.entryPrice)} />
+            <Row label="Weight" value={open.targetWeight == null ? "—" : `${(open.targetWeight * 100).toFixed(1)}%`} />
           </div>
         ) : (
-          <span style={{ color: "var(--muted)", fontSize: 13 }}>无持仓</span>
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>No position</span>
         )}
       </Card>
     </Link>
@@ -94,7 +94,7 @@ function PositionCard({ p }: { p: NonNullable<Overview["positions"]> }) {
 function NewsCard({ symbol, news }: { symbol: string; news: NonNullable<Overview["news"]> }) {
   return (
     <Link href={`/data/symbol/${symbol}/news`} style={cardLink}>
-      <Card title="最新新闻" accent="#58a6ff">
+      <Card title="Latest news" accent="#58a6ff">
         {news.length ? (
           <div style={{ display: "grid", gap: 6, fontSize: 12.5 }}>
             {news.slice(0, 4).map((n) => (
@@ -107,7 +107,7 @@ function NewsCard({ symbol, news }: { symbol: string; news: NonNullable<Overview
             ))}
           </div>
         ) : (
-          <span style={{ color: "var(--muted)", fontSize: 13 }}>无新闻</span>
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>No news</span>
         )}
       </Card>
     </Link>
@@ -125,18 +125,18 @@ function RatiosCard({ symbol, ratios }: { symbol: string; ratios: Overview["rati
   const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
   return (
     <Link href={`/data/symbol/${symbol}/financials`} style={cardLink}>
-      <Card title="关键比率" accent="#3fb950">
+      <Card title="Key ratios" accent="#3fb950">
         {ratios ? (
           <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
             <Row label="P/E" value={ratio(pe)} />
             <Row label="P/S" value={ratio(ps)} />
-            <Row label="净利率" value={pct(nm)} />
+            <Row label="Net margin" value={pct(nm)} />
             <Row label="ROE" value={pct(roe)} />
             <Row label="D/E" value={ratio(de)} />
             <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 2 }}>{ratios.period} · {ratios.fiscalDate}</div>
           </div>
         ) : (
-          <span style={{ color: "var(--muted)", fontSize: 13 }}>暂无财报缓存</span>
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>No financials cached yet</span>
         )}
       </Card>
     </Link>

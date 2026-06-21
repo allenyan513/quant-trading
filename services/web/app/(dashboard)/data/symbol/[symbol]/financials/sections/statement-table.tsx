@@ -67,7 +67,7 @@ export function StatementTable({
       </div>
       {estCols.length > 0 && (
         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
-          <span style={{ color: "#a371f7" }}>E</span> = 分析师一致预期（FMP 仅预测营收与 EPS）
+          <span style={{ color: "#a371f7" }}>E</span> = analyst consensus estimate (FMP only forecasts Revenue and EPS)
         </div>
       )}
       {note && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>{note}</div>}
