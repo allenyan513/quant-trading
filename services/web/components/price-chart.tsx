@@ -42,7 +42,7 @@ const UP = "#3fb950";
 const DOWN = "#f85149";
 const MUTED = "#8a97ab";
 const BORDER = "#232c3d";
-const FV = "#a371f7";
+const FV = "#79c0ff"; // fair-value overlay — cool light blue, distinct from candles (was purple)
 
 const isBar = (b: Bar): b is Bar & { open: number; high: number; low: number; close: number } =>
   b.open != null && b.high != null && b.low != null && b.close != null;

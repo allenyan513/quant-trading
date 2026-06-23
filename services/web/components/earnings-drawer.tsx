@@ -170,7 +170,7 @@ export function EarningsDrawer({ entry, mine, onClose, onAdded }: { entry: Earni
           ) : (
             <div style={{ ...linkStyle, color: "var(--muted)" }}>Looking up filing…</div>
           )}
-          <a href={`/data/symbol/${encodeURIComponent(entry.symbol)}`} style={linkStyle}>
+          <a href={`/workspace/data/symbol/${encodeURIComponent(entry.symbol)}`} style={linkStyle}>
             🔎 Research {entry.symbol} on this site →
           </a>
           {added ? (

@@ -55,6 +55,15 @@ const baseURL = resolveBaseURL();
 // The OAuth-gated MCP endpoint this AS protects (same origin). See app/api/mcp.
 const mcpResource = `${baseURL}/api/mcp`;
 
+// Google social login — only wired when both credentials are present, so a bare
+// `next build` (no runtime env) doesn't construct a half-configured provider. The
+// Google Cloud OAuth client must allow the redirect URI <origin>/api/auth/callback/google.
+const googleCreds = (() => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  return clientId && clientSecret ? { clientId, clientSecret } : undefined;
+})();
+
 // Module singleton — one pool per server instance (Cloud Run instances are long-lived).
 const authPool = new Pool({ connectionString: databaseUrl() });
 const authDb = drizzle(authPool, {
@@ -87,8 +96,36 @@ export const auth = betterAuth({
     },
   }),
   emailAndPassword: { enabled: true },
+  ...(googleCreds ? { socialProviders: { google: googleCreds } } : {}),
+  // Auto-link Google sign-in to an existing same-email account. Google verifies
+  // emails, so this is safe; without it, signing in with Google for an email that
+  // already has an email+password account errors `account_not_linked`.
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+      // Existing email+password accounts are unverified (no email-verification flow
+      // yet), and requireLocalEmailVerified defaults true → it would block linking
+      // Google onto them (`account_not_linked`). Off so Google sign-in links by its
+      // (Google-verified) email. SECURITY: before opening password signup widely,
+      // require email verification on signup OR go Google-only — otherwise someone
+      // could pre-register an unverified password account on another user's email.
+      requireLocalEmailVerified: false,
+    },
+  },
   // mcp() makes this the OAuth 2.1 Authorization Server for the gated MCP endpoint
   // (#P2): authorize/token/consent/DCR/PKCE + discovery metadata. nextCookies() MUST
   // stay last — it sets cookies in Next server actions / route handlers.
-  plugins: [mcp({ loginPage: "/sign-in", resource: mcpResource }), nextCookies()],
+  plugins: [
+    mcp({
+      loginPage: "/sign-in",
+      resource: mcpResource,
+      // First connect shows our own consent screen (app/oauth/consent) where the user
+      // clicks one Authorize button; Better Auth records the grant (auth_oauth_consent)
+      // and skips consent on reconnect. loginPage is repeated here because OIDCOptions
+      // requires it (the authorize handler reads consentPage/loginPage from this config).
+      oidcConfig: { loginPage: "/sign-in", consentPage: "/oauth/consent" },
+    }),
+    nextCookies(),
+  ],
 });

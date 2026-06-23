@@ -63,15 +63,15 @@ export const SUBSYSTEMS: Subsystem[] = [
       "13f_cusip_map",
     ],
     pages: [
-      { href: "/data/watchlist", label: "Watchlist" },
-      { href: "/data/morning-brief", label: "Morning Brief" },
-      { href: "/data/holdings", label: "Holdings" },
-      { href: "/data/legends", label: "Legends 13F" },
-      { href: "/data/news", label: "News" },
-      { href: "/data/events", label: "Events" },
-      { href: "/data/notifications", label: "Notifications" },
-      { href: "/data/candidates", label: "Candidates" },
-      { href: "/data/freshness", label: "Freshness" },
+      { href: "/workspace/data/watchlist", label: "Watchlist" },
+      { href: "/workspace/data/morning-brief", label: "Morning Brief" },
+      { href: "/workspace/data/holdings", label: "Holdings" },
+      { href: "/workspace/data/legends", label: "Legends 13F" },
+      { href: "/workspace/data/news", label: "News" },
+      { href: "/workspace/data/events", label: "Events" },
+      { href: "/workspace/data/notifications", label: "Notifications" },
+      { href: "/workspace/data/candidates", label: "Candidates" },
+      { href: "/workspace/data/freshness", label: "Freshness" },
     ],
   },
   {
@@ -83,8 +83,8 @@ export const SUBSYSTEMS: Subsystem[] = [
       "The only real LLM agent in the system: reprices notifications into trading signals (reading data's precomputed reference valuation snapshot as one input).",
     tables: ["trading_signals", "signal_audits"],
     pages: [
-      { href: "/alpha/signals", label: "Signals" },
-      { href: "/alpha/valuations", label: "Valuations" },
+      { href: "/workspace/alpha/signals", label: "Signals" },
+      { href: "/workspace/alpha/valuations", label: "Valuations" },
     ],
   },
   {
@@ -95,14 +95,14 @@ export const SUBSYSTEMS: Subsystem[] = [
     blurb:
       "Sole owner of the positions ledger: deterministic sizing to open positions, settling closes on stop-loss / take-profit / expiry. No LLM.",
     tables: ["positions"],
-    pages: [{ href: "/portfolio/positions", label: "Positions" }],
+    pages: [{ href: "/workspace/portfolio/positions", label: "Positions" }],
   },
 ];
 
 /** Cross-cutting pages that don't belong to a single subsystem. */
 export const SYSTEM_PAGES: SubsystemPage[] = [
-  { href: "/system", label: "Overview" },
-  { href: "/system/logs", label: "Logs" },
+  { href: "/workspace/system", label: "Overview" },
+  { href: "/workspace/system/logs", label: "Logs" },
 ];
 
 /**
@@ -117,11 +117,15 @@ export const SYSTEM_PAGES: SubsystemPage[] = [
  */
 export interface NavSection {
   label: string;
-  /** Accent colour for the section + its active page links. */
+  /** Wayfinding dot colour for the section (no longer tints text/active state —
+   *  the nav uses a single accent; see components/nav.tsx). */
   color: string;
   pages: SubsystemPage[];
   /** Collapsed by default (engineering/internal area). */
   collapsed?: boolean;
+  /** De-emphasised in the nav (rendered dimmer). v1 demotes the Alpha automated
+   *  signal loop while keeping its routes alive — North Star §10. */
+  dimmed?: boolean;
 }
 
 export const NAV_SECTIONS: NavSection[] = [
@@ -129,37 +133,38 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Portfolio",
     color: "#f0883e",
     pages: [
-      { href: "/data/holdings", label: "Portfolio" }, // your real (IBKR-synced) holdings
-      { href: "/data/morning-brief", label: "Morning Brief" },
+      { href: "/workspace/data/holdings", label: "Portfolio" }, // your real (IBKR-synced) holdings
+      { href: "/workspace/data/morning-brief", label: "Morning Brief" },
     ],
   },
   {
     label: "Watchlist",
     color: "#3fb950",
-    pages: [{ href: "/data/watchlist", label: "Watchlist" }],
+    pages: [{ href: "/workspace/data/watchlist", label: "Watchlist" }],
   },
   {
     label: "Discover",
     color: "#58a6ff",
     pages: [
-      { href: "/data/movers", label: "Market movers" },
-      { href: "/data/candidates", label: "Screener" },
-      { href: "/data/earnings", label: "Earnings calendar" },
-      { href: "/data/economic", label: "Economic calendar" },
-      { href: "/data/legends", label: "Legends 13F" },
+      { href: "/workspace/data/movers", label: "Market movers" },
+      { href: "/workspace/data/candidates", label: "Screener" },
+      { href: "/workspace/data/earnings", label: "Earnings calendar" },
+      { href: "/workspace/data/economic", label: "Economic calendar" },
+      { href: "/workspace/data/legends", label: "Legends 13F" },
     ],
   },
   {
     label: "News",
     color: "#d29922",
-    pages: [{ href: "/data/news", label: "News" }],
+    pages: [{ href: "/workspace/data/news", label: "News" }],
   },
   {
     label: "Alpha",
     color: "#a371f7",
+    dimmed: true, // demoted in v1 (MCP + facts is the focus); routes stay alive
     pages: [
-      { href: "/alpha/signals", label: "Signals" },
-      { href: "/alpha/valuations", label: "Valuations" },
+      { href: "/workspace/alpha/signals", label: "Signals" },
+      { href: "/workspace/alpha/valuations", label: "Valuations" },
     ],
   },
   {
@@ -167,11 +172,11 @@ export const NAV_SECTIONS: NavSection[] = [
     color: "#8a97ab",
     collapsed: true,
     pages: [
-      { href: "/system", label: "Overview" },
-      { href: "/system/logs", label: "Logs" },
-      { href: "/data/events", label: "Events" },
-      { href: "/data/notifications", label: "Notifications" },
-      { href: "/data/freshness", label: "Freshness" },
+      { href: "/workspace/system", label: "Overview" },
+      { href: "/workspace/system/logs", label: "Logs" },
+      { href: "/workspace/data/events", label: "Events" },
+      { href: "/workspace/data/notifications", label: "Notifications" },
+      { href: "/workspace/data/freshness", label: "Freshness" },
     ],
   },
 ];

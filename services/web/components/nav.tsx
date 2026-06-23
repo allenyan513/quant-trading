@@ -42,7 +42,7 @@ export function Nav() {
       }}
     >
       <Link
-        href="/"
+        href="/workspace"
         style={{
           fontWeight: 800,
           letterSpacing: 0.5,
@@ -50,7 +50,7 @@ export function Nav() {
           borderBottom: "1px solid var(--border)",
         }}
       >
-        QT&nbsp;<span style={{ color: "var(--muted)", fontWeight: 600 }}>monitor</span>
+        <span style={{ color: "var(--accent)" }}>Sweet</span>ValueLab
       </Link>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 10px 4px" }}>
@@ -62,7 +62,7 @@ export function Nav() {
       <button
         onClick={async () => {
           await signOut();
-          window.location.href = "/landing";
+          window.location.href = "/";
         }}
         style={{
           margin: 10,
@@ -81,20 +81,28 @@ export function Nav() {
   );
 }
 
-const headerStyle = (color: string): React.CSSProperties => ({
+/** Section header: neutral muted text (de-rainbowed); the section's hue survives
+ *  only as a small wayfinding dot rendered alongside (see Section). */
+const headerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 6,
   fontSize: 11,
-  fontWeight: 700,
+  fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: 0.5,
-  color,
-});
+  color: "var(--muted)",
+};
 
-/** One product section: a coloured header over its page links. A `collapsed`
- *  section (System) gets a click-to-toggle header, auto-expanded when you're on
- *  one of its pages. */
+/** Tiny wayfinding dot carrying a section's hue (the only place section colour
+ *  appears now that the nav is single-accent). */
+function Dot({ color }: { color: string }) {
+  return <span style={{ width: 5, height: 5, borderRadius: 999, background: color, flexShrink: 0 }} />;
+}
+
+/** One product section: a neutral header (+ hue dot) over its page links. A
+ *  `collapsed` section (System) gets a click-to-toggle header; a `dimmed` one
+ *  (Alpha, demoted in v1) renders lower-contrast while keeping its routes. */
 function Section({ section, activeHref }: { section: NavSection; activeHref: string | null }) {
   const containsActive = section.pages.some((p) => p.href === activeHref);
   const [open, setOpen] = useState(!section.collapsed || containsActive);
@@ -105,24 +113,27 @@ function Section({ section, activeHref }: { section: NavSection; activeHref: str
   }, [containsActive]);
 
   return (
-    <div className="nav-section" style={{ marginBottom: 14 }}>
+    <div className="nav-section" style={{ marginBottom: 14, opacity: section.dimmed ? 0.55 : 1 }}>
       <div className="nav-section-header" style={{ padding: "0 10px 6px" }}>
         {section.collapsed ? (
           <button
             onClick={() => setOpen((o) => !o)}
-            style={{ ...headerStyle(section.color), background: "transparent", border: "none", padding: 0, width: "100%", cursor: "pointer" }}
+            style={{ ...headerStyle, background: "transparent", border: "none", padding: 0, width: "100%", cursor: "pointer" }}
           >
             <span style={{ fontSize: 9, width: 9 }}>{open ? "▾" : "▸"}</span>
             {section.label}
           </button>
         ) : (
-          <span style={headerStyle(section.color)}>{section.label}</span>
+          <span style={headerStyle}>
+            <Dot color={section.color} />
+            {section.label}
+          </span>
         )}
       </div>
       {open && (
         <div className="nav-section-pages" style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           {section.pages.map((p) => (
-            <NavItem key={p.href} page={p} color={section.color} active={p.href === activeHref} />
+            <NavItem key={p.href} page={p} active={p.href === activeHref} />
           ))}
         </div>
       )}
@@ -130,9 +141,10 @@ function Section({ section, activeHref }: { section: NavSection; activeHref: str
   );
 }
 
-/** A single page link with section-accented active state (active computed by the
- *  parent via longest-prefix match, so sub-tabs light their parent item). */
-function NavItem({ page, color, active }: { page: SubsystemPage; color: string; active: boolean }) {
+/** A single page link. Active state is the single cool accent (left bar + brighter
+ *  text + panel wash), not the section hue — IBKR-style restraint. Active is
+ *  computed by the parent via longest-prefix match, so sub-tabs light their parent. */
+function NavItem({ page, active }: { page: SubsystemPage; active: boolean }) {
   return (
     <Link
       href={page.href}
@@ -142,10 +154,10 @@ function NavItem({ page, color, active }: { page: SubsystemPage; color: string; 
         padding: "6px 12px",
         borderRadius: 7,
         fontSize: 13,
-        fontWeight: 600,
-        borderLeft: `2px solid ${active ? color : "transparent"}`,
-        color: active ? color : "var(--muted)",
-        background: active ? `${color}1f` : "transparent",
+        fontWeight: active ? 600 : 500,
+        borderLeft: `2px solid ${active ? "var(--accent)" : "transparent"}`,
+        color: active ? "var(--text)" : "var(--muted)",
+        background: active ? "var(--panel-2)" : "transparent",
       }}
     >
       {page.label}
