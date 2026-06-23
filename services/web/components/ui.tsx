@@ -44,12 +44,12 @@ export function Card({ title, children, accent }: { title?: ReactNode; children:
       style={{
         background: "var(--panel)",
         border: "1px solid var(--border)",
-        borderRadius: 10,
-        padding: 16,
+        borderRadius: 8,
+        padding: 12,
         borderTop: accent ? `2px solid ${accent}` : "1px solid var(--border)",
       }}
     >
-      {title && <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10, fontWeight: 600 }}>{title}</div>}
+      {title && <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 8, fontWeight: 600 }}>{title}</div>}
       {children}
     </div>
   );
@@ -57,9 +57,20 @@ export function Card({ title, children, accent }: { title?: ReactNode; children:
 
 export function Stat({ label, value, sub, color }: { label: string; value: ReactNode; sub?: ReactNode; color?: string }) {
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10, padding: 14 }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8, padding: 10 }}>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: color ?? "var(--text)", lineHeight: 1.3 }}>{value}</div>
+      <div
+        style={{
+          fontSize: 22,
+          fontWeight: 700,
+          color: color ?? "var(--text)",
+          lineHeight: 1.2,
+          fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </div>
       {sub && <div style={{ fontSize: 12, color: "var(--muted)" }}>{sub}</div>}
     </div>
   );
@@ -67,7 +78,7 @@ export function Stat({ label, value, sub, color }: { label: string; value: React
 
 export function Grid({ children, min = 180 }: { children: ReactNode; min?: number }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`, gap: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`, gap: 10 }}>
       {children}
     </div>
   );

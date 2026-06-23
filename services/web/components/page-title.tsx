@@ -23,16 +23,16 @@ export function PageTitle({
   const section = navSectionForPath(pathname);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-      {section && <span style={{ width: 10, height: 10, borderRadius: 3, background: section.color }} />}
+      {section && <span style={{ width: 8, height: 8, borderRadius: 999, background: section.color }} />}
       <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{children}</h1>
       {section && (
         <span
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: section.color,
-            background: `${section.color}1f`,
-            border: `1px solid ${section.color}40`,
+            color: "var(--muted)",
+            background: "var(--panel-2)",
+            border: "1px solid var(--border)",
             borderRadius: 999,
             padding: "1px 9px",
             whiteSpace: "nowrap",

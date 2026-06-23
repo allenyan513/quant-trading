@@ -36,7 +36,7 @@ export function HoldingsTabs() {
         return (
           <Link
             key={t.seg}
-            href={`/data/holdings/${t.seg}`}
+            href={`/workspace/data/holdings/${t.seg}`}
             style={{
               padding: "8px 14px",
               fontSize: 13,

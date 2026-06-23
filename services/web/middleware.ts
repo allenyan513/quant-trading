@@ -27,7 +27,7 @@ const SCANNER_PROBE =
   /\.(php\d?|phtml|aspx?|jsp|cgi|sql|bak)$|\/(wp-(admin|login|content|includes|json)|xmlrpc|phpmyadmin|cgi-bin)\b|\/\.(env|git|aws|ssh)\b/i;
 
 function isPublic(pathname: string): boolean {
-  if (pathname === "/landing" || pathname === "/sign-in" || pathname === "/sign-up") return true;
+  if (pathname === "/" || pathname === "/sign-in" || pathname === "/sign-up") return true; // "/" is the public marketing homepage
   if (pathname === "/api/mcp") return true; // OAuth-gated MCP — auth runs in-handler (withMcpAuth)
   if (pathname.startsWith("/api/auth/")) return true; // Better Auth (own security)
   if (pathname.startsWith("/.well-known/")) return true; // OAuth discovery metadata (AS + PRM)
@@ -37,6 +37,8 @@ function isPublic(pathname: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (SCANNER_PROBE.test(pathname)) return new NextResponse(null, { status: 404 });
+  // Back-compat: the marketing page moved /landing → / . Redirect old links.
+  if (pathname === "/landing") return NextResponse.redirect(new URL("/", req.url));
   if (isPublic(pathname)) return NextResponse.next();
 
   // Optimistic: cookie present → let through (handlers validate fully).
@@ -45,8 +47,9 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // Unauthenticated human → the public marketing homepage, remember where they were headed.
   const url = req.nextUrl.clone();
-  url.pathname = "/landing";
+  url.pathname = "/";
   url.searchParams.set("from", pathname);
   return NextResponse.redirect(url);
 }

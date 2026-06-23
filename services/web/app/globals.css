@@ -7,13 +7,19 @@
   --border: #232c3d;
   --text: #d7dee9;
   --muted: #8a97ab;
+  /* Semantic tokens — single cool accent + meaning-only colors (IBKR discipline).
+     Color appears ONLY here: accent for interactive, up/down for P&L, warn amber. */
+  --accent: #58a6ff;
+  --up: #3fb950;
+  --down: #f85149;
+  --warn: #d29922;
 }
 
 html,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
 }
 
@@ -100,6 +106,11 @@ table {
    ===================================================================== */
 
 @theme inline {
+  /* Map Tailwind's font utilities to Geist so every existing `font-sans` /
+     `font-mono` class (used across the valuation pages) renders Geist with no
+     per-file edits. Geist Mono is the data/number face. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -129,16 +140,18 @@ table {
 }
 
 .val-page {
-  --brand: oklch(0.78 0.14 75);
-  --brand-foreground: oklch(0.15 0.02 75);
+  /* IBKR-cool accent (≈ #58a6ff) — was warm amber (hue 75); demoted per North
+     Star §10. Only brand/primary/ring move; success/danger/warning stay semantic. */
+  --brand: oklch(0.70 0.12 256);
+  --brand-foreground: oklch(0.15 0.02 256);
   --background: oklch(0.16 0.008 250);
   --foreground: oklch(0.93 0.005 250);
   --card: oklch(0.20 0.008 250);
   --card-foreground: oklch(0.93 0.005 250);
   --popover: oklch(0.20 0.008 250);
   --popover-foreground: oklch(0.93 0.005 250);
-  --primary: oklch(0.78 0.14 75);
-  --primary-foreground: oklch(0.15 0.02 75);
+  --primary: oklch(0.70 0.12 256);
+  --primary-foreground: oklch(0.15 0.02 256);
   --secondary: oklch(0.24 0.008 250);
   --secondary-foreground: oklch(0.93 0.005 250);
   --muted: oklch(0.24 0.008 250);
@@ -148,7 +161,7 @@ table {
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.68 0.12 75);
+  --ring: oklch(0.72 0.12 256);
   --success: oklch(0.65 0.17 155);
   --success-foreground: oklch(0.15 0 0);
   --warning: oklch(0.80 0.13 75);

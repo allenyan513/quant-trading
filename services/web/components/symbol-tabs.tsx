@@ -46,7 +46,7 @@ export function SymbolTabs() {
         return (
           <Link
             key={t.seg}
-            href={`/data/symbol/${symbol}/${t.seg}`}
+            href={`/workspace/data/symbol/${symbol}/${t.seg}`}
             style={{
               padding: "8px 14px",
               fontSize: 13,

@@ -18,7 +18,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const from = new URLSearchParams(window.location.search).get("from") || "/";
+    const from = new URLSearchParams(window.location.search).get("from") || "/workspace";
     const res = isSignUp
       ? await signUp.email({ email, password, name: name.trim() || email.split("@")[0] || "user" })
       : await signIn.email({ email, password });
@@ -27,7 +27,18 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       setError(res.error.message ?? (isSignUp ? "Sign up failed" : "Incorrect email or password"));
       return;
     }
-    window.location.href = from;
+    // MCP OAuth resume: when Better Auth's authorize bounced an unauthenticated user
+    // here mid-flow, the sign-in response carries a redirect back into the authorize →
+    // consent chain. Follow it if present; otherwise go to `from` / the workspace.
+    const resumeUrl = (res.data as { url?: string; redirect?: boolean } | null | undefined)?.url;
+    window.location.href = resumeUrl || from;
+  }
+
+  // Google (preferred). Better Auth handles the redirect to Google + the callback;
+  // for the MCP-authorize case the oidc_login_prompt cookie hook resumes to consent.
+  async function googleSignIn() {
+    const callbackURL = new URLSearchParams(window.location.search).get("from") || "/workspace";
+    await signIn.social({ provider: "google", callbackURL });
   }
 
   const inputStyle = {
@@ -56,7 +67,32 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       >
         <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>
           {isSignUp ? "Create account" : "Sign in"}{" "}
-          <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: 13 }}>quant-trading</span>
+          <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: 13 }}>SweetValueLab</span>
+        </div>
+        <button
+          type="button"
+          onClick={googleSignIn}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "10px 12px",
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            color: "var(--text)",
+            background: "var(--panel-2)",
+            border: "1px solid var(--border)",
+            cursor: "pointer",
+          }}
+        >
+          Continue with Google
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--muted)", fontSize: 12 }}>
+          <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
+          or
+          <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
         </div>
         {isSignUp && (
           <input placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />

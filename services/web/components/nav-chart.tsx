@@ -24,7 +24,7 @@ export interface NavPoint {
   spy: number | null;
 }
 
-const NAV = "#f0883e"; // portfolio accent (orange)
+const NAV = "#58a6ff"; // cool accent (matches --accent; was warm orange)
 const SPY = "#8a97ab"; // benchmark (muted gray)
 const MUTED = "#8a97ab";
 const BORDER = "#232c3d";
