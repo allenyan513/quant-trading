@@ -14,3 +14,4 @@ export * from "./onboarding.js";
 export * from "./morning-brief.js";
 export * from "./logs.js";
 export * from "./thirteenf.js";
+export * from "./search.js";
