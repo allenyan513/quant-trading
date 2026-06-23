@@ -95,7 +95,11 @@ export const auth = betterAuth({
       oauthConsent: dbSchema.oauthConsent,
     },
   }),
-  emailAndPassword: { enabled: true },
+  // Password SIGN-IN stays on (existing accounts), but SIGN-UP is disabled — new
+  // accounts come only from Google. This closes the pre-registration account-takeover
+  // hole: with no way to create an unverified password account, an attacker can't
+  // plant one on a victim's email for Google to later auto-link to. (#160 review.)
+  emailAndPassword: { enabled: true, disableSignUp: true },
   ...(googleCreds ? { socialProviders: { google: googleCreds } } : {}),
   // Auto-link Google sign-in to an existing same-email account. Google verifies
   // emails, so this is safe; without it, signing in with Google for an email that
@@ -104,12 +108,10 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       trustedProviders: ["google"],
-      // Existing email+password accounts are unverified (no email-verification flow
-      // yet), and requireLocalEmailVerified defaults true → it would block linking
-      // Google onto them (`account_not_linked`). Off so Google sign-in links by its
-      // (Google-verified) email. SECURITY: before opening password signup widely,
-      // require email verification on signup OR go Google-only — otherwise someone
-      // could pre-register an unverified password account on another user's email.
+      // Safe to keep false because password sign-up is disabled above — the only
+      // local accounts are pre-existing/trusted, so there's no attacker-planted
+      // unverified account to link onto. (requireLocalEmailVerified defaults true,
+      // which would otherwise block Google linking onto an existing account.)
       requireLocalEmailVerified: false,
     },
   },
