@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ConnectClaude } from "@/components/connect-claude";
+import { getUser } from "@/lib/session";
 
 /**
  * Public marketing homepage — served at `/` (the first thing any visitor sees).
@@ -7,7 +8,11 @@ import { ConnectClaude } from "@/components/connect-claude";
  * core MCP-connect block + 3 features. Fully public, open sign-up — no invite gate.
  * Dark, IBKR-clean. Copy is refinable.
  */
-export default function HomePage() {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // read the session to swap the top-bar CTA when logged in
+
+export default async function HomePage() {
+  const user = await getUser();
   return (
     <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
@@ -15,9 +20,18 @@ export default function HomePage() {
         <div style={{ flex: 1, fontWeight: 800, letterSpacing: 0.3, fontSize: 16 }}>
           <span style={{ color: "var(--accent)" }}>Sweet</span>ValueLab
         </div>
-        <Link href="/sign-in" style={{ fontSize: 13, color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px" }}>
-          Sign in
-        </Link>
+        {user ? (
+          <Link
+            href="/workspace"
+            style={{ fontSize: 13, fontWeight: 600, color: "#06223f", background: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 8, padding: "6px 14px" }}
+          >
+            Open workspace
+          </Link>
+        ) : (
+          <Link href="/sign-in" style={{ fontSize: 13, color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px" }}>
+            Sign in
+          </Link>
+        )}
       </header>
 
       {/* Hero: title + subtitle */}
