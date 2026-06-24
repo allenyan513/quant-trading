@@ -34,8 +34,9 @@ export default async function ConsentPage({
     .where(eq(oauthApplication.clientId, client_id))
     .limit(1);
   const app = rows[0];
-  if (app?.name) clientName = app.name;
-  if (app?.redirectUrls) {
+  if (!app) redirect("/"); // unknown client_id → don't render a consent screen for a non-existent app
+  if (app.name) clientName = app.name;
+  if (app.redirectUrls) {
     try {
       redirectHost = new URL(app.redirectUrls.split(/[\s,]+/)[0] ?? "").host;
     } catch {
