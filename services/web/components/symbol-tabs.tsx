@@ -6,8 +6,9 @@
  * route reports null before the redirect resolves → treat as "overall").
  */
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { useParams, useSelectedLayoutSegment } from "next/navigation";
+import { useParams, useRouter, useSelectedLayoutSegment } from "next/navigation";
 
 const TABS: { seg: string; label: string }[] = [
   { seg: "overall", label: "Overall" },
@@ -30,6 +31,22 @@ export function SymbolTabs() {
   // unmounts the shared layout, defeating cross-tab state preservation.
   const symbol = params.symbol ?? "";
   const active = useSelectedLayoutSegment() ?? "overall";
+  const router = useRouter();
+
+  // Keyboard tab switching: `[` / `]` cycle the tabs (ignored while typing).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key !== "[" && e.key !== "]") return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      const idx = Math.max(0, TABS.findIndex((t) => t.seg === active));
+      const next = TABS[(idx + (e.key === "]" ? 1 : -1) + TABS.length) % TABS.length];
+      if (next && symbol) router.push(`/workspace/data/symbol/${symbol}/${next.seg}`);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, symbol, router]);
 
   return (
     <nav
