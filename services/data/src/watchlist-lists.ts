@@ -64,6 +64,22 @@ export async function assignToList(
   return { symbol: sym, listId: lid };
 }
 
+export async function reorderLists(userId: string, ids: string[]): Promise<{ count: number }> {
+  const uid = userId.trim();
+  if (!uid) throw new Error("userId is required");
+  // Persist the new tab order as sortOrder = index. Scoped to the user's own lists;
+  // ids that aren't theirs simply match nothing. Few lists per user → a small loop is fine.
+  let i = 0;
+  for (const id of ids) {
+    await db()
+      .update(watchlistLists)
+      .set({ sortOrder: i })
+      .where(and(eq(watchlistLists.id, id), eq(watchlistLists.userId, uid)));
+    i++;
+  }
+  return { count: ids.length };
+}
+
 export async function listLists(userId: string): Promise<Array<{ id: string; name: string; sortOrder: number }>> {
   const uid = userId.trim();
   if (!uid) throw new Error("userId is required");

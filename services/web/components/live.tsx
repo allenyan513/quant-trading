@@ -49,9 +49,11 @@ interface LiveTableProps<Row> {
   onRowDoubleClick?: (row: Row) => void;
   /** Client-side row filter applied to the fetched data (e.g. by active group tab). */
   rowFilter?: (row: Row) => boolean;
+  /** When set, rows are draggable; the returned string is put on dataTransfer "symbol". */
+  getRowDragData?: (row: Row) => string;
 }
 
-export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter }: LiveTableProps<Row>) {
+export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -161,6 +163,15 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
               return (
                 <Fragment key={k}>
                   <tr
+                    draggable={!!getRowDragData}
+                    onDragStart={
+                      getRowDragData
+                        ? (e) => {
+                            e.dataTransfer.setData("symbol", getRowDragData(row));
+                            e.dataTransfer.effectAllowed = "move";
+                          }
+                        : undefined
+                    }
                     onClick={expand ? () => setOpen(isOpen ? null : k) : undefined}
                     onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
                     style={{ cursor: expand || onRowDoubleClick ? "pointer" : "default", background: isOpen ? "var(--panel-2)" : undefined }}

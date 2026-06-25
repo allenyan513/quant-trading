@@ -17,7 +17,7 @@ import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
 import { dismissCandidate } from "./candidates.js";
 import { addWatchlist, removeWatchlist } from "./watchlist.js";
-import { createList, renameList, deleteList, assignToList } from "./watchlist-lists.js";
+import { createList, renameList, deleteList, assignToList, reorderLists } from "./watchlist-lists.js";
 import { submitMorningBrief } from "./morning-brief.js";
 import { warmAndPullNews, revalue } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
@@ -272,6 +272,18 @@ app.post(
     if (!userId || !id) return c.json(fail("bad_request", "userId and id required"), 400);
     c.set("logContext", { userId });
     return deleteList(userId, id);
+  }),
+);
+
+app.post(
+  "/watchlist/lists/reorder",
+  route("watchlist.list.reorder", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const ids = Array.isArray(body.ids) ? body.ids.map((x: unknown) => String(x)) : [];
+    if (!userId || ids.length === 0) return c.json(fail("bad_request", "userId and ids required"), 400);
+    c.set("logContext", { userId });
+    return reorderLists(userId, ids);
   }),
 );
 

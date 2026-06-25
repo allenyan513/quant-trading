@@ -190,7 +190,7 @@ const columns: Column<WatchRow>[] = [
     header: "Symbol",
     sort: (r) => r.symbol,
     render: (r) => (
-      <Link href={`/workspace/data/symbol/${r.symbol}/overall`} style={{ textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
+      <Link href={`/workspace/data/symbol/${r.symbol}/overall`} draggable={false} style={{ textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
         <Badge>{r.symbol}</Badge>
       </Link>
     ),
@@ -310,17 +310,64 @@ export default function WatchlistPage() {
     await refresh();
   }
 
+  // Drag-and-drop: drag a row onto a tab to (re)group it; drag a tab to reorder.
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  async function assignSymbolToList(symbol: string, listId: string | null) {
+    await fetch("/api/watchlist/assign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ symbol, listId }) });
+    await refresh();
+  }
+  async function reorderTabs(draggedId: string, targetId: string) {
+    const ids = (lists ?? []).map((l) => l.id);
+    const from = ids.indexOf(draggedId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    const [moved] = ids.splice(from, 1);
+    if (moved === undefined) return;
+    ids.splice(to, 0, moved);
+    await fetch("/api/watchlist/lists/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }) });
+    await refresh();
+  }
+  // A tab accepts two drop kinds: a dragged row (→ assign its symbol; null for All)
+  // or a dragged tab (→ reorder). targetId is "all" for the All tab.
+  function onTabDrop(e: React.DragEvent, targetId: string) {
+    e.preventDefault();
+    setDragOverId(null);
+    const symbol = e.dataTransfer.getData("symbol");
+    if (symbol) {
+      void assignSymbolToList(symbol, targetId === "all" ? null : targetId);
+      return;
+    }
+    const draggedListId = e.dataTransfer.getData("listid");
+    if (draggedListId && targetId !== "all") void reorderTabs(draggedListId, targetId);
+  }
+
   return (
     <div>
       <div style={topRow}>
         <div style={tabsWrap}>
-          <button onClick={() => setActiveList("all")} style={tabStyle(activeList === "all")}>
+          <button
+            onClick={() => setActiveList("all")}
+            onDragOver={(e) => { e.preventDefault(); setDragOverId("all"); }}
+            onDragLeave={() => setDragOverId((d) => (d === "all" ? null : d))}
+            onDrop={(e) => onTabDrop(e, "all")}
+            style={tabStyle(activeList === "all", dragOverId === "all")}
+          >
             All
           </button>
           {(lists ?? []).map((l) => {
             const on = activeList === l.id;
             return (
-              <button key={l.id} onClick={() => setActiveList(l.id)} style={tabStyle(on)}>
+              <button
+                key={l.id}
+                draggable
+                onDragStart={(e) => { e.dataTransfer.setData("listid", l.id); e.dataTransfer.effectAllowed = "move"; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverId(l.id); }}
+                onDragLeave={() => setDragOverId((d) => (d === l.id ? null : d))}
+                onDrop={(e) => onTabDrop(e, l.id)}
+                onDragEnd={() => setDragOverId(null)}
+                onClick={() => setActiveList(l.id)}
+                style={tabStyle(on, dragOverId === l.id)}
+              >
                 {l.name}
                 {on && (
                   <>
@@ -347,8 +394,9 @@ export default function WatchlistPage() {
         rowKey={(r: WatchRow) => r.symbol}
         columns={shownColumns}
         rowFilter={activeList === "all" ? undefined : (r) => r.listId === activeList}
+        getRowDragData={(r) => r.symbol}
         onRowDoubleClick={(r) => router.push(`/workspace/data/symbol/${r.symbol}/overall`)}
-        emptyText={activeList === "all" ? "Watchlist is empty — add one below." : "No symbols in this list yet — add below or set a row's List."}
+        emptyText={activeList === "all" ? "Watchlist is empty — add one below." : "No symbols in this list yet — drag a row here or set its List."}
       />
       <BottomAdd activeList={activeList} />
     </div>
@@ -373,7 +421,7 @@ const tabsWrap: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
-const tabStyle = (active: boolean): React.CSSProperties => ({
+const tabStyle = (active: boolean, dragOver = false): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
@@ -382,9 +430,9 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   fontSize: 13,
   fontWeight: 600,
   cursor: "pointer",
-  border: "1px solid transparent",
+  border: dragOver ? "1px dashed var(--accent)" : "1px solid transparent",
   color: active ? "var(--accent)" : "var(--muted)",
-  background: active ? "var(--panel-2)" : "transparent",
+  background: dragOver || active ? "var(--panel-2)" : "transparent",
 });
 
 const tabAction: React.CSSProperties = { fontSize: 12, opacity: 0.7, padding: "0 2px", cursor: "pointer" };
