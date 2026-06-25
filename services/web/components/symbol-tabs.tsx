@@ -9,16 +9,16 @@
 import { useParams } from "next/navigation";
 import { SectionTabs, type TabDef } from "@/components/section-tabs";
 
+// Research-first order; Options dropped (we don't trade — there's no options data).
 const TABS: TabDef[] = [
   { seg: "overall", label: "Overall" },
   { seg: "valuation", label: "Valuation" },
   { seg: "financials", label: "Financials" },
   { seg: "chart", label: "Chart" },
-  { seg: "news", label: "News" },
-  { seg: "events", label: "Events" },
   { seg: "analysts", label: "Analysts" },
   { seg: "ownership", label: "Ownership" },
-  { seg: "options", label: "Options" },
+  { seg: "events", label: "Events" },
+  { seg: "news", label: "News" },
 ];
 
 export function SymbolTabs() {
