@@ -34,7 +34,7 @@ const WARMERS: Array<[string, (s: string) => Promise<unknown>]> = [
   ["cashflow_q", (s) => marketdata.getCashFlow(s, "quarter")],
   ["ratios", (s) => marketdata.getRatios(s, "annual")],
   ["estimates", (s) => marketdata.getEstimates(s, "annual")],
-  ["prices", (s) => marketdata.getDailyPrices(s, 60)],
+  ["prices", (s) => marketdata.getDailyPrices(s, 2520)],
   ["ratings", (s) => marketdata.getRatings(s)],
   ["price_targets", (s) => marketdata.getPriceTargets(s)],
   ["profile", (s) => marketdata.getProfile(s)],

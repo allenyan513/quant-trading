@@ -283,11 +283,12 @@ export const getCashFlow = (s: string, p: StatementPeriod = "annual", n?: number
 export const getRatios = (s: string, p: StatementPeriod = "annual", n?: number) => getStatement("ratios", s, p, n);
 export const getEstimates = (s: string, p: StatementPeriod = "annual", n?: number) => getStatement("estimates", s, p, n);
 
-// Fetch a deep (~2y) window so a small-`lookbackDays` caller never leaves a
-// shallow cache; callers slice off what they need. Gate on freshness only (not
-// row count): `lookbackDays` is calendar days but rows are trading days, so a
-// count comparison would never match and would refetch every call. (See #33.)
-const PRICE_FETCH_DAYS = 800;
+// Fetch a deep (~11y) window so long-range charts (5Y/10Y) have history and a
+// small-`lookbackDays` caller never leaves a shallow cache. The freshness gate is
+// paired with a DATE-SPAN depth check (not a row count: `lookbackDays` is calendar
+// days but rows are trading days, so a count comparison would refetch every call,
+// see #33) — a deep request on a shallow cache backfills, then short-circuits.
+const PRICE_FETCH_DAYS = 4000;
 
 /** Daily OHLCV with read-through caching into daily_prices. */
 export async function getDailyPrices(symbol: string, lookbackDays = 400): Promise<PriceRowInput[]> {
@@ -303,7 +304,13 @@ export async function getDailyPrices(symbol: string, lookbackDays = 400): Promis
       .limit(n);
 
   const cached = await read(PRICE_FETCH_DAYS);
-  if (cached.length && isPriceFresh(cached[0]?.tradeDate ?? null, new Date())) {
+  const fresh = cached.length > 0 && isPriceFresh(cached[0]?.tradeDate ?? null, new Date());
+  // Deep enough? Compare by date span: the oldest cached bar must reach the start
+  // of the requested window. A deep request (e.g. 10Y) on a shallow cache fails
+  // this and refetches the full window; afterwards it short-circuits.
+  const wantFrom = new Date(Date.now() - lookbackDays * 86_400_000).toISOString().slice(0, 10);
+  const oldest = cached.at(-1)?.tradeDate ?? null;
+  if (fresh && oldest != null && oldest <= wantFrom) {
     return cached.slice(0, lookbackDays) as PriceRowInput[];
   }
 
