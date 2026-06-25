@@ -1,14 +1,18 @@
 "use client";
 
 /**
- * Candlestick + volume price chart with a fair-value overlay line, built on
- * lightweight-charts (TradingView). This is the ONLY module importing the lib —
- * it must be reached exclusively through price-chart.lazy.tsx (ssr:false), since
- * lightweight-charts touches window/DOM and would crash SSR / the standalone
- * build otherwise. Pure render: data is fetched by the page and passed in.
+ * Research price chart on lightweight-charts (TradingView). Panes, top→bottom:
+ *   1) price — candles + volume + MA50/MA200 + fair-value/buy-zone/cost overlays,
+ *   2) RSI(14),
+ *   3) events lane — earnings/8-K/insider/dividend markers, time-aligned but OFF
+ *      the candles so they don't clutter the price.
+ * Plus a log-scale toggle and a crosshair OHLC readout.
  *
- * Theme colors are hardcoded hexes (matching the app palette) because CSS
- * variables don't resolve inside the chart's canvas.
+ * Receives the FULL bar history + a `rangeDays` window; indicators are computed on
+ * the full series and the chart just zooms to the window (so MA50/MA200 have no
+ * warm-up gap at the window's start). Overlay lines are autoscale-neutral so a
+ * far-away fair value can't squash the candles. ONLY module importing the lib —
+ * reach via price-chart.lazy.tsx (ssr:false). Canvas colors are hardcoded hexes.
  */
 
 import { useEffect, useRef } from "react";
@@ -19,9 +23,13 @@ import {
   LineSeries,
   LineStyle,
   ColorType,
+  PriceScaleMode,
+  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
-  type IPriceLine,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
+  type Time,
 } from "lightweight-charts";
 
 export interface Bar {
@@ -32,47 +40,152 @@ export interface Bar {
   close: number | null;
   volume: number | null;
 }
-
 export interface FvPoint {
-  time: string; // YYYY-MM-DD
+  time: string;
   value: number;
+}
+export interface Band {
+  fair: number | null;
+  low: number | null;
+  high: number | null;
+}
+export type MarkerKind = "earnings" | "event" | "insider_buy" | "insider_sell" | "dividend";
+export interface ChartMarker {
+  time: string;
+  kind: MarkerKind;
+  label: string;
 }
 
 const UP = "#3fb950";
 const DOWN = "#f85149";
 const MUTED = "#8a97ab";
 const BORDER = "#232c3d";
-const FV = "#79c0ff"; // fair-value overlay — cool light blue, distinct from candles (was purple)
+const FV = "#79c0ff";
+const MA50_C = "#d29922";
+const MA200_C = "#a371f7";
+const RSI_C = "#58a6ff";
+const COST_C = "#e3b341";
+const NEUTRAL = () => null; // autoscaleInfoProvider → an overlay never expands the candle scale
 
 const isBar = (b: Bar): b is Bar & { open: number; high: number; low: number; close: number } =>
   b.open != null && b.high != null && b.low != null && b.close != null;
 
+function sma(values: number[], period: number): (number | null)[] {
+  const out: (number | null)[] = [];
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i]!;
+    if (i >= period) sum -= values[i - period]!;
+    out.push(i >= period - 1 ? sum / period : null);
+  }
+  return out;
+}
+
+function rsi(closes: number[], period = 14): (number | null)[] {
+  const out: (number | null)[] = closes.map(() => null);
+  if (closes.length <= period) return out;
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const ch = closes[i]! - closes[i - 1]!;
+    if (ch >= 0) gain += ch;
+    else loss -= ch;
+  }
+  let avgGain = gain / period;
+  let avgLoss = loss / period;
+  out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < closes.length; i++) {
+    const ch = closes[i]! - closes[i - 1]!;
+    avgGain = (avgGain * (period - 1) + (ch > 0 ? ch : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (ch < 0 ? -ch : 0)) / period;
+    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return out;
+}
+
+/** Exponential moving average, aligned to the input (seeded with the first value). */
+function ema(values: number[], period: number): number[] {
+  const out: number[] = [];
+  const k = 2 / (period + 1);
+  let prev = 0;
+  for (let i = 0; i < values.length; i++) {
+    prev = i === 0 ? values[i]! : values[i]! * k + prev * (1 - k);
+    out.push(prev);
+  }
+  return out;
+}
+
+/** MACD(12/26/9): macd line, signal line, histogram — all aligned to closes. */
+function macd(closes: number[]): { macd: number[]; signal: number[]; hist: number[] } {
+  const e12 = ema(closes, 12);
+  const e26 = ema(closes, 26);
+  const line = closes.map((_, i) => e12[i]! - e26[i]!);
+  const signal = ema(line, 9);
+  const hist = line.map((m, i) => m - signal[i]!);
+  return { macd: line, signal, hist };
+}
+
+const MARKER_STYLE: Record<MarkerKind, { position: "aboveBar" | "belowBar" | "inBar"; shape: "circle" | "square" | "arrowUp" | "arrowDown"; color: string }> = {
+  earnings: { position: "inBar", shape: "circle", color: "#58a6ff" },
+  event: { position: "inBar", shape: "square", color: "#d29922" },
+  insider_buy: { position: "inBar", shape: "arrowUp", color: UP },
+  insider_sell: { position: "inBar", shape: "arrowDown", color: DOWN },
+  dividend: { position: "inBar", shape: "circle", color: MUTED },
+};
+
 export function PriceChart({
   bars,
+  rangeDays = null,
   fairValue,
   fvHistory = [],
+  band = null,
+  costBasis = null,
+  markers = [],
+  log = false,
+  showMA50 = true,
+  showMA200 = true,
+  showRSI = true,
+  showMACD = true,
+  showValuation = true,
 }: {
   bars: Bar[];
+  rangeDays?: number | null;
   fairValue: number | null;
   fvHistory?: FvPoint[];
+  band?: Band | null;
+  costBasis?: number | null;
+  markers?: ChartMarker[];
+  log?: boolean;
+  showMA50?: boolean;
+  showMA200?: boolean;
+  showRSI?: boolean;
+  showMACD?: boolean;
+  showValuation?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const legendRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const fvSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const fvLineRef = useRef<IPriceLine | null>(null);
+  const ma50Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const ma200Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const fvRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const lowRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const highRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const costRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const macdHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const macdLineRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const macdSignalRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const evRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
 
-  // Init once: create chart, series, resize observer. Recreating on every data
-  // change (range switch) would flicker — instead the data effect below calls
-  // setData on the existing series.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: 420,
+      height: el.clientHeight || 460,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: MUTED, fontSize: 11 },
       grid: { vertLines: { color: BORDER }, horzLines: { color: BORDER } },
       rightPriceScale: { borderColor: BORDER },
@@ -80,89 +193,177 @@ export function PriceChart({
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
-    candleRef.current = chart.addSeries(CandlestickSeries, {
-      upColor: UP,
-      downColor: DOWN,
-      borderVisible: false,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
+
+    // Pane 0 — price.
+    const candle = chart.addSeries(CandlestickSeries, { upColor: UP, downColor: DOWN, borderVisible: false, wickUpColor: UP, wickDownColor: DOWN }, 0);
+    candleRef.current = candle;
+    const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume" }, 0);
+    volRef.current = vol;
+    chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+    const overlayLine = (color: string, dashed = true) =>
+      chart.addSeries(LineSeries, { color, lineWidth: 1, lineStyle: dashed ? LineStyle.Dashed : LineStyle.Solid, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, autoscaleInfoProvider: NEUTRAL }, 0);
+    ma50Ref.current = overlayLine(MA50_C, false);
+    ma200Ref.current = overlayLine(MA200_C, false);
+    fvRef.current = overlayLine(FV);
+    lowRef.current = overlayLine(UP);
+    highRef.current = overlayLine("#6e7681");
+    costRef.current = overlayLine(COST_C, false);
+
+    // Pane 1 — RSI.
+    const rsiPane = chart.addPane();
+    // Fixed 0–100 scale: correct for RSI, and lets the pane size even when the
+    // series is empty (toggled off) — avoids the null-autoscale crash.
+    const rs = rsiPane.addSeries(LineSeries, {
+      color: RSI_C,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
     });
-    volRef.current = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume" });
-    chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    // Fair-value-over-time line (shares the price scale with the candles).
-    fvSeriesRef.current = chart.addSeries(LineSeries, {
-      color: FV,
-      lineWidth: 2,
-      lineStyle: LineStyle.Dashed,
+    rs.createPriceLine({ price: 70, color: BORDER, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
+    rs.createPriceLine({ price: 30, color: BORDER, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
+    rsiRef.current = rs;
+
+    // Pane 2 — MACD(12/26/9): histogram + macd line + signal line (autoscales to data).
+    const macdPane = chart.addPane();
+    macdHistRef.current = macdPane.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false });
+    macdLineRef.current = macdPane.addSeries(LineSeries, { color: "#58a6ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: true });
+    macdSignalRef.current = macdPane.addSeries(LineSeries, { color: "#d29922", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+
+    // Pane 3 — events lane (a flat hidden series carries the markers, time-aligned).
+    // Its scale needs a REAL fixed range: a pane whose only series returns null
+    // autoscale can't size itself (lightweight-charts ensureNotNull crash).
+    const evPane = chart.addPane();
+    // Keep this pane's right scale VISIBLE — hiding it returns a null axis widget
+    // and crashes the chart's size pass (ensureNotNull). Blank the labels via a
+    // custom formatter instead, so the lane shows no meaningless numbers.
+    const ev = evPane.addSeries(LineSeries, {
+      color: "transparent",
+      lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
+      priceFormat: { type: "custom", formatter: () => "", minMove: 1 },
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: -1, maxValue: 1 } }),
+    });
+    evRef.current = ev;
+    markersRef.current = createSeriesMarkers(ev, []);
+
+    chart.panes()[0]?.setStretchFactor(6);
+    chart.panes()[1]?.setStretchFactor(1.6); // RSI
+    chart.panes()[2]?.setStretchFactor(1.8); // MACD
+    chart.panes()[3]?.setStretchFactor(0.9); // events
+
+    // Crosshair readout: OHLC + every visible indicator's value AT THE CURSOR
+    // (not the static last-value axis labels). A toggled-off series has no data
+    // point → absent from seriesData → skipped automatically.
+    chart.subscribeCrosshairMove((param) => {
+      const node = legendRef.current;
+      if (!node) return;
+      if (!param.time) return void (node.textContent = "");
+      const f = (n?: number | null) => (n == null ? "—" : n.toFixed(2));
+      const val = (s: ISeriesApi<"Line"> | ISeriesApi<"Histogram"> | null): number | undefined =>
+        s ? (param.seriesData.get(s) as { value?: number } | undefined)?.value : undefined;
+      const c = param.seriesData.get(candle) as { open?: number; high?: number; low?: number; close?: number } | undefined;
+      if (!c || c.open == null) return void (node.textContent = "");
+      const parts = [`O ${f(c.open)}  H ${f(c.high)}  L ${f(c.low)}  C ${f(c.close)}`];
+      const ma50v = val(ma50Ref.current);
+      const ma200v = val(ma200Ref.current);
+      if (ma50v != null) parts.push(`MA50 ${f(ma50v)}`);
+      if (ma200v != null) parts.push(`MA200 ${f(ma200v)}`);
+      const rsiv = val(rsiRef.current);
+      if (rsiv != null) parts.push(`RSI ${f(rsiv)}`);
+      const ml = val(macdLineRef.current);
+      const ms = val(macdSignalRef.current);
+      if (ml != null) parts.push(`MACD ${f(ml)} / sig ${f(ms)}`);
+      node.textContent = parts.join("    ");
     });
 
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w && w > 0) chart.applyOptions({ width: w });
+      const r = entries[0]?.contentRect;
+      if (r && r.width > 0 && r.height > 0) chart.applyOptions({ width: r.width, height: r.height });
     });
     ro.observe(el);
-
     return () => {
       ro.disconnect();
       chart.remove();
-      chartRef.current = null;
-      candleRef.current = null;
-      volRef.current = null;
-      fvSeriesRef.current = null;
-      fvLineRef.current = null;
+      chartRef.current = candleRef.current = volRef.current = ma50Ref.current = ma200Ref.current = null;
+      fvRef.current = lowRef.current = highRef.current = costRef.current = rsiRef.current = evRef.current = null;
+      macdHistRef.current = null;
+      macdLineRef.current = null;
+      macdSignalRef.current = null;
+      markersRef.current = null;
     };
   }, []);
 
-  // Update data + fair-value overlay in place when inputs change.
   useEffect(() => {
     const chart = chartRef.current;
     const candle = candleRef.current;
-    const vol = volRef.current;
-    const fvSeries = fvSeriesRef.current;
-    if (!chart || !candle || !vol || !fvSeries) return;
+    if (!chart || !candle || !volRef.current || !ma50Ref.current || !ma200Ref.current || !fvRef.current || !lowRef.current || !highRef.current || !costRef.current || !rsiRef.current || !evRef.current) return;
+    if (!macdHistRef.current || !macdLineRef.current || !macdSignalRef.current) return;
 
     const valid = bars.filter(isBar);
+    if (valid.length === 0) return;
+    const first = valid[0]!.time;
+    const last = valid.at(-1)!.time;
     candle.setData(valid.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
-    vol.setData(
-      valid.map((b) => ({
-        time: b.time,
-        value: b.volume ?? 0,
-        color: b.close >= b.open ? "rgba(63,185,80,0.35)" : "rgba(248,81,73,0.35)",
-      })),
-    );
+    volRef.current.setData(valid.map((b) => ({ time: b.time, value: b.volume ?? 0, color: b.close >= b.open ? "rgba(63,185,80,0.35)" : "rgba(248,81,73,0.35)" })));
 
-    // Clear the previous fair-value rendering.
-    if (fvLineRef.current) {
-      candle.removePriceLine(fvLineRef.current);
-      fvLineRef.current = null;
-    }
-    // Restrict the FV line to the visible price window so the time scale doesn't
-    // stretch beyond the candles when an older snapshot history exists.
-    const firstBar = valid[0]?.time;
-    const fvPts = (firstBar ? fvHistory.filter((p) => p.time >= firstBar) : fvHistory).filter((p) => Number.isFinite(p.value));
-    if (fvPts.length >= 2) {
-      // ≥2 points → draw the fair-value-over-time line (the "buy zone over time").
-      fvSeries.setData(fvPts.map((p) => ({ time: p.time, value: p.value })));
+    // Indicators on the FULL series (no warm-up gap inside the visible window).
+    const closes = valid.map((b) => b.close);
+    const lineFrom = (sx: (number | null)[], series: ISeriesApi<"Line">, on: boolean) =>
+      series.setData(on ? valid.map((b, i) => ({ time: b.time, value: sx[i] })).filter((p): p is { time: string; value: number } => p.value != null) : []);
+    lineFrom(sma(closes, 50), ma50Ref.current, showMA50);
+    lineFrom(sma(closes, 200), ma200Ref.current, showMA200);
+    lineFrom(rsi(closes, 14), rsiRef.current, showRSI);
+
+    // MACD(12/26/9) — histogram (green/red by sign) + macd & signal lines.
+    if (showMACD) {
+      const m = macd(closes);
+      macdHistRef.current.setData(valid.map((b, i) => ({ time: b.time, value: m.hist[i]!, color: m.hist[i]! >= 0 ? "rgba(63,185,80,0.5)" : "rgba(248,81,73,0.5)" })));
+      macdLineRef.current.setData(valid.map((b, i) => ({ time: b.time, value: m.macd[i]! })));
+      macdSignalRef.current.setData(valid.map((b, i) => ({ time: b.time, value: m.signal[i]! })));
     } else {
-      // Sparse/no history → a single horizontal line at the latest fair value.
-      fvSeries.setData([]);
-      if (fairValue != null && Number.isFinite(fairValue)) {
-        fvLineRef.current = candle.createPriceLine({
-          price: fairValue,
-          color: FV,
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: "FV",
-        });
-      }
+      macdHistRef.current.setData([]);
+      macdLineRef.current.setData([]);
+      macdSignalRef.current.setData([]);
     }
 
-    chart.timeScale().fitContent();
-  }, [bars, fairValue, fvHistory]);
+    // Overlay reference lines as flat 2-point series (autoscale-neutral → never squashes candles).
+    const flat = (v: number | null | undefined, series: ISeriesApi<"Line">) =>
+      series.setData(v != null && Number.isFinite(v) ? [{ time: first as Time, value: v }, { time: last as Time, value: v }] : []);
+    const fvPts = showValuation ? fvHistory.filter((p) => p.time >= first && Number.isFinite(p.value)) : [];
+    if (fvPts.length >= 2) fvRef.current.setData(fvPts.map((p) => ({ time: p.time, value: p.value })));
+    else flat(showValuation ? fairValue : null, fvRef.current);
+    flat(showValuation ? band?.low : null, lowRef.current);
+    flat(showValuation ? band?.high : null, highRef.current);
+    flat(costBasis, costRef.current); // your cost line is independent of the valuation toggle
 
-  return <div ref={ref} style={{ width: "100%", height: 420 }} />;
+    // Events lane: flat carrier + markers (page already filtered markers by type).
+    evRef.current.setData(valid.map((b) => ({ time: b.time, value: 0 })));
+    const sm: SeriesMarker<Time>[] = markers
+      .filter((m) => m.time >= first && m.time <= last)
+      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0))
+      .map((m) => {
+        const s = MARKER_STYLE[m.kind];
+        return { time: m.time as Time, position: s.position, shape: s.shape, color: s.color, text: m.label };
+      });
+    markersRef.current?.setMarkers(sm);
+
+    chart.priceScale("right").applyOptions({ mode: log ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal });
+
+    // Zoom to the requested window (indicators already span the full history).
+    if (rangeDays != null && valid.length > rangeDays) {
+      chart.timeScale().setVisibleRange({ from: valid[valid.length - rangeDays]!.time as Time, to: last as Time });
+    } else {
+      chart.timeScale().fitContent();
+    }
+  }, [bars, rangeDays, fairValue, fvHistory, band, costBasis, markers, log, showMA50, showMA200, showRSI, showMACD, showValuation]);
+
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div ref={legendRef} style={{ position: "absolute", top: 6, left: 8, zIndex: 2, fontSize: 11, color: MUTED, fontVariantNumeric: "tabular-nums", pointerEvents: "none" }} />
+      <div ref={ref} style={{ width: "100%", height: "100%" }} />
+    </div>
+  );
 }

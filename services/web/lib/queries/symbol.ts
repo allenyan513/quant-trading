@@ -13,6 +13,7 @@ import {
   watchlist,
   financialRatios,
   dividends,
+  earningsCalendar,
   events,
   notifications,
   logs,
@@ -147,4 +148,53 @@ export async function getDividendHistory(symbol: string, limit = 24) {
     .where(eq(dividends.symbol, symbol.toUpperCase()))
     .orderBy(desc(dividends.observedAt))
     .limit(limit);
+}
+
+export type ChartMarkerKind = "earnings" | "event" | "insider_buy" | "insider_sell" | "dividend";
+export interface ChartMarkerRow {
+  time: string; // YYYY-MM-DD
+  kind: ChartMarkerKind;
+  label: string;
+}
+
+/** Event markers for the price Chart tab — earnings reports, 8-K material events,
+ * insider (Form 4) buys/sells, and dividend ex-dates — composed from the existing
+ * per-symbol reads into one flat list. Lets a researcher tie price moves to the
+ * facts (e.g. a drop next to an 8-K or insider sale). All dates YYYY-MM-DD. */
+export async function getChartOverlays(symbol: string): Promise<{ markers: ChartMarkerRow[] }> {
+  const sym = symbol.toUpperCase();
+  const [eightK, insiders, divs, earn] = await Promise.all([
+    getEventsData(sym),
+    getInsidersData(sym),
+    getDividendHistory(sym, 40),
+    db()
+      .select({ reportDate: earningsCalendar.reportDate, epsActual: earningsCalendar.epsActual, epsEstimated: earningsCalendar.epsEstimated })
+      .from(earningsCalendar)
+      .where(eq(earningsCalendar.symbol, sym))
+      .orderBy(desc(earningsCalendar.reportDate))
+      .limit(40),
+  ]);
+
+  const markers: ChartMarkerRow[] = [];
+  const day = (s: string | null | undefined) => (s && s.length >= 10 ? s.slice(0, 10) : null);
+
+  for (const e of earn) {
+    const beat = e.epsActual != null && e.epsEstimated != null ? e.epsActual >= e.epsEstimated : null;
+    markers.push({ time: e.reportDate, kind: "earnings", label: beat === true ? "E+" : beat === false ? "E−" : "E" });
+  }
+  for (const ev of eightK.events) {
+    const t = day(ev.reportDate) ?? day(ev.filedDate);
+    if (t) markers.push({ time: t, kind: "event", label: "8K" });
+  }
+  for (const tx of insiders.insiders) {
+    const t = day(tx.date);
+    if (!t) continue;
+    if (tx.signal === "buy") markers.push({ time: t, kind: "insider_buy", label: "B" });
+    else if (tx.signal === "sell") markers.push({ time: t, kind: "insider_sell", label: "S" });
+  }
+  for (const d of divs) {
+    const ex = day((d.data as { date?: string } | null)?.date);
+    if (ex) markers.push({ time: ex, kind: "dividend", label: "D" });
+  }
+  return { markers };
 }
