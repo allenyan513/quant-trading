@@ -42,10 +42,11 @@ export default async function LegendHoldingsTab({ params }: { params: Promise<{ 
     letterSpacing: 0.4,
     color: "var(--muted)",
     borderBottom: "1px solid var(--border)",
+    borderRight: "1px solid var(--border)",
     whiteSpace: "nowrap",
   };
   const thR: React.CSSProperties = { ...th, textAlign: "right" };
-  const td: React.CSSProperties = { padding: "7px 12px", fontSize: 13, borderBottom: "1px solid var(--border)" };
+  const td: React.CSSProperties = { padding: "7px 12px", fontSize: 13, borderBottom: "1px solid var(--border)", borderRight: "1px solid var(--border)" };
   const tdR: React.CSSProperties = { ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
   return (
@@ -55,7 +56,7 @@ export default async function LegendHoldingsTab({ params }: { params: Promise<{ 
           Recent activity vs {fmtQuarter(prevQuarter)}.
         </p>
       )}
-      <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+      <div style={{ overflowX: "auto", border: "1px solid var(--border)" }}>
         <table style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
             <tr>

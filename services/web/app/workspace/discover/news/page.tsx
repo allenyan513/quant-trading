@@ -205,7 +205,7 @@ export default function NewsPage() {
 
       {error && <div style={{ color: "#f85149", marginBottom: 8 }}>Error: {String(error.message ?? error)}</div>}
 
-      <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
+      <div style={{ overflowX: "auto", border: "1px solid var(--border)" }}>
         <table>
           <thead>
             <tr>
@@ -383,6 +383,7 @@ const thStyle: React.CSSProperties = {
   fontSize: 12,
   color: "var(--muted)",
   borderBottom: "1px solid var(--border)",
+  borderRight: "1px solid var(--border)",
   position: "sticky",
   top: 0,
   background: "var(--panel)",
@@ -392,6 +393,7 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "8px 12px",
   borderBottom: "1px solid var(--border)",
+  borderRight: "1px solid var(--border)",
   verticalAlign: "top",
   fontSize: 13,
 };
