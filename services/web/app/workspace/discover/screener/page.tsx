@@ -6,6 +6,7 @@ import { LiveTable, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
+import { apiSend, apiAction } from "@/lib/api-client";
 
 /** Dismiss button. Calls the web route (which forwards to the data service), then
  *  revalidates the candidates table. Promote-into-watchlist is SEVERED — the
@@ -18,17 +19,9 @@ function CandidateActions({ symbol, status }: { symbol: string; status: string }
   async function dismiss() {
     setBusy(true);
     try {
-      const res = await fetch(`/api/candidates/dismiss`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol }),
-      });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        alert(`dismiss failed: ${j.error ?? res.status}`);
-        return;
+      if (await apiAction("/api/candidates/dismiss", "POST", { symbol })) {
+        await mutate((k) => typeof k === "string" && k.startsWith("/api/candidates"));
       }
-      await mutate((k) => typeof k === "string" && k.startsWith("/api/candidates"));
     } finally {
       setBusy(false);
     }
@@ -77,20 +70,14 @@ function RunScreenerButton() {
   async function run() {
     setBusy(true);
     setMsg(null);
-    try {
-      const res = await fetch(`/api/scan/fundamentals`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: { period?: string; candidates?: number }; error?: string };
-      if (!res.ok || !j.ok) {
-        setMsg(`Scan failed: ${j.error ?? res.status}`);
-        return;
-      }
-      setMsg(`✓ ${j.data?.period ?? ""} found ${j.data?.candidates ?? 0} candidates`);
+    const r = await apiSend<{ period?: string; candidates?: number }>("/api/scan/fundamentals", "POST", {});
+    if (r.ok) {
+      setMsg(`✓ ${r.data?.period ?? ""} found ${r.data?.candidates ?? 0} candidates`);
       await mutate((k) => typeof k === "string" && k.startsWith("/api/candidates"));
-    } catch (err) {
-      setMsg(`Scan failed: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusy(false);
+    } else {
+      setMsg(`Scan failed: ${r.error}`);
     }
+    setBusy(false);
   }
 
   return (

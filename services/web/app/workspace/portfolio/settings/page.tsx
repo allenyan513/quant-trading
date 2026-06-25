@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useLive } from "@/components/live";
 import { Card, Meta } from "@/components/ui";
 import { fmtFull } from "@/lib/format";
+import { apiSend } from "@/lib/api-client";
 
 interface Status {
   connected: boolean;
@@ -24,13 +25,6 @@ interface SyncResult {
   tradesInserted: number;
   positionsUpserted: number;
   spyRows: number;
-}
-
-/** Envelope errors may arrive as a string or an object {code,message}; extract text. */
-function errText(err: unknown, status: number): string {
-  if (typeof err === "string") return err;
-  if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
-  return `HTTP ${status}`;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -68,46 +62,36 @@ export default function HoldingsSettingsPage() {
   async function sync() {
     setSyncing(true);
     setSyncMsg(null);
-    try {
-      const res = await fetch("/api/holdings/sync", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(errText(json.error, res.status));
-      const r = json.data as SyncResult;
+    const r = await apiSend<SyncResult>("/api/holdings/sync", "POST");
+    if (r.ok && r.data) {
+      const d = r.data;
       setSyncMsg({
         ok: true,
-        text: `Sync complete: NAV ${r.navRowsUpserted} rows · Trades +${r.tradesInserted} · Holdings ${r.positionsUpserted} · SPY ${r.spyRows}`,
+        text: `Sync complete: NAV ${d.navRowsUpserted} rows · Trades +${d.tradesInserted} · Holdings ${d.positionsUpserted} · SPY ${d.spyRows}`,
       });
       mutate();
-    } catch (e) {
-      setSyncMsg({ ok: false, text: `Sync failed: ${e instanceof Error ? e.message : String(e)}` });
-    } finally {
-      setSyncing(false);
+    } else {
+      setSyncMsg({ ok: false, text: `Sync failed: ${r.error}` });
     }
+    setSyncing(false);
   }
 
   async function save() {
     setBusy(true);
     setMsg(null);
     setSyncMsg(null);
-    try {
-      const res = await fetch("/api/holdings/credentials", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token, queryId }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(errText(json.error, res.status));
+    const r = await apiSend("/api/holdings/credentials", "POST", { token, queryId });
+    if (r.ok) {
       setMsg({ ok: true, text: "Credentials saved, syncing automatically…" });
       setToken("");
       setQueryId("");
       mutate();
       // Auto-run one sync right after connecting (covers the first-time case).
       void sync();
-    } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setBusy(false);
+    } else {
+      setMsg({ ok: false, text: r.error ?? "Failed" });
     }
+    setBusy(false);
   }
 
   const saveDisabled = busy || !token.trim() || !queryId.trim();

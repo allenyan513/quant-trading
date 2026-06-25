@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from "react";
 import { formatLargeNumber, fmtPct } from "@/lib/format";
+import { apiSend } from "@/lib/api-client";
 import type { EarningsCalEntry } from "@qt/shared/earnings-read";
 import type { EarningsHistRow } from "@qt/shared/markets";
 
@@ -91,20 +92,14 @@ export function EarningsDrawer({ entry, mine, onClose, onAdded }: { entry: Earni
   const add = async () => {
     setAdding(true);
     setAddErr(null);
-    try {
-      const res = await fetch("/api/watchlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol: entry.symbol }) });
-      const j = await res.json();
-      if (j?.ok) {
-        setAdded(true);
-        onAdded?.(entry.symbol);
-      } else {
-        setAddErr(typeof j?.error === "object" ? (j.error?.message ?? "Failed") : String(j?.error ?? "Failed"));
-      }
-    } catch (e) {
-      setAddErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setAdding(false);
+    const r = await apiSend("/api/watchlist", "POST", { symbol: entry.symbol });
+    if (r.ok) {
+      setAdded(true);
+      onAdded?.(entry.symbol);
+    } else {
+      setAddErr(r.error ?? "Failed");
     }
+    setAdding(false);
   };
 
   const epsSurprise = entry.epsActual != null && entry.epsEstimated != null && entry.epsEstimated !== 0 ? ((entry.epsActual - entry.epsEstimated) / Math.abs(entry.epsEstimated)) * 100 : null;

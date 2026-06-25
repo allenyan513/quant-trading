@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { mutate } from "swr";
 import { useLive } from "@/components/live";
+import { apiAction } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
 
@@ -37,27 +38,16 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
 
   async function toggle() {
     if (busy) return;
+    if (added && !window.confirm(`Remove ${symbol} from watchlist?`)) return;
     setBusy(true);
     try {
-      if (added) {
-        if (!window.confirm(`Remove ${symbol} from watchlist?`)) return;
-        const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || !j.ok) return void alert(`remove failed: ${j.error ?? res.status}`);
-        setLocal(false);
-      } else {
-        const res = await fetch("/api/watchlist", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ symbol }),
-        });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || !j.ok) return void alert(`add failed: ${j.error ?? res.status}`);
-        setLocal(true);
+      const ok = added
+        ? await apiAction(`/api/watchlist/${encodeURIComponent(symbol)}`, "DELETE")
+        : await apiAction("/api/watchlist", "POST", { symbol });
+      if (ok) {
+        setLocal(!added);
+        mutate(shellKey);
       }
-      mutate(shellKey);
-    } catch (e) {
-      alert(`failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -95,28 +85,22 @@ function RefreshButton({ symbol }: { symbol: string }) {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/data/symbol/${encodeURIComponent(symbol)}/warm`, { method: "POST" });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !j.ok) {
-        alert(`Refresh failed: ${j.error ?? res.status}`);
-        return;
+      if (await apiAction(`/api/data/symbol/${encodeURIComponent(symbol)}/warm`, "POST")) {
+        // Revalidate shell/overview/financials/prices (/api/data/symbol/<sym>/…)
+        // AND the news tab (/api/news?symbol=<sym>…), since warm now also pulls
+        // this symbol's news. Match both raw and URL-encoded keys (BRK/B etc.).
+        const enc = encodeURIComponent(symbol);
+        await mutate(
+          (k) =>
+            typeof k === "string" &&
+            (k.startsWith(`/api/data/symbol/${symbol}/`) ||
+              k.startsWith(`/api/data/symbol/${enc}/`) ||
+              k.startsWith(`/api/data/valuation/${symbol}`) ||
+              k.startsWith(`/api/data/valuation/${enc}`) ||
+              k.startsWith(`/api/news?symbol=${symbol}`) ||
+              k.startsWith(`/api/news?symbol=${enc}`)),
+        );
       }
-      // Revalidate shell/overview/financials/prices (/api/data/symbol/<sym>/…)
-      // AND the news tab (/api/news?symbol=<sym>…), since warm now also pulls
-      // this symbol's news. Match both raw and URL-encoded keys (BRK/B etc.).
-      const enc = encodeURIComponent(symbol);
-      await mutate(
-        (k) =>
-          typeof k === "string" &&
-          (k.startsWith(`/api/data/symbol/${symbol}/`) ||
-            k.startsWith(`/api/data/symbol/${enc}/`) ||
-            k.startsWith(`/api/data/valuation/${symbol}`) ||
-            k.startsWith(`/api/data/valuation/${enc}`) ||
-            k.startsWith(`/api/news?symbol=${symbol}`) ||
-            k.startsWith(`/api/news?symbol=${enc}`)),
-      );
-    } catch (e) {
-      alert(`Refresh failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }

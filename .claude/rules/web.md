@@ -25,7 +25,7 @@ paths:
 
 - **图表用 lightweight-charts（非 Recharts），且只能经 `*.lazy.tsx`（`dynamic(import, {ssr:false})`）引入**——它访问 window/DOM，SSR / standalone 构建会崩；canvas 内颜色用硬编码 hex（CSS 变量不解析）。参考 `components/price-chart{,.lazy}.tsx`、`nav-chart{,.lazy}.tsx`。
 - **多 tab 详情页**：`layout.tsx`(server, 渲染 `<PageTitle>` + 客户端 tab 条，tab 高亮用 `useSelectedLayoutSegment()`) + 各 tab 子路由 `page.tsx` + 裸路由 `page.tsx` 用 server `redirect()` 落默认 tab。参考 `app/(dashboard)/data/symbol/[symbol]/*` 与 `data/holdings/*`。
-- 复用既有原件别重写：`components/ui.tsx`（`Card`/`Stat`/`Grid`/`Badge`/`statusColor`）、`components/live.tsx`（`LiveTable`/`useLive`）、`lib/format.ts`（`fmtMoney`/`fmtPct`/`fmtNum`/`fmtDate`）。`LiveTable` 的 `path` 端点必须返回**数组**；单对象快照响应自己渲染表格。
+- 复用既有原件别重写：`components/ui.tsx`（`Card`/`Stat`/`Grid`/`Badge`/`statusColor`）、`components/live.tsx`（`LiveTable`/`useLive`）、`lib/format.ts`（`fmtMoney`/`fmtPct`/`fmtNum`/`fmtDate`）。`LiveTable` 的 `path` 端点必须返回**数组**；单对象快照响应自己渲染表格。需要这些交互时复用它、别重造表格:列配置上的 `Column.sort`(给某列加访问器即开启该列的客户端排序),以及 `LiveTable` 自身的 props `rowFilter`(客户端行过滤,如按分组 tab)、`onRowDoubleClick`、`getRowDragData`(行可拖,原生 HTML5 DnD)。
 
 ## 导航与归属
 
