@@ -12,6 +12,7 @@ import {
   dailyPrices,
   watchlist,
   financialRatios,
+  dividends,
   events,
   notifications,
   logs,
@@ -134,4 +135,16 @@ export async function getSymbolTrace(symbol: string) {
     db().select().from(logs).where(eq(logs.symbol, symbol)).orderBy(desc(logs.ts)).limit(300),
   ]);
   return { symbol, events: ev, notifications: notifs, signals, valuations: vals, logs: lg };
+}
+
+/** Dividend history for the Financials tab (ex / record / payment dates + amount +
+ * yield). Read-through cached by data (data_dividends, warmed from FMP); newest
+ * first. Raw FMP `data` jsonb — the UI picks the fields it shows. */
+export async function getDividendHistory(symbol: string, limit = 24) {
+  return db()
+    .select({ observedAt: dividends.observedAt, data: dividends.data })
+    .from(dividends)
+    .where(eq(dividends.symbol, symbol.toUpperCase()))
+    .orderBy(desc(dividends.observedAt))
+    .limit(limit);
 }

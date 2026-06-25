@@ -24,7 +24,7 @@ const RECORD_TTL_MS = 12 * 60 * 60 * 1000;
 // deep slice); insider/price-target endpoints take an explicit limit.
 const RECORD_FETCH_LIMIT = 100;
 
-export type RecordDataset = "ratings" | "price_targets";
+export type RecordDataset = "ratings" | "price_targets" | "dividends";
 
 export interface RecordRowInput {
   symbol: string;
@@ -94,6 +94,40 @@ export function mapPriceTargetRecords(sym: string, rows: FmpPriceTarget[]): Reco
   return out;
 }
 
+export interface FmpDividend {
+  symbol?: string;
+  date?: string; // ex-dividend date (the dedup key)
+  recordDate?: string;
+  paymentDate?: string;
+  declarationDate?: string; // when announced (PIT) — may be empty
+  adjDividend?: number;
+  dividend?: number;
+  yield?: number;
+}
+
+/** Dividends → records. Keyed by ex-date; PIT = declaration date when present
+ * (when the dividend became public), else the ex-date. Skips rows with no amount. */
+export function mapDividendRecords(sym: string, rows: FmpDividend[]): RecordRowInput[] {
+  const out: RecordRowInput[] = [];
+  for (const d of rows) {
+    // FMP fills empty dates with "0000-00-00" → an Invalid Date through dayToUtc,
+    // which would crash the NOT-NULL observed_at insert. Treat those as missing.
+    const ex = d.date;
+    if (!ex || ex.length < 10 || ex.startsWith("0000")) continue;
+    const amount = typeof d.dividend === "number" ? d.dividend : typeof d.adjDividend === "number" ? d.adjDividend : null;
+    if (amount == null) continue;
+    const decl = d.declarationDate;
+    const when = decl && decl.length >= 10 && !decl.startsWith("0000") ? decl : ex;
+    out.push({
+      symbol: sym,
+      externalId: `div:${sym}:${ex}`,
+      observedAt: dayToUtc(when),
+      data: d as Record<string, unknown>,
+    });
+  }
+  return out;
+}
+
 // ───────────────────────── cached fetchers (DB + FMP) ─────────────────────────
 
 // The three record tables share one columns layout (schema's recordCols) but
@@ -126,6 +160,13 @@ const RECORD_SOURCES: Record<RecordDataset, RecordSource> = {
           { softFail402: true },
         )) ?? [];
       return mapPriceTargetRecords(sym, rows);
+    },
+  },
+  dividends: {
+    table: asRec(schema.dividends),
+    fetch: async (sym) => {
+      const rows = (await fmpGet<FmpDividend[]>("dividends", { symbol: sym, limit: RECORD_FETCH_LIMIT }, { softFail402: true })) ?? [];
+      return mapDividendRecords(sym, rows);
     },
   },
 };
@@ -172,3 +213,5 @@ async function getRecords(dataset: RecordDataset, symbol: string, limit = 20): P
 export const getRatings = (s: string, n?: number) => getRecords("ratings", s, n);
 /** Recent analyst price targets for a symbol (read-through cache). */
 export const getPriceTargets = (s: string, n?: number) => getRecords("price_targets", s, n);
+/** Dividend history for a symbol (read-through cache). */
+export const getDividends = (s: string, n?: number) => getRecords("dividends", s, n);

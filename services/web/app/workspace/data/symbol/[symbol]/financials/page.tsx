@@ -38,6 +38,7 @@ import { PeriodToggle } from "./sections/period-toggle";
 import { StatementTable } from "./sections/statement-table";
 import { RatioGroups } from "./sections/ratio-groups";
 import { PeerCompare } from "./sections/peer-compare";
+import { DividendsSection } from "./sections/dividends";
 
 export default function FinancialsTab() {
   const params = useParams<{ symbol: string }>();
@@ -85,6 +86,7 @@ export default function FinancialsTab() {
       <ForwardEstimates income={data.income} estimates={data.estimates ?? []} />
       <TrendOverview trend={trend} range={range} />
       <RatioGroups income={data.income} balance={data.balance} cashflow={data.cashflow} ratios={data.ratios} />
+      <DividendsSection symbol={symbol} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
         <span style={{ fontSize: 13, fontWeight: 700 }}>Full financial statements</span>
         <PeriodToggle period={period} onChange={setPeriod} />

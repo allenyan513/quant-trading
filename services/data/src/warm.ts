@@ -38,6 +38,7 @@ const WARMERS: Array<[string, (s: string) => Promise<unknown>]> = [
   ["ratings", (s) => marketdata.getRatings(s)],
   ["price_targets", (s) => marketdata.getPriceTargets(s)],
   ["profile", (s) => marketdata.getProfile(s)],
+  ["dividends", (s) => marketdata.getDividends(s)],
 ];
 
 /** Warm all backing caches for one symbol. Per-dataset failures are logged, not thrown. */
