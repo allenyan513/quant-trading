@@ -8,11 +8,20 @@
  * existing SymbolTabs + the routed tab content.
  */
 
+import { useEffect } from "react";
 import { SymbolTabs } from "@/components/symbol-tabs";
 import { WatchlistRail } from "@/components/symbol/watchlist-rail";
 import { DecisionPanel } from "@/components/symbol/decision-panel";
+import { apiSend } from "@/lib/api-client";
 
 export function SymbolWorkbench({ symbol, children }: { symbol: string; children: React.ReactNode }) {
+  // Auto stale-while-revalidate: on opening a symbol, ask data to refresh it
+  // (warm + revalue, at most once per 24h, in the background). Fire-and-forget —
+  // no spinner; SWR polling brings the fresher data in. Replaces the manual button.
+  useEffect(() => {
+    void apiSend(`/api/data/symbol/${encodeURIComponent(symbol)}/ensure`, "POST");
+  }, [symbol]);
+
   return (
     <div className="symbol-workbench">
       <aside className="symbol-rail">

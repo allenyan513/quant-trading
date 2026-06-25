@@ -17,6 +17,8 @@
  * Every step is isolated: one failed dataset (e.g. a premium-gated statement, or
  * alpha being briefly unreachable) must never abort the rest.
  */
+import { and, eq } from "drizzle-orm";
+import { db, dbSchema } from "@qt/shared";
 import { warmSymbol } from "./warm.js";
 import { pullSymbolNews } from "./pull/news-feed.js";
 import { stageNews } from "./news.js";
@@ -24,6 +26,13 @@ import { computeReferenceValuation } from "./valuation/reference.js";
 import { log } from "./log.js";
 
 const msg = (err: unknown) => (err instanceof Error ? err.message : String(err));
+const { marketdataFetches } = dbSchema;
+
+// "Ensure fresh" gate: re-warm a symbol's full marketdata at most once per day.
+// We reuse the per-(symbol,dataset) fetch watermark with a synthetic dataset so
+// the page-open auto-refresh is a cheap no-op when the symbol was warmed recently.
+const WARM_DATASET = "warm";
+const WARM_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Warm the symbol's marketdata caches + pull its recent news. Deterministic
  *  (no LLM), typically a few seconds. Each step isolated. */
@@ -66,4 +75,34 @@ export async function revalue(symbol: string): Promise<boolean> {
     log.warn("refresh.revalue_failed", { symbol: sym, error: msg(err) });
     return false;
   }
+}
+
+/**
+ * Page-open auto-refresh: warm + pull news + revalue a symbol, but at most once
+ * per 24h (the manual "Refresh data" button is gone). Returns immediately —
+ * `skipped` if warmed within the TTL, else `started` with the work kicked off in
+ * the BACKGROUND (Cloud Run keeps the instance alive after the response). The
+ * watermark is stamped up-front so concurrent opens don't stack warms; per-dataset
+ * freshness gates still suppress redundant FMP calls inside the warm.
+ */
+export async function ensureFresh(symbol: string): Promise<{ symbol: string; status: "skipped" | "started" }> {
+  const sym = symbol.toUpperCase();
+  const wm = await db()
+    .select({ fetchedAt: marketdataFetches.fetchedAt })
+    .from(marketdataFetches)
+    .where(and(eq(marketdataFetches.symbol, sym), eq(marketdataFetches.dataset, WARM_DATASET)));
+  const fetchedAt = wm[0]?.fetchedAt ?? null;
+  if (fetchedAt && Date.now() - fetchedAt.getTime() <= WARM_TTL_MS) {
+    return { symbol: sym, status: "skipped" };
+  }
+  // Stamp first (dedupe concurrent opens within the window), then warm in the background.
+  const now = new Date();
+  await db()
+    .insert(marketdataFetches)
+    .values({ symbol: sym, dataset: WARM_DATASET, fetchedAt: now })
+    .onConflictDoUpdate({ target: [marketdataFetches.symbol, marketdataFetches.dataset], set: { fetchedAt: now } });
+  void warmAndPullNews(sym)
+    .then(() => revalue(sym))
+    .catch((err) => log.warn("refresh.ensure_failed", { symbol: sym, error: msg(err) }));
+  return { symbol: sym, status: "started" };
 }

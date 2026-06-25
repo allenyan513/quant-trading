@@ -19,7 +19,7 @@ import { dismissCandidate } from "./candidates.js";
 import { addWatchlist, removeWatchlist } from "./watchlist.js";
 import { createList, renameList, deleteList, assignToList, reorderLists } from "./watchlist-lists.js";
 import { submitMorningBrief } from "./morning-brief.js";
-import { warmAndPullNews, revalue } from "./refresh.js";
+import { warmAndPullNews, revalue, ensureFresh } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
@@ -335,6 +335,20 @@ app.post(
     c.set("logContext", { symbol });
     const res = await warmAndPullNews(symbol);
     return { ...res, warmed: true };
+  }),
+);
+
+// Page-open auto-refresh: warm + revalue at most once per 24h, in the background.
+// web fires this on opening a symbol (fire-and-forget) instead of the user clicking
+// "Refresh data"; returns immediately (skipped if recently warmed). See refresh.ts.
+app.post(
+  "/ensure",
+  route("ensure", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbol = String(body.symbol ?? "").trim();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    c.set("logContext", { symbol });
+    return ensureFresh(symbol);
   }),
 );
 
