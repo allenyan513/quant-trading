@@ -217,7 +217,7 @@ const columns: Column<WatchRow>[] = [
   },
   { key: "beta", header: "Beta", sort: (r) => r.beta, render: (r) => (r.beta == null ? <span style={{ color: "var(--muted)" }}>—</span> : r.beta.toFixed(2)), width: 70 },
   { key: "note", header: "Note", render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.note ?? "—"}</span> },
-  { key: "addedAt", header: "Added", sort: (r) => new Date(r.addedAt).getTime(), render: (r) => <TimeText ts={r.addedAt} />, width: 120 },
+  { key: "addedAt", header: "Added", sort: (r) => r.addedAt, render: (r) => <TimeText ts={r.addedAt} />, width: 120 },
   { key: "list", header: "List", render: (r) => <AssignCell symbol={r.symbol} listId={r.listId} />, width: 130 },
   { key: "actions", header: "", render: (r) => <RemoveButton symbol={r.symbol} />, width: 70 },
 ];
@@ -283,13 +283,11 @@ export default function WatchlistPage() {
     }
   }, []);
   function toggle(key: string) {
-    setVisible((s) => {
-      const next = new Set(s);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      localStorage.setItem(COLS_KEY, JSON.stringify([...next]));
-      return next;
-    });
+    const next = new Set(visible);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setVisible(next);
+    localStorage.setItem(COLS_KEY, JSON.stringify([...next])); // side effect outside the state updater
   }
   const shownColumns = columns.filter((c) => c.key === "symbol" || c.key === "actions" || visible.has(c.key));
 
