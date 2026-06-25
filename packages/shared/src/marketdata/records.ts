@@ -110,13 +110,17 @@ export interface FmpDividend {
 export function mapDividendRecords(sym: string, rows: FmpDividend[]): RecordRowInput[] {
   const out: RecordRowInput[] = [];
   for (const d of rows) {
-    if (!d.date) continue;
+    // FMP fills empty dates with "0000-00-00" → an Invalid Date through dayToUtc,
+    // which would crash the NOT-NULL observed_at insert. Treat those as missing.
+    const ex = d.date;
+    if (!ex || ex.length < 10 || ex.startsWith("0000")) continue;
     const amount = typeof d.dividend === "number" ? d.dividend : typeof d.adjDividend === "number" ? d.adjDividend : null;
     if (amount == null) continue;
-    const when = d.declarationDate && d.declarationDate.length >= 10 ? d.declarationDate : d.date;
+    const decl = d.declarationDate;
+    const when = decl && decl.length >= 10 && !decl.startsWith("0000") ? decl : ex;
     out.push({
       symbol: sym,
-      externalId: `div:${sym}:${d.date}`,
+      externalId: `div:${sym}:${ex}`,
       observedAt: dayToUtc(when),
       data: d as Record<string, unknown>,
     });
