@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import { Plus, Columns3 } from "lucide-react";
 import { LiveTable, useLive, type Column } from "@/components/live";
-import { PageTitle } from "@/components/page-title";
 import { Badge, TimeText } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
 
@@ -315,41 +314,33 @@ export default function WatchlistPage() {
 
   return (
     <div>
-      <PageTitle subsystem="data" sub="Your private watchlist · valuation gap / buy zone (fair value vs price) · whether held">
-        Watchlist
-      </PageTitle>
-
-      <div style={tabBar}>
-        <button onClick={() => setActiveList("all")} style={tabStyle(activeList === "all")}>
-          All
-        </button>
-        {(lists ?? []).map((l) => {
-          const on = activeList === l.id;
-          return (
-            <button key={l.id} onClick={() => setActiveList(l.id)} style={tabStyle(on)}>
-              {l.name}
-              {on && (
-                <>
-                  <span role="button" title="Rename" onClick={(e) => { e.stopPropagation(); renameList(l.id, l.name); }} style={tabAction}>
-                    ✎
-                  </span>
-                  <span role="button" title="Delete" onClick={(e) => { e.stopPropagation(); deleteList(l.id); }} style={tabAction}>
-                    ×
-                  </span>
-                </>
-              )}
-            </button>
-          );
-        })}
-        <button onClick={newList} title="New list" style={{ ...tabStyle(false), padding: "5px 9px" }}>
-          <Plus size={14} strokeWidth={2} />
-        </button>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 12px" }}>
-        <p style={{ color: "var(--muted)", margin: 0, fontSize: 13 }}>
-          Click a header to sort; double-click a row to open; set a row&apos;s <b>List</b> to group it.
-        </p>
+      <div style={topRow}>
+        <div style={tabsWrap}>
+          <button onClick={() => setActiveList("all")} style={tabStyle(activeList === "all")}>
+            All
+          </button>
+          {(lists ?? []).map((l) => {
+            const on = activeList === l.id;
+            return (
+              <button key={l.id} onClick={() => setActiveList(l.id)} style={tabStyle(on)}>
+                {l.name}
+                {on && (
+                  <>
+                    <span role="button" title="Rename" onClick={(e) => { e.stopPropagation(); renameList(l.id, l.name); }} style={tabAction}>
+                      ✎
+                    </span>
+                    <span role="button" title="Delete" onClick={(e) => { e.stopPropagation(); deleteList(l.id); }} style={tabAction}>
+                      ×
+                    </span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+          <button onClick={newList} title="New list" style={{ ...tabStyle(false), padding: "5px 9px" }}>
+            <Plus size={14} strokeWidth={2} />
+          </button>
+        </div>
         <ColumnsMenu visible={visible} onToggle={toggle} />
       </div>
 
@@ -366,14 +357,22 @@ export default function WatchlistPage() {
   );
 }
 
-const tabBar: React.CSSProperties = {
+const topRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+  borderBottom: "1px solid var(--border)",
+  margin: "0 0 12px",
+  paddingBottom: 6,
+};
+
+const tabsWrap: React.CSSProperties = {
   display: "flex",
   gap: 4,
   alignItems: "center",
   flexWrap: "wrap",
-  borderBottom: "1px solid var(--border)",
-  margin: "4px 0 12px",
-  paddingBottom: 6,
 };
 
 const tabStyle = (active: boolean): React.CSSProperties => ({
