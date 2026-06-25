@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SymbolLink } from "@/components/symbol-link";
 import { LiveTable, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText, statusColor } from "@/components/ui";
@@ -51,7 +51,7 @@ function fmtRealized(r: PositionRow) {
 
 const columns: Column<PositionRow>[] = [
   { key: "openedAt", header: "Opened", render: (r) => <TimeText ts={r.openedAt} />, width: 128 },
-  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/workspace/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> },
+  { key: "symbol", header: "Symbol", render: (r) => <SymbolLink symbol={r.symbol} /> },
   { key: "direction", header: "Dir", render: (r) => <Badge color={dirColor(r.direction)}>{r.direction}</Badge> },
   { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   { key: "targetWeight", header: "Weight", render: (r) => fmtWeight(r.targetWeight) },

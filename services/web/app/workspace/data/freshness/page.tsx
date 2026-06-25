@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SymbolLink } from "@/components/symbol-link";
 import { LiveTable, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, TimeText } from "@/components/ui";
@@ -22,7 +22,7 @@ function priceCell(d: string | null) {
 }
 
 const columns: Column<FreshRow>[] = [
-  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/workspace/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> },
+  { key: "symbol", header: "Symbol", render: (r) => <SymbolLink symbol={r.symbol} /> },
   { key: "lastPriceDate", header: "Latest price", render: (r) => priceCell(r.lastPriceDate) },
   { key: "lastIncomeKnownAt", header: "Income known_at", render: (r) => <TimeText ts={r.lastIncomeKnownAt} /> },
   { key: "lastBalanceKnownAt", header: "Balance known_at", render: (r) => <TimeText ts={r.lastBalanceKnownAt} /> },

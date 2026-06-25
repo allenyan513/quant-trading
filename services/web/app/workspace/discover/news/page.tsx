@@ -5,6 +5,7 @@ import { mutate } from "swr";
 import { useLive } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, StatusBadge, TimeText } from "@/components/ui";
+import { SymbolLink } from "@/components/symbol-link";
 import { apiSend } from "@/lib/api-client";
 
 interface NewsRow {
@@ -236,7 +237,7 @@ export default function NewsPage() {
                 <td style={tdStyle}>
                   <Badge color={catColor[r.category] ?? "#8a97ab"}>{r.category}</Badge>
                 </td>
-                <td style={tdStyle}>{r.symbol ? <Badge>{r.symbol}</Badge> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
+                <td style={tdStyle}>{r.symbol ? <SymbolLink symbol={r.symbol} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td style={tdStyle}>
                   {r.url ? (
                     <a href={r.url} target="_blank" rel="noreferrer" style={{ color: "var(--text)" }}>

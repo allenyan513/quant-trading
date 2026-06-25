@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SymbolLink } from "@/components/symbol-link";
 import { LiveTable, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, Meta, StatusBadge, TimeText, statusColor } from "@/components/ui";
@@ -49,7 +49,7 @@ function dirColor(d: string) {
 
 const columns: Column<SignalRow>[] = [
   { key: "createdAt", header: "Created", render: (r) => <TimeText ts={r.createdAt} />, width: 128 },
-  { key: "symbol", header: "Symbol", render: (r) => <Link href={`/workspace/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> },
+  { key: "symbol", header: "Symbol", render: (r) => <SymbolLink symbol={r.symbol} /> },
   { key: "direction", header: "Dir", render: (r) => <Badge color={dirColor(r.direction)}>{r.direction}</Badge> },
   { key: "conviction", header: "Conv", render: (r) => (r.conviction ? <Badge>{r.conviction}</Badge> : "—") },
   { key: "entryPrice", header: "Entry", render: (r) => fmtMoney(r.entryPrice) },

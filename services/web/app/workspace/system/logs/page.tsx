@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SymbolLink } from "@/components/symbol-link";
 import { useState } from "react";
 import { useLive } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
@@ -86,11 +86,7 @@ export default function LogsPage() {
             </span>
             <span style={{ color: "var(--muted)", width: 86 }}>[{r.service}]</span>
             <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{r.event}</span>
-            {r.symbol && (
-              <Link href={`/workspace/data/symbol/${r.symbol}/overall`}>
-                <Badge>{r.symbol}</Badge>
-              </Link>
-            )}
+            {r.symbol && <SymbolLink symbol={r.symbol} />}
             <span style={{ color: "var(--muted)", wordBreak: "break-word" }}>
               {r.fields && Object.keys(r.fields).length > 0 ? JSON.stringify(r.fields) : ""}
             </span>
