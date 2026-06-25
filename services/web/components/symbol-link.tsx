@@ -11,7 +11,7 @@ import Link from "next/link";
 export function SymbolLink({ symbol }: { symbol: string }) {
   return (
     <Link
-      href={`/workspace/data/symbol/${symbol}/overall`}
+      href={`/workspace/data/symbol/${encodeURIComponent(symbol)}/overall`}
       draggable={false}
       onClick={(e) => e.stopPropagation()}
       style={{ color: "var(--text)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
