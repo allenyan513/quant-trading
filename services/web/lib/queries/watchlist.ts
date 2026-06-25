@@ -3,7 +3,7 @@
  * All read-only, Node runtime only.
  */
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   watchlist,
@@ -70,7 +70,20 @@ export async function listWatchlistOverview(userId: string) {
   if (wl.length === 0) return [];
   const syms = wl.map((w) => w.symbol);
 
-  const [vals, pos, uni] = await Promise.all([
+  // Daily-close momentum (Change% / YTD%) from the cached prices: latest two closes
+  // per symbol for the day change, and the first close of the current year for YTD.
+  const yearStart = `${new Date().getUTCFullYear()}-01-01`;
+  const recentSub = db()
+    .select({
+      symbol: dailyPrices.symbol,
+      close: dailyPrices.close,
+      rn: sql<number>`row_number() over (partition by ${dailyPrices.symbol} order by ${dailyPrices.tradeDate} desc)`.as("rn"),
+    })
+    .from(dailyPrices)
+    .where(inArray(dailyPrices.symbol, syms))
+    .as("recent");
+
+  const [vals, pos, uni, recent, ytdRows] = await Promise.all([
     // Latest snapshot per symbol (DISTINCT ON keyed by symbol, newest first).
     db()
       .selectDistinctOn([valuationSnapshots.symbol], {
@@ -89,22 +102,42 @@ export async function listWatchlistOverview(userId: string) {
       .from(positions)
       .where(and(eq(positions.status, "open"), inArray(positions.symbol, syms))),
     db().select({ symbol: universe.symbol, sector: universe.sector, beta: universe.beta }).from(universe).where(inArray(universe.symbol, syms)),
+    db().select({ symbol: recentSub.symbol, close: recentSub.close, rn: recentSub.rn }).from(recentSub).where(sql`${recentSub.rn} <= 2`),
+    db()
+      .selectDistinctOn([dailyPrices.symbol], { symbol: dailyPrices.symbol, close: dailyPrices.close })
+      .from(dailyPrices)
+      .where(and(inArray(dailyPrices.symbol, syms), gte(dailyPrices.tradeDate, yearStart)))
+      .orderBy(dailyPrices.symbol, dailyPrices.tradeDate),
   ]);
 
   const vBy = new Map(vals.map((v) => [v.symbol, v]));
   const pBy = new Map(pos.map((p) => [p.symbol, p]));
   const uBy = new Map(uni.map((u) => [u.symbol, u]));
+  const lastBy = new Map<string, number>();
+  const prevBy = new Map<string, number>();
+  for (const r of recent) {
+    if (r.close == null) continue;
+    if (Number(r.rn) === 1) lastBy.set(r.symbol, r.close);
+    else if (Number(r.rn) === 2) prevBy.set(r.symbol, r.close);
+  }
+  const ytdBaseBy = new Map<string, number>();
+  for (const r of ytdRows) if (r.close != null) ytdBaseBy.set(r.symbol, r.close);
 
   return wl
     .map((w) => {
       const v = vBy.get(w.symbol);
       const p = pBy.get(w.symbol);
+      const last = lastBy.get(w.symbol) ?? null;
+      const prev = prevBy.get(w.symbol) ?? null;
+      const ytdBase = ytdBaseBy.get(w.symbol) ?? null;
       return {
         symbol: w.symbol,
         note: w.note,
         addedAt: w.addedAt,
         sector: uBy.get(w.symbol)?.sector ?? null,
         beta: uBy.get(w.symbol)?.beta ?? null,
+        changePct: last != null && prev != null && prev !== 0 ? ((last - prev) / prev) * 100 : null,
+        ytdPct: last != null && ytdBase != null && ytdBase !== 0 ? ((last - ytdBase) / ytdBase) * 100 : null,
         fairValue: v?.fairValue ?? null,
         price: v?.price ?? null,
         upsidePct: v?.upsidePct ?? null,

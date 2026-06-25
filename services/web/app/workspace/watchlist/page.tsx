@@ -18,6 +18,8 @@ interface WatchRow {
   addedAt: string;
   sector: string | null;
   beta: number | null;
+  changePct: number | null;
+  ytdPct: number | null;
   fairValue: number | null;
   price: number | null;
   upsidePct: number | null;
@@ -134,6 +136,30 @@ const columns: Column<WatchRow>[] = [
   },
   { key: "sector", header: "Sector", sort: (r) => r.sector, render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.sector ?? "—"}</span> },
   { key: "price", header: "Price", sort: (r) => r.price, render: (r) => fmtMoney(r.price) },
+  {
+    key: "changePct",
+    header: "Change %",
+    sort: (r) => r.changePct,
+    render: (r) =>
+      r.changePct == null ? (
+        <span style={{ color: "var(--muted)" }}>—</span>
+      ) : (
+        <span style={{ color: r.changePct >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(r.changePct)}</span>
+      ),
+    width: 90,
+  },
+  {
+    key: "ytdPct",
+    header: "YTD %",
+    sort: (r) => r.ytdPct,
+    render: (r) =>
+      r.ytdPct == null ? (
+        <span style={{ color: "var(--muted)" }}>—</span>
+      ) : (
+        <span style={{ color: r.ytdPct >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(r.ytdPct)}</span>
+      ),
+    width: 80,
+  },
   { key: "fairValue", header: "Fair value", sort: (r) => r.fairValue, render: (r) => fmtMoney(r.fairValue) },
   {
     key: "upsidePct",
@@ -171,6 +197,8 @@ const columns: Column<WatchRow>[] = [
 const TOGGLEABLE: { key: string; label: string }[] = [
   { key: "sector", label: "Sector" },
   { key: "price", label: "Price" },
+  { key: "changePct", label: "Change %" },
+  { key: "ytdPct", label: "YTD %" },
   { key: "fairValue", label: "Fair value" },
   { key: "upsidePct", label: "Upside" },
   { key: "verdict", label: "Verdict" },
@@ -179,7 +207,7 @@ const TOGGLEABLE: { key: string; label: string }[] = [
   { key: "note", label: "Note" },
   { key: "addedAt", label: "Added" },
 ];
-const DEFAULT_VISIBLE = ["price", "fairValue", "upsidePct", "verdict", "held", "beta"];
+const DEFAULT_VISIBLE = ["price", "changePct", "fairValue", "upsidePct", "verdict", "held", "beta"];
 const COLS_KEY = "watchlist:columns";
 
 function ColumnsMenu({ visible, onToggle }: { visible: Set<string>; onToggle: (key: string) => void }) {
