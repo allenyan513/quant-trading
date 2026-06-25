@@ -199,15 +199,18 @@ export function PriceChart({
     // Its scale needs a REAL fixed range: a pane whose only series returns null
     // autoscale can't size itself (lightweight-charts ensureNotNull crash).
     const evPane = chart.addPane();
+    // Keep this pane's right scale VISIBLE — hiding it returns a null axis widget
+    // and crashes the chart's size pass (ensureNotNull). Blank the labels via a
+    // custom formatter instead, so the lane shows no meaningless numbers.
     const ev = evPane.addSeries(LineSeries, {
       color: "transparent",
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
+      priceFormat: { type: "custom", formatter: () => "", minMove: 1 },
       autoscaleInfoProvider: () => ({ priceRange: { minValue: -1, maxValue: 1 } }),
     });
-    ev.priceScale().applyOptions({ visible: false });
     evRef.current = ev;
     markersRef.current = createSeriesMarkers(ev, []);
 
