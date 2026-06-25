@@ -35,7 +35,7 @@ export function LegendTabs() {
         return (
           <Link
             key={t.seg}
-            href={`/workspace/data/legends/${cik}/${t.seg}`}
+            href={`/workspace/discover/legends/${cik}/${t.seg}`}
             style={{
               padding: "8px 14px",
               fontSize: 13,

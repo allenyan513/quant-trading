@@ -88,7 +88,7 @@ export async function listWatchlistOverview(userId: string) {
       .select({ symbol: positions.symbol, shares: positions.shares, entryPrice: positions.entryPrice })
       .from(positions)
       .where(and(eq(positions.status, "open"), inArray(positions.symbol, syms))),
-    db().select({ symbol: universe.symbol, sector: universe.sector }).from(universe).where(inArray(universe.symbol, syms)),
+    db().select({ symbol: universe.symbol, sector: universe.sector, beta: universe.beta }).from(universe).where(inArray(universe.symbol, syms)),
   ]);
 
   const vBy = new Map(vals.map((v) => [v.symbol, v]));
@@ -104,6 +104,7 @@ export async function listWatchlistOverview(userId: string) {
         note: w.note,
         addedAt: w.addedAt,
         sector: uBy.get(w.symbol)?.sector ?? null,
+        beta: uBy.get(w.symbol)?.beta ?? null,
         fairValue: v?.fairValue ?? null,
         price: v?.price ?? null,
         upsidePct: v?.upsidePct ?? null,

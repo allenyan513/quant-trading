@@ -26,6 +26,8 @@ export interface Column<Row> {
   header: string;
   render?: (row: Row) => ReactNode;
   width?: number | string;
+  /** Optional sort accessor — when present the header becomes clickable (client-side sort). */
+  sort?: (row: Row) => string | number | boolean | null | undefined;
 }
 
 export interface Filter {
@@ -43,17 +45,25 @@ interface LiveTableProps<Row> {
   emptyText?: string;
   /** Opt-in pagination: when set, append limit/offset and show Prev/Next. */
   pageSize?: number;
+  /** Double-click a row (e.g. to open the symbol detail page). */
+  onRowDoubleClick?: (row: Row) => void;
 }
 
-export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize }: LiveTableProps<Row>) {
+export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
 
   // Changing a filter resets to the first page.
   function setFilter(key: string, val: string) {
     setValues((v) => ({ ...v, [key]: val }));
     setOffset(0);
+  }
+
+  // Click a sortable header: asc → desc → off (back to the API's default order).
+  function cycleSort(key: string) {
+    setSort((s) => (!s || s.key !== key ? { key, dir: "asc" } : s.dir === "asc" ? { key, dir: "desc" } : null));
   }
 
   const qs = new URLSearchParams();
@@ -68,8 +78,9 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
 
   const { data, error, isLoading } = useLive<Row[]>(url);
   const fetched = data ?? [];
-  const hasMore = pageSize ? fetched.length > pageSize : false;
-  const rows = pageSize ? fetched.slice(0, pageSize) : fetched;
+  const ordered = sort ? sortRows(fetched, columns, sort) : fetched;
+  const hasMore = pageSize ? ordered.length > pageSize : false;
+  const rows = pageSize ? ordered.slice(0, pageSize) : ordered;
 
   return (
     <div>
@@ -113,11 +124,24 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
           <thead>
             <tr>
               {expand && <th style={thStyle} />}
-              {columns.map((c) => (
-                <th key={c.key} style={{ ...thStyle, width: c.width }}>
-                  {c.header}
-                </th>
-              ))}
+              {columns.map((c) => {
+                const sortable = !!c.sort;
+                const dir = sort?.key === c.key ? sort.dir : null;
+                return (
+                  <th
+                    key={c.key}
+                    onClick={sortable ? () => cycleSort(c.key) : undefined}
+                    style={{ ...thStyle, width: c.width, cursor: sortable ? "pointer" : "default", userSelect: "none" }}
+                  >
+                    {c.header}
+                    {sortable && (
+                      <span style={{ marginLeft: 4, fontSize: 10, color: dir ? "var(--accent)" : "var(--border)" }}>
+                        {dir === "asc" ? "▲" : dir === "desc" ? "▼" : "↕"}
+                      </span>
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -135,7 +159,8 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
                 <Fragment key={k}>
                   <tr
                     onClick={expand ? () => setOpen(isOpen ? null : k) : undefined}
-                    style={{ cursor: expand ? "pointer" : "default", background: isOpen ? "var(--panel-2)" : undefined }}
+                    onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
+                    style={{ cursor: expand || onRowDoubleClick ? "pointer" : "default", background: isOpen ? "var(--panel-2)" : undefined }}
                   >
                     {expand && <td style={{ ...tdStyle, color: "var(--muted)" }}>{isOpen ? "▾" : "▸"}</td>}
                     {columns.map((c) => (
@@ -173,6 +198,24 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
       )}
     </div>
   );
+}
+
+/** Client-side sort by a column's `sort` accessor; nullish values always sink to the bottom. */
+function sortRows<Row>(rows: Row[], columns: Column<Row>[], sort: { key: string; dir: "asc" | "desc" }): Row[] {
+  const accessor = columns.find((c) => c.key === sort.key)?.sort;
+  if (!accessor) return rows;
+  const dir = sort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const va = accessor(a);
+    const vb = accessor(b);
+    const an = va == null || va === "";
+    const bn = vb == null || vb === "";
+    if (an && bn) return 0;
+    if (an) return 1; // nulls last
+    if (bn) return -1;
+    if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
 }
 
 const pageBtn = (disabled: boolean): React.CSSProperties => ({

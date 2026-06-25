@@ -37,7 +37,7 @@ export default async function HomePage() {
           title="Connect your IBKR account"
           desc="Sync your holdings, trades, and NAV curve via an IBKR Flex query (read-only)."
           badge={s.ibkrConnected ? "Connected" : "Not connected"}
-          cta={{ href: "/workspace/data/holdings/settings", label: s.ibkrConnected ? "Manage" : "Connect" }}
+          cta={{ href: "/workspace/portfolio/settings", label: s.ibkrConnected ? "Manage" : "Connect" }}
         />
         <Step
           n={2}
@@ -45,7 +45,7 @@ export default async function HomePage() {
           title="Build your watchlist"
           desc="Add the stocks you follow — valuation, buy zone, and whether you hold them at a glance, ready to feed to your Claude."
           badge={s.watchlistCount > 0 ? `${s.watchlistCount} symbols` : "Empty"}
-          cta={{ href: "/workspace/data/watchlist", label: s.watchlistCount > 0 ? "Manage" : "Add" }}
+          cta={{ href: "/workspace/watchlist", label: s.watchlistCount > 0 ? "Manage" : "Add" }}
         />
         <Step
           n={3}
@@ -60,9 +60,9 @@ export default async function HomePage() {
 
       <div style={{ marginTop: 24, display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, alignItems: "center" }}>
         <span style={{ color: "var(--muted)" }}>Explore:</span>
-        <Link href="/workspace/data/watchlist" style={LINK}>Watchlist</Link>
-        <Link href="/workspace/data/holdings" style={LINK}>Holdings</Link>
-        <Link href="/workspace/data/legends" style={LINK}>Legendary investors 13F</Link>
+        <Link href="/workspace/watchlist" style={LINK}>Watchlist</Link>
+        <Link href="/workspace/portfolio" style={LINK}>Holdings</Link>
+        <Link href="/workspace/discover/legends" style={LINK}>Legendary investors 13F</Link>
         <Link href="/workspace/system" style={LINK}>System overview</Link>
       </div>
     </div>

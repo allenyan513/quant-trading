@@ -55,7 +55,7 @@ export default async function LegendsPage() {
           {filers.map((f, i) => (
             <Link
               key={f.cik}
-              href={`/workspace/data/legends/${f.cik}`}
+              href={`/workspace/discover/legends/${f.cik}`}
               className="legend-row"
               style={{
                 display: "grid",

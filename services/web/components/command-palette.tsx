@@ -18,7 +18,7 @@ interface Item {
   href: string;
 }
 
-const NAV_PAGES = NAV_SECTIONS.flatMap((s) => s.pages.map((p) => ({ label: p.label, href: p.href, section: s.label })));
+const NAV_PAGES = NAV_SECTIONS.map((s) => ({ label: s.label, href: s.href, section: "Workspace" }));
 
 export function CommandPalette() {
   const router = useRouter();
