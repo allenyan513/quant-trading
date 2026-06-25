@@ -235,11 +235,23 @@ export const marketdataFetches = pgTable(
   "data_marketdata_fetches",
   {
     symbol: text("symbol").notNull(),
-    dataset: text("dataset").notNull(), // "ratings" | "insider" | "price_targets"
+    dataset: text("dataset").notNull(), // "ratings" | "insider" | "price_targets" | "warm"
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.symbol, t.dataset] })],
 );
+
+// Near-real-time quote cache (NOT PIT, ephemeral): one latest row per symbol,
+// refreshed read-through from FMP `quote` during market hours (TTL-gated, ~20s).
+// Backs the live price ticking on the watchlist + symbol detail; the daily-bar
+// tables stay the source of truth for charts/valuation. Money stored raw.
+export const quotes = pgTable("data_quotes", {
+  symbol: text("symbol").primaryKey(),
+  price: doublePrecision("price").notNull(),
+  changePct: doublePrecision("change_pct"), // % vs previous close (FMP changePercentage)
+  prevClose: doublePrecision("prev_close"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+});
 
 // ---- Reference valuation (System A) ----
 

@@ -7,7 +7,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
-import { ok, fail, config, isAuthorizedJob, INCOME_CONCEPTS } from "@qt/shared";
+import { ok, fail, config, isAuthorizedJob, INCOME_CONCEPTS, marketdata } from "@qt/shared";
 import { priorYear, settledPeriod } from "@qt/shared/xbrl-frames";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
@@ -349,6 +349,29 @@ app.post(
     if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
     c.set("logContext", { symbol });
     return ensureFresh(symbol);
+  }),
+);
+
+// Near-real-time quotes (read-through cached, TTL-gated). web polls these during
+// market hours to tick the watchlist + symbol-detail price. GET so web forwards
+// via dataGet. ?symbols= is comma-separated (FMP isn't comma-batchable, so /quotes
+// fans out individual gated calls under the global throttle).
+app.get(
+  "/quote",
+  route("quote", async (c) => {
+    const symbol = (c.req.query("symbol") ?? "").trim();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    return (await marketdata.getLiveQuote(symbol)) ?? { symbol: symbol.toUpperCase(), price: null };
+  }),
+);
+app.get(
+  "/quotes",
+  route("quotes", async (c) => {
+    const raw = (c.req.query("symbols") ?? "").trim();
+    const symbols = raw
+      ? [...new Set(raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean))].slice(0, 100)
+      : [];
+    return { quotes: await marketdata.getLiveQuotes(symbols) };
   }),
 );
 

@@ -330,6 +330,62 @@ export async function getQuote(symbol: string): Promise<number | null> {
   return q?.[0]?.price ?? null;
 }
 
+export interface LiveQuote {
+  symbol: string;
+  price: number;
+  changePct: number | null;
+  prevClose: number | null;
+  fetchedAt: Date;
+}
+
+/** Near-real-time quote, read-through cached in `data_quotes` (NOT PIT). Within
+ *  QUOTE_TTL_MS of the last fetch we return the cached row; otherwise we hit FMP
+ *  `quote`, upsert, and return. On an FMP miss we fall back to the stale cache
+ *  rather than dropping the price. Callers gate calls to market hours. */
+const QUOTE_TTL_MS = 20_000;
+export async function getLiveQuote(symbol: string): Promise<LiveQuote | null> {
+  const sym = symbol.toUpperCase();
+  const { quotes } = schema;
+  const [cached] = await db().select().from(quotes).where(eq(quotes.symbol, sym)).limit(1);
+  if (cached && Date.now() - cached.fetchedAt.getTime() <= QUOTE_TTL_MS) {
+    return { symbol: sym, price: cached.price, changePct: cached.changePct, prevClose: cached.prevClose, fetchedAt: cached.fetchedAt };
+  }
+  const r = await fmpGet<Array<{ price?: number | null; changePercentage?: number | null; previousClose?: number | null }>>(
+    "quote",
+    { symbol: sym },
+    { softFail402: true },
+  );
+  const q = r?.[0];
+  if (q?.price == null) {
+    return cached
+      ? { symbol: sym, price: cached.price, changePct: cached.changePct, prevClose: cached.prevClose, fetchedAt: cached.fetchedAt }
+      : null;
+  }
+  const row = {
+    symbol: sym,
+    price: q.price,
+    changePct: q.changePercentage ?? null,
+    prevClose: q.previousClose ?? null,
+    fetchedAt: new Date(),
+  };
+  await db()
+    .insert(quotes)
+    .values(row)
+    .onConflictDoUpdate({
+      target: quotes.symbol,
+      set: { price: row.price, changePct: row.changePct, prevClose: row.prevClose, fetchedAt: row.fetchedAt },
+    });
+  return row;
+}
+
+/** Batch wrapper — FMP `quote` isn't comma-batchable, so this fans out individual
+ *  (TTL-gated) read-through calls under the global FMP throttle. Failures drop to
+ *  null and are filtered. Order not guaranteed; callers key by symbol. */
+export async function getLiveQuotes(symbols: string[]): Promise<LiveQuote[]> {
+  const out = await mapLimit(symbols, 6, (s) => getLiveQuote(s).catch(() => null));
+  return out.filter((q): q is LiveQuote => q != null);
+}
+
 /**
  * FMP company profile (beta / marketCap / price / sector …). Pass-through (it
  * carries realtime price), but upserts the stable bits into `universe` as a side

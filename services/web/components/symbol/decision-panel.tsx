@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { mutate } from "swr";
 import { useLive } from "@/components/live";
+import { useQuotes } from "@/components/quotes";
 import { apiAction } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
@@ -47,6 +48,10 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
   const { data: shell } = useLive<Shell | null>(`/api/data/symbol/${symbol}/shell`);
   const { data: holdings } = useLive<{ positions: Position[] }>(`/api/holdings/positions`);
   const s = shell ?? null;
+  // Live quote (market-hours ticking) overlays the static shell price.
+  const live = useQuotes([symbol]).get(symbol);
+  const price = live?.price ?? s?.price ?? null;
+  const dayChg = live?.changePct ?? null;
   const pos = (holdings?.positions ?? []).find((p) => p.symbol === symbol && p.assetClass !== "OPT");
   const upColor = s?.upsidePct == null ? "var(--muted)" : s.upsidePct >= 0 ? "#3fb950" : "#f85149";
   const retPct =
@@ -61,7 +66,14 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
           {s?.verdict && <StatusBadge status={s.verdict} />}
         </div>
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{s?.name ?? "—"}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(s?.price)}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 8 }}>
+          <span style={{ fontSize: 26, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(price)}</span>
+          {dayChg != null && (
+            <span style={{ fontSize: 13, fontWeight: 600, color: dayChg >= 0 ? "#3fb950" : "#f85149" }}>
+              {dayChg >= 0 ? "+" : ""}{dayChg.toFixed(2)}%
+            </span>
+          )}
+        </div>
         {s?.sector && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{s.sector}{s.industry ? ` · ${s.industry}` : ""}</div>}
       </div>
 

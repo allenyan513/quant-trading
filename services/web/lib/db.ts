@@ -29,6 +29,7 @@ export const {
   watchlistLists,
   candidates,
   dailyPrices,
+  quotes,
   incomeStatement,
   balanceSheet,
   cashFlow,
