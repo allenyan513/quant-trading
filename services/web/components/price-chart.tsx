@@ -146,6 +146,7 @@ export function PriceChart({
   showMA200 = true,
   showRSI = true,
   showMACD = true,
+  showValuation = true,
 }: {
   bars: Bar[];
   rangeDays?: number | null;
@@ -159,6 +160,7 @@ export function PriceChart({
   showMA200?: boolean;
   showRSI?: boolean;
   showMACD?: boolean;
+  showValuation?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const legendRef = useRef<HTMLDivElement>(null);
@@ -183,7 +185,7 @@ export function PriceChart({
     if (!el) return;
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: 760,
+      height: el.clientHeight || 460,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: MUTED, fontSize: 11 },
       grid: { vertLines: { color: BORDER }, horzLines: { color: BORDER } },
       rightPriceScale: { borderColor: BORDER },
@@ -262,8 +264,8 @@ export function PriceChart({
     });
 
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w && w > 0) chart.applyOptions({ width: w });
+      const r = entries[0]?.contentRect;
+      if (r && r.width > 0 && r.height > 0) chart.applyOptions({ width: r.width, height: r.height });
     });
     ro.observe(el);
     return () => {
@@ -314,12 +316,12 @@ export function PriceChart({
     // Overlay reference lines as flat 2-point series (autoscale-neutral → never squashes candles).
     const flat = (v: number | null | undefined, series: ISeriesApi<"Line">) =>
       series.setData(v != null && Number.isFinite(v) ? [{ time: first as Time, value: v }, { time: last as Time, value: v }] : []);
-    const fvPts = fvHistory.filter((p) => p.time >= first && Number.isFinite(p.value));
+    const fvPts = showValuation ? fvHistory.filter((p) => p.time >= first && Number.isFinite(p.value)) : [];
     if (fvPts.length >= 2) fvRef.current.setData(fvPts.map((p) => ({ time: p.time, value: p.value })));
-    else flat(fairValue, fvRef.current);
-    flat(band?.low, lowRef.current);
-    flat(band?.high, highRef.current);
-    flat(costBasis, costRef.current);
+    else flat(showValuation ? fairValue : null, fvRef.current);
+    flat(showValuation ? band?.low : null, lowRef.current);
+    flat(showValuation ? band?.high : null, highRef.current);
+    flat(costBasis, costRef.current); // your cost line is independent of the valuation toggle
 
     // Events lane: flat carrier + markers (page already filtered markers by type).
     evRef.current.setData(valid.map((b) => ({ time: b.time, value: 0 })));
@@ -340,12 +342,12 @@ export function PriceChart({
     } else {
       chart.timeScale().fitContent();
     }
-  }, [bars, rangeDays, fairValue, fvHistory, band, costBasis, markers, log, showMA50, showMA200, showRSI, showMACD]);
+  }, [bars, rangeDays, fairValue, fvHistory, band, costBasis, markers, log, showMA50, showMA200, showRSI, showMACD, showValuation]);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={legendRef} style={{ position: "absolute", top: 6, left: 8, zIndex: 2, fontSize: 11, color: MUTED, fontVariantNumeric: "tabular-nums", pointerEvents: "none" }} />
-      <div ref={ref} style={{ width: "100%", height: 760 }} />
+      <div ref={ref} style={{ width: "100%", height: "100%" }} />
     </div>
   );
 }
