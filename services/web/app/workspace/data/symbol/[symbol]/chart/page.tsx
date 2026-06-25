@@ -59,11 +59,9 @@ export default function ChartTab() {
   const { data: overlays } = useLive<{ markers: ChartMarker[] }>(`/api/data/symbol/${symbol}/overlays`);
   const { data: holdings } = useLive<{ positions: Position[] }>(`/api/holdings/positions`);
 
-  const bars = useMemo(() => {
-    const all = data?.bars ?? [];
-    const days = RANGES.find((r) => r.key === range)?.days ?? null;
-    return days == null ? all : all.slice(-days);
-  }, [data, range]);
+  // Pass the FULL series + the window; the chart computes indicators on all of it
+  // (no MA warm-up gap) and just zooms to `rangeDays`.
+  const rangeDays = RANGES.find((r) => r.key === range)?.days ?? null;
   const markers = useMemo(() => (overlays?.markers ?? []).filter((m) => !hidden.has(m.kind)), [overlays, hidden]);
   const costBasis = useMemo(
     () => holdings?.positions.find((p) => p.symbol === symbol && p.assetClass !== "OPT")?.avgPrice ?? null,
@@ -93,7 +91,7 @@ export default function ChartTab() {
                 <button key={r.key} onClick={() => setRange(r.key)} style={pill(range === r.key)}>{r.label}</button>
               ))}
             </span>
-            <button onClick={() => setLog((v) => !v)} style={pill(log)} title="Logarithmic price scale">log</button>
+            <button onClick={() => setLog((v) => !v)} style={pill(log)} title="Log price scale — equal vertical distance = equal % change (clearer over long ranges)">log</button>
             <span style={{ display: "flex", gap: 4 }}>
               <button onClick={() => setMA50((v) => !v)} style={pill(showMA50, "#d29922")}>MA50</button>
               <button onClick={() => setMA200((v) => !v)} style={pill(showMA200, "#a371f7")}>MA200</button>
@@ -104,7 +102,8 @@ export default function ChartTab() {
       }
     >
       <PriceChartLazy
-        bars={bars}
+        bars={data.bars}
+        rangeDays={rangeDays}
         fairValue={data.fairValue}
         fvHistory={data.fvHistory}
         band={data.band}
