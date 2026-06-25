@@ -103,6 +103,28 @@ function rsi(closes: number[], period = 14): (number | null)[] {
   return out;
 }
 
+/** Exponential moving average, aligned to the input (seeded with the first value). */
+function ema(values: number[], period: number): number[] {
+  const out: number[] = [];
+  const k = 2 / (period + 1);
+  let prev = 0;
+  for (let i = 0; i < values.length; i++) {
+    prev = i === 0 ? values[i]! : values[i]! * k + prev * (1 - k);
+    out.push(prev);
+  }
+  return out;
+}
+
+/** MACD(12/26/9): macd line, signal line, histogram — all aligned to closes. */
+function macd(closes: number[]): { macd: number[]; signal: number[]; hist: number[] } {
+  const e12 = ema(closes, 12);
+  const e26 = ema(closes, 26);
+  const line = closes.map((_, i) => e12[i]! - e26[i]!);
+  const signal = ema(line, 9);
+  const hist = line.map((m, i) => m - signal[i]!);
+  return { macd: line, signal, hist };
+}
+
 const MARKER_STYLE: Record<MarkerKind, { position: "aboveBar" | "belowBar" | "inBar"; shape: "circle" | "square" | "arrowUp" | "arrowDown"; color: string }> = {
   earnings: { position: "inBar", shape: "circle", color: "#58a6ff" },
   event: { position: "inBar", shape: "square", color: "#d29922" },
@@ -123,6 +145,7 @@ export function PriceChart({
   showMA50 = true,
   showMA200 = true,
   showRSI = true,
+  showMACD = true,
 }: {
   bars: Bar[];
   rangeDays?: number | null;
@@ -135,6 +158,7 @@ export function PriceChart({
   showMA50?: boolean;
   showMA200?: boolean;
   showRSI?: boolean;
+  showMACD?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const legendRef = useRef<HTMLDivElement>(null);
@@ -148,6 +172,9 @@ export function PriceChart({
   const highRef = useRef<ISeriesApi<"Line"> | null>(null);
   const costRef = useRef<ISeriesApi<"Line"> | null>(null);
   const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const macdHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const macdLineRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const macdSignalRef = useRef<ISeriesApi<"Line"> | null>(null);
   const evRef = useRef<ISeriesApi<"Line"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
 
@@ -156,7 +183,7 @@ export function PriceChart({
     if (!el) return;
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: 600,
+      height: 760,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: MUTED, fontSize: 11 },
       grid: { vertLines: { color: BORDER }, horzLines: { color: BORDER } },
       rightPriceScale: { borderColor: BORDER },
@@ -195,7 +222,13 @@ export function PriceChart({
     rs.createPriceLine({ price: 30, color: BORDER, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
     rsiRef.current = rs;
 
-    // Pane 2 — events lane (a flat hidden series carries the markers, time-aligned).
+    // Pane 2 — MACD(12/26/9): histogram + macd line + signal line (autoscales to data).
+    const macdPane = chart.addPane();
+    macdHistRef.current = macdPane.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false });
+    macdLineRef.current = macdPane.addSeries(LineSeries, { color: "#58a6ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: true });
+    macdSignalRef.current = macdPane.addSeries(LineSeries, { color: "#d29922", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+
+    // Pane 3 — events lane (a flat hidden series carries the markers, time-aligned).
     // Its scale needs a REAL fixed range: a pane whose only series returns null
     // autoscale can't size itself (lightweight-charts ensureNotNull crash).
     const evPane = chart.addPane();
@@ -215,8 +248,9 @@ export function PriceChart({
     markersRef.current = createSeriesMarkers(ev, []);
 
     chart.panes()[0]?.setStretchFactor(6);
-    chart.panes()[1]?.setStretchFactor(1.6);
-    chart.panes()[2]?.setStretchFactor(0.9);
+    chart.panes()[1]?.setStretchFactor(1.6); // RSI
+    chart.panes()[2]?.setStretchFactor(1.8); // MACD
+    chart.panes()[3]?.setStretchFactor(0.9); // events
 
     chart.subscribeCrosshairMove((param) => {
       const node = legendRef.current;
@@ -237,6 +271,9 @@ export function PriceChart({
       chart.remove();
       chartRef.current = candleRef.current = volRef.current = ma50Ref.current = ma200Ref.current = null;
       fvRef.current = lowRef.current = highRef.current = costRef.current = rsiRef.current = evRef.current = null;
+      macdHistRef.current = null;
+      macdLineRef.current = null;
+      macdSignalRef.current = null;
       markersRef.current = null;
     };
   }, []);
@@ -245,6 +282,7 @@ export function PriceChart({
     const chart = chartRef.current;
     const candle = candleRef.current;
     if (!chart || !candle || !volRef.current || !ma50Ref.current || !ma200Ref.current || !fvRef.current || !lowRef.current || !highRef.current || !costRef.current || !rsiRef.current || !evRef.current) return;
+    if (!macdHistRef.current || !macdLineRef.current || !macdSignalRef.current) return;
 
     const valid = bars.filter(isBar);
     if (valid.length === 0) return;
@@ -260,6 +298,18 @@ export function PriceChart({
     lineFrom(sma(closes, 50), ma50Ref.current, showMA50);
     lineFrom(sma(closes, 200), ma200Ref.current, showMA200);
     lineFrom(rsi(closes, 14), rsiRef.current, showRSI);
+
+    // MACD(12/26/9) — histogram (green/red by sign) + macd & signal lines.
+    if (showMACD) {
+      const m = macd(closes);
+      macdHistRef.current.setData(valid.map((b, i) => ({ time: b.time, value: m.hist[i]!, color: m.hist[i]! >= 0 ? "rgba(63,185,80,0.5)" : "rgba(248,81,73,0.5)" })));
+      macdLineRef.current.setData(valid.map((b, i) => ({ time: b.time, value: m.macd[i]! })));
+      macdSignalRef.current.setData(valid.map((b, i) => ({ time: b.time, value: m.signal[i]! })));
+    } else {
+      macdHistRef.current.setData([]);
+      macdLineRef.current.setData([]);
+      macdSignalRef.current.setData([]);
+    }
 
     // Overlay reference lines as flat 2-point series (autoscale-neutral → never squashes candles).
     const flat = (v: number | null | undefined, series: ISeriesApi<"Line">) =>
@@ -290,12 +340,12 @@ export function PriceChart({
     } else {
       chart.timeScale().fitContent();
     }
-  }, [bars, rangeDays, fairValue, fvHistory, band, costBasis, markers, log, showMA50, showMA200, showRSI]);
+  }, [bars, rangeDays, fairValue, fvHistory, band, costBasis, markers, log, showMA50, showMA200, showRSI, showMACD]);
 
   return (
     <div style={{ position: "relative" }}>
       <div ref={legendRef} style={{ position: "absolute", top: 6, left: 8, zIndex: 2, fontSize: 11, color: MUTED, fontVariantNumeric: "tabular-nums", pointerEvents: "none" }} />
-      <div ref={ref} style={{ width: "100%", height: 600 }} />
+      <div ref={ref} style={{ width: "100%", height: 760 }} />
     </div>
   );
 }

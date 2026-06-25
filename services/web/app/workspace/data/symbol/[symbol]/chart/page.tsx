@@ -53,6 +53,7 @@ export default function ChartTab() {
   const [showMA50, setMA50] = useState(true);
   const [showMA200, setMA200] = useState(true);
   const [showRSI, setRSI] = useState(true);
+  const [showMACD, setMACD] = useState(true);
   const [hidden, setHidden] = useState<Set<MarkerKind>>(() => new Set());
 
   const { data, error } = useLive<Prices>(`/api/data/symbol/${symbol}/prices?days=2600`);
@@ -96,6 +97,7 @@ export default function ChartTab() {
               <button onClick={() => setMA50((v) => !v)} style={pill(showMA50, "#d29922")}>MA50</button>
               <button onClick={() => setMA200((v) => !v)} style={pill(showMA200, "#a371f7")}>MA200</button>
               <button onClick={() => setRSI((v) => !v)} style={pill(showRSI)}>RSI</button>
+              <button onClick={() => setMACD((v) => !v)} style={pill(showMACD)}>MACD</button>
             </span>
           </span>
         </span>
@@ -113,6 +115,7 @@ export default function ChartTab() {
         showMA50={showMA50}
         showMA200={showMA200}
         showRSI={showRSI}
+        showMACD={showMACD}
       />
 
       {/* Marker legend + per-type toggles */}
