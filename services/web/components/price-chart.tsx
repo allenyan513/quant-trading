@@ -254,13 +254,29 @@ export function PriceChart({
     chart.panes()[2]?.setStretchFactor(1.8); // MACD
     chart.panes()[3]?.setStretchFactor(0.9); // events
 
+    // Crosshair readout: OHLC + every visible indicator's value AT THE CURSOR
+    // (not the static last-value axis labels). A toggled-off series has no data
+    // point → absent from seriesData → skipped automatically.
     chart.subscribeCrosshairMove((param) => {
       const node = legendRef.current;
       if (!node) return;
-      const d = param.time ? (param.seriesData.get(candle) as { open?: number; high?: number; low?: number; close?: number } | undefined) : undefined;
-      if (!d || d.open == null) return void (node.textContent = "");
-      const f = (n?: number) => (n == null ? "—" : n.toFixed(2));
-      node.textContent = `O ${f(d.open)}  H ${f(d.high)}  L ${f(d.low)}  C ${f(d.close)}`;
+      if (!param.time) return void (node.textContent = "");
+      const f = (n?: number | null) => (n == null ? "—" : n.toFixed(2));
+      const val = (s: ISeriesApi<"Line"> | ISeriesApi<"Histogram"> | null): number | undefined =>
+        s ? (param.seriesData.get(s) as { value?: number } | undefined)?.value : undefined;
+      const c = param.seriesData.get(candle) as { open?: number; high?: number; low?: number; close?: number } | undefined;
+      if (!c || c.open == null) return void (node.textContent = "");
+      const parts = [`O ${f(c.open)}  H ${f(c.high)}  L ${f(c.low)}  C ${f(c.close)}`];
+      const ma50v = val(ma50Ref.current);
+      const ma200v = val(ma200Ref.current);
+      if (ma50v != null) parts.push(`MA50 ${f(ma50v)}`);
+      if (ma200v != null) parts.push(`MA200 ${f(ma200v)}`);
+      const rsiv = val(rsiRef.current);
+      if (rsiv != null) parts.push(`RSI ${f(rsiv)}`);
+      const ml = val(macdLineRef.current);
+      const ms = val(macdSignalRef.current);
+      if (ml != null) parts.push(`MACD ${f(ml)} / sig ${f(ms)}`);
+      node.textContent = parts.join("    ");
     });
 
     const ro = new ResizeObserver((entries) => {
