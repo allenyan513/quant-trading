@@ -20,6 +20,7 @@
     "./edgar-fts": "./src/edgar-fts.ts",
     "./xbrl-frames": "./src/xbrl-frames.ts",
     "./markets": "./src/markets.ts",
+    "./market-hours": "./src/market-hours.ts",
     "./earnings-read": "./src/earnings-read.ts",
     "./openfigi": "./src/openfigi.ts",
     "./http": "./src/http.ts",

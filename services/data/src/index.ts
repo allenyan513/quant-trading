@@ -7,7 +7,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
-import { ok, fail, config, isAuthorizedJob, INCOME_CONCEPTS } from "@qt/shared";
+import { ok, fail, config, isAuthorizedJob, INCOME_CONCEPTS, marketdata } from "@qt/shared";
 import { priorYear, settledPeriod } from "@qt/shared/xbrl-frames";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
@@ -19,7 +19,7 @@ import { dismissCandidate } from "./candidates.js";
 import { addWatchlist, removeWatchlist } from "./watchlist.js";
 import { createList, renameList, deleteList, assignToList, reorderLists } from "./watchlist-lists.js";
 import { submitMorningBrief } from "./morning-brief.js";
-import { warmAndPullNews, revalue } from "./refresh.js";
+import { warmAndPullNews, revalue, ensureFresh } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
@@ -338,11 +338,42 @@ app.post(
   }),
 );
 
-// SEVERED (cron, JOB_TOKEN-guarded): the daily full-watchlist refresh lost its
-// driver when the watchlist became per-user (no global house universe to iterate).
-// No-op so the GitHub Actions cron stays green; per-symbol warming still happens
-// reactively (news triage) and on watchlist add. See follow-up issue.
-app.post("/jobs/refresh-watchlist", (c) => c.json(ok({ severed: true, scanned: 0 })));
+// Page-open auto-refresh: warm + revalue at most once per 24h, in the background.
+// web fires this on opening a symbol (fire-and-forget) instead of the user clicking
+// "Refresh data"; returns immediately (skipped if recently warmed). See refresh.ts.
+app.post(
+  "/ensure",
+  route("ensure", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const symbol = String(body.symbol ?? "").trim();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    c.set("logContext", { symbol });
+    return ensureFresh(symbol);
+  }),
+);
+
+// Near-real-time quotes (read-through cached, TTL-gated). web polls these during
+// market hours to tick the watchlist + symbol-detail price. GET so web forwards
+// via dataGet. ?symbols= is comma-separated (FMP isn't comma-batchable, so /quotes
+// fans out individual gated calls under the global throttle).
+app.get(
+  "/quote",
+  route("quote", async (c) => {
+    const symbol = (c.req.query("symbol") ?? "").trim();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    return (await marketdata.getLiveQuote(symbol)) ?? { symbol: symbol.toUpperCase(), price: null };
+  }),
+);
+app.get(
+  "/quotes",
+  route("quotes", async (c) => {
+    const raw = (c.req.query("symbols") ?? "").trim();
+    const symbols = raw
+      ? [...new Set(raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean))].slice(0, 100)
+      : [];
+    return { quotes: await marketdata.getLiveQuotes(symbols) };
+  }),
+);
 
 // Save/update the IBKR Flex credentials (token + query id) for the configured
 // account. Written here (data owns data_holdings_accounts); the web "Connect
@@ -621,15 +652,6 @@ app.post(
     return computeReferenceValuation(symbol, { forceRefresh });
   }),
 );
-
-// SEVERED: the watchlist-wide valuation sweep lost its driver (house universe →
-// per-user). No-op; per-symbol reference valuation is still at /internal/valuation.
-// See follow-up issue.
-app.post("/internal/valuation-sweep", (c) => c.json(ok({ severed: true, swept: 0 })));
-
-// SEVERED: discovery TTL expiry is gone — the per-user watchlist has no source/TTL
-// columns. No-op so any scheduler stays green. See follow-up issue.
-app.post("/internal/expire-watchlist", (c) => c.json(ok({ severed: true, removed: 0 })));
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });

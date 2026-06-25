@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { LiveTable, useLive } from "@/components/live";
+import { useQuotes } from "@/components/quotes";
 import { apiAction } from "@/lib/api-client";
 import { refresh } from "./api";
 import { columns, ColumnsMenu, DEFAULT_VISIBLE, COLS_KEY, type WatchRow, type WL } from "./columns";
@@ -62,6 +63,12 @@ function BottomAdd({ activeList }: { activeList: string }) {
 export default function WatchlistPage() {
   const router = useRouter();
   const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
+  // Reads the same SWR cache LiveTable fills (deduped) just to know which symbols
+  // are shown, then ticks their live quotes during market hours — the data refresh
+  // lands in data_quotes and the overview overlay surfaces it on the next poll.
+  const { data: rows } = useLive<WatchRow[]>("/api/watchlist");
+  const syms = useMemo(() => [...new Set((rows ?? []).map((r) => r.symbol))], [rows]);
+  useQuotes(syms);
   const [activeList, setActiveList] = useState<string>("all");
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE));
   // Load saved column choice after mount (server + first client render use the

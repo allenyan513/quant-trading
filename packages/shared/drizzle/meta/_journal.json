@@ -232,6 +232,13 @@
       "when": 1782399112239,
       "tag": "0032_lame_dark_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782414069209,
+      "tag": "0033_puzzling_venom",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import {
   watchlist,
   watchlistLists,
   dailyPrices,
+  quotes,
   incomeStatement,
   balanceSheet,
   cashFlow,
@@ -178,6 +179,19 @@ export async function listWatchlistOverview(userId: string) {
   const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
   const str = (x: unknown): string | null => (typeof x === "string" && x.length > 0 ? x : null);
 
+  // Live-quote overlay (market-hours ticking, refreshed by the watchlist page's
+  // poll). Use a quote only if it was fetched recently; otherwise fall back to the
+  // daily close so off-hours rows don't show a stale intraday tick as "live".
+  const quoteRows = await db()
+    .select({ symbol: quotes.symbol, price: quotes.price, changePct: quotes.changePct, fetchedAt: quotes.fetchedAt })
+    .from(quotes)
+    .where(inArray(quotes.symbol, syms));
+  const RECENT_QUOTE_MS = 30 * 60_000;
+  const qBy = new Map<string, { price: number; changePct: number | null }>();
+  for (const r of quoteRows) {
+    if (Date.now() - r.fetchedAt.getTime() <= RECENT_QUOTE_MS) qBy.set(r.symbol, { price: r.price, changePct: r.changePct });
+  }
+
   return wl
     .map((w) => {
       const v = vBy.get(w.symbol);
@@ -194,6 +208,10 @@ export async function listWatchlistOverview(userId: string) {
       const target = num(tgt?.priceTarget);
       const entry = p?.entryPrice ?? null;
       const nm = num(ratios?.netProfitMargin); // FMP stores margins as a fraction
+      // Current price = live quote if recent, else the latest daily close. Drives
+      // the day change + every "vs current price" metric so the row ticks live.
+      const q = qBy.get(w.symbol);
+      const cur = q?.price ?? last;
       return {
         symbol: w.symbol,
         note: w.note,
@@ -204,17 +222,17 @@ export async function listWatchlistOverview(userId: string) {
         industry: u?.industry ?? null,
         archetype: u?.archetype ?? null,
         beta: u?.beta ?? null,
-        changePct: last != null && prev != null && prev !== 0 ? ((last - prev) / prev) * 100 : null,
-        ytdPct: last != null && ytdBase != null && ytdBase !== 0 ? ((last - ytdBase) / ytdBase) * 100 : null,
-        ret1y: last != null && y1 != null && y1 !== 0 ? ((last - y1) / y1) * 100 : null,
-        pctBelow52w: last != null && hi52 != null && hi52 !== 0 ? ((last - hi52) / hi52) * 100 : null,
+        changePct: q?.changePct ?? (cur != null && prev != null && prev !== 0 ? ((cur - prev) / prev) * 100 : null),
+        ytdPct: cur != null && ytdBase != null && ytdBase !== 0 ? ((cur - ytdBase) / ytdBase) * 100 : null,
+        ret1y: cur != null && y1 != null && y1 !== 0 ? ((cur - y1) / y1) * 100 : null,
+        pctBelow52w: cur != null && hi52 != null && hi52 !== 0 ? ((cur - hi52) / hi52) * 100 : null,
         fairValue: v?.fairValue ?? null,
-        price: v?.price ?? null,
+        price: cur ?? v?.price ?? null,
         upsidePct: v?.upsidePct ?? null,
         verdict: v?.verdict ?? null,
         asOf: v?.asOf ?? null,
         analystTarget: target,
-        targetUpsidePct: target != null && last != null && last !== 0 ? ((target - last) / last) * 100 : null,
+        targetUpsidePct: target != null && cur != null && cur !== 0 ? ((target - cur) / cur) * 100 : null,
         analystRating: str(rating?.newGrade),
         pe: num(ratios?.priceToEarningsRatio),
         pb: num(ratios?.priceToBookRatio),
@@ -225,7 +243,7 @@ export async function listWatchlistOverview(userId: string) {
         held: !!p,
         shares: p?.shares ?? null,
         entryPrice: entry,
-        plPct: entry != null && entry !== 0 && last != null ? ((last - entry) / entry) * 100 : null,
+        plPct: entry != null && entry !== 0 && cur != null ? ((cur - entry) / entry) * 100 : null,
       };
     })
     // Most undervalued first; symbols without a valuation sink to the bottom.

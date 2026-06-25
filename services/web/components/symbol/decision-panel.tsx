@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { mutate } from "swr";
 import { useLive } from "@/components/live";
+import { useQuotes } from "@/components/quotes";
 import { apiAction } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
@@ -47,6 +48,10 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
   const { data: shell } = useLive<Shell | null>(`/api/data/symbol/${symbol}/shell`);
   const { data: holdings } = useLive<{ positions: Position[] }>(`/api/holdings/positions`);
   const s = shell ?? null;
+  // Live quote (market-hours ticking) overlays the static shell price.
+  const live = useQuotes([symbol]).get(symbol);
+  const price = live?.price ?? s?.price ?? null;
+  const dayChg = live?.changePct ?? null;
   const pos = (holdings?.positions ?? []).find((p) => p.symbol === symbol && p.assetClass !== "OPT");
   const upColor = s?.upsidePct == null ? "var(--muted)" : s.upsidePct >= 0 ? "#3fb950" : "#f85149";
   const retPct =
@@ -61,7 +66,14 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
           {s?.verdict && <StatusBadge status={s.verdict} />}
         </div>
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{s?.name ?? "—"}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(s?.price)}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 8 }}>
+          <span style={{ fontSize: 26, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(price)}</span>
+          {dayChg != null && (
+            <span style={{ fontSize: 13, fontWeight: 600, color: dayChg >= 0 ? "#3fb950" : "#f85149" }}>
+              {dayChg >= 0 ? "+" : ""}{dayChg.toFixed(2)}%
+            </span>
+          )}
+        </div>
         {s?.sector && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{s.sector}{s.industry ? ` · ${s.industry}` : ""}</div>}
       </div>
 
@@ -102,10 +114,13 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
         )}
       </div>
 
-      {/* Actions */}
-      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-        <WatchlistToggle symbol={symbol} inWatchlist={s?.inWatchlist ?? false} />
-        <RefreshButton symbol={symbol} />
+      {/* Actions — watchlist toggle is primary; data auto-refreshes on open, so
+          refresh is just a tiny "force now" override. */}
+      <div style={{ padding: 12, display: "flex", gap: 8 }}>
+        <div style={{ flex: 1, display: "flex" }}>
+          <WatchlistToggle symbol={symbol} inWatchlist={s?.inWatchlist ?? false} />
+        </div>
+        <ForceRefresh symbol={symbol} />
       </div>
     </div>
   );
@@ -138,6 +153,7 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
       disabled={busy}
       title={added ? "Click to remove from watchlist" : "Add to watchlist"}
       style={{
+        width: "100%",
         background: added ? "transparent" : "#1f6feb",
         border: `1px solid ${added ? "var(--border)" : "#388bfd"}`,
         color: added ? "var(--muted)" : "#fff",
@@ -153,8 +169,10 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
   );
 }
 
-/** Warms this symbol's marketdata caches on demand, then revalidates symbol-scoped SWR keys. */
-function RefreshButton({ symbol }: { symbol: string }) {
+/** Tiny "force refresh now" override — warms this symbol's caches (bypassing the
+ *  24h auto-refresh gate) and revalidates symbol-scoped SWR keys. The page already
+ *  auto-refreshes on open, so this is rarely needed. */
+function ForceRefresh({ symbol }: { symbol: string }) {
   const [busy, setBusy] = useState(false);
   async function refresh() {
     if (busy) return;
@@ -181,19 +199,18 @@ function RefreshButton({ symbol }: { symbol: string }) {
     <button
       onClick={refresh}
       disabled={busy}
-      title="Pull from FMP and warm this symbol's caches (Chart, Financials, news)"
+      title="Force-refresh now (data also auto-refreshes when you open a symbol)"
       style={{
         background: "transparent",
         border: "1px solid var(--border)",
         color: "var(--muted)",
-        padding: "8px 12px",
-        fontSize: 13,
-        fontWeight: 600,
+        padding: "8px 11px",
+        fontSize: 15,
         cursor: busy ? "default" : "pointer",
         opacity: busy ? 0.6 : 1,
       }}
     >
-      {busy ? "Refreshing…" : "⟳ Refresh data"}
+      {busy ? "…" : "⟳"}
     </button>
   );
 }

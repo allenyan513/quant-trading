@@ -50,8 +50,8 @@ export default function ValuationPage() {
       {error && <p className="text-red-400">Error: {String(error.message ?? error)}</p>}
       {data === null && (
         <p className="text-muted-foreground">
-          No valuation snapshot yet. Run alpha&rsquo;s <code>POST /internal/valuation-sweep</code>
-          (or the daily watchlist sweep), then check back.
+          No valuation snapshot yet. It&rsquo;s computed automatically when you open this
+          symbol (or hit the <code>↻</code> refresh) — check back in a moment.
         </p>
       )}
       {data && <Body snap={data} />}
