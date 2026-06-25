@@ -9,16 +9,17 @@
 import { useParams } from "next/navigation";
 import { SectionTabs, type TabDef } from "@/components/section-tabs";
 
+// Chart/Valuation/Financials lead; Overall (company profile) sits last. Options
+// dropped (we don't trade — there's no options data).
 const TABS: TabDef[] = [
-  { seg: "overall", label: "Overall" },
+  { seg: "chart", label: "Chart" },
   { seg: "valuation", label: "Valuation" },
   { seg: "financials", label: "Financials" },
-  { seg: "chart", label: "Chart" },
-  { seg: "news", label: "News" },
-  { seg: "events", label: "Events" },
   { seg: "analysts", label: "Analysts" },
   { seg: "ownership", label: "Ownership" },
-  { seg: "options", label: "Options" },
+  { seg: "events", label: "Events" },
+  { seg: "news", label: "News" },
+  { seg: "overall", label: "Overall" },
 ];
 
 export function SymbolTabs() {
@@ -26,5 +27,5 @@ export function SymbolTabs() {
   // (e.g. aapl→AAPL) makes Next treat it as a different route branch and unmounts
   // the shared layout, defeating cross-tab state preservation.
   const params = useParams<{ symbol: string }>();
-  return <SectionTabs base={`/workspace/data/symbol/${params.symbol ?? ""}`} tabs={TABS} defaultSeg="overall" margin="12px 0 16px" />;
+  return <SectionTabs base={`/workspace/data/symbol/${params.symbol ?? ""}`} tabs={TABS} defaultSeg="chart" margin="0 0 12px" />;
 }

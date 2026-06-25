@@ -40,6 +40,18 @@ export const universe = pgTable("data_universe", {
 });
 
 /**
+ * Full FMP company profile (description / CEO / employees / address / website /
+ * exchange / ipoDate …) — one upserted row per symbol. `universe` keeps the slim
+ * identity (name/sector/industry/beta) that drives joins; this holds the richer
+ * profile shown on the symbol Overview tab. Written only by data (warm → getProfile).
+ */
+export const companyProfile = pgTable("data_company_profile", {
+  symbol: text("symbol").primaryKey(),
+  data: jsonb("data").notNull(), // raw FMP profile row
+  knownAt: timestamp("known_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+/**
  * `watchlist` (data_watchlist) — each user's PRIVATE followed symbols.
  * Per-user (PK [user_id, symbol], FK → auth_user, cascade). data owns the writes
  * (web forwards, T12); web reads scoped to the session user.

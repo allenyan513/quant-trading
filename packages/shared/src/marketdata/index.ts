@@ -333,7 +333,8 @@ export async function getProfile(symbol: string): Promise<Record<string, unknown
   const arr = await fmpGet<Array<Record<string, unknown>>>("profile", { symbol: sym }, { softFail402: true });
   const p = arr?.[0] ?? null;
   if (p) {
-    const { universe } = schema;
+    const { universe, companyProfile } = schema;
+    const knownAt = new Date();
     const meta = {
       symbol: sym,
       name: typeof p.companyName === "string" ? p.companyName : null,
@@ -341,7 +342,7 @@ export async function getProfile(symbol: string): Promise<Record<string, unknown
       industry: typeof p.industry === "string" ? p.industry : null,
       beta: typeof p.beta === "number" ? p.beta : null,
       reportingCurrency: typeof p.currency === "string" ? p.currency : "USD",
-      knownAt: new Date(),
+      knownAt,
     };
     await db()
       .insert(universe)
@@ -357,6 +358,12 @@ export async function getProfile(symbol: string): Promise<Record<string, unknown
           knownAt: meta.knownAt,
         },
       });
+    // Persist the full profile row for the symbol Overview tab (universe keeps only
+    // the slim identity used by joins).
+    await db()
+      .insert(companyProfile)
+      .values({ symbol: sym, data: p, knownAt })
+      .onConflictDoUpdate({ target: companyProfile.symbol, set: { data: p, knownAt } });
   }
   return p;
 }

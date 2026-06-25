@@ -24,6 +24,7 @@ export function db() {
 // Table objects the dashboard reads, for convenient imports.
 export const {
   universe,
+  companyProfile,
   watchlist,
   watchlistLists,
   candidates,

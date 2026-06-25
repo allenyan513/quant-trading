@@ -36,7 +36,7 @@ export function SectionTabs({ base, tabs, defaultSeg, margin = "4px 0 16px" }: {
   }, [active, base, tabs, router]);
 
   return (
-    <nav style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", margin, overflowX: "auto" }}>
+    <nav style={{ display: "flex", flexWrap: "wrap", gap: 4, borderBottom: "1px solid var(--border)", margin }}>
       {tabs.map((t) => {
         const on = active === t.seg;
         return (

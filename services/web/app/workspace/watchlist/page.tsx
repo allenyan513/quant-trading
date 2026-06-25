@@ -186,7 +186,7 @@ export default function WatchlistPage() {
         columns={shownColumns}
         rowFilter={activeList === "all" ? undefined : (r) => r.listId === activeList}
         getRowDragData={(r) => r.symbol}
-        onRowDoubleClick={(r) => router.push(`/workspace/data/symbol/${r.symbol}/overall`)}
+        onRowDoubleClick={(r) => router.push(`/workspace/data/symbol/${r.symbol}/chart`)}
         emptyText={activeList === "all" ? "Watchlist is empty — add one below." : "No symbols in this list yet — drag a row here or set its List."}
       />
       <BottomAdd activeList={activeList} />
