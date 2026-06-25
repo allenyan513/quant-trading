@@ -214,6 +214,18 @@ export const priceTargets = pgTable(
   ],
 );
 
+// Dividend history (ex/record/payment dates + amount + yield). Same record-cache
+// shape; `external_id` = the ex-dividend date, `observed_at` = declaration date
+// (PIT — when the dividend became public). Shown on the symbol Financials tab.
+export const dividends = pgTable(
+  "data_dividends",
+  recordCols,
+  (t) => [
+    primaryKey({ columns: [t.symbol, t.externalId] }),
+    index("idx_dividends_symbol_observed").on(t.symbol, t.observedAt),
+  ],
+);
+
 // Per-(symbol, dataset) fetch watermark for the record caches. Their freshness
 // can't be inferred from row age (no recent row is the steady state for sporadic
 // feeds), so we track when each (symbol, dataset) was last fetched and gate on a
