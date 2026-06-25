@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <CommandPalette />
         </header>
-        <main style={{ flex: 1, minWidth: 0, padding: 20, maxWidth: 1400, width: "100%", margin: "0 auto" }}>{children}</main>
+        <main style={{ flex: 1, minWidth: 0, padding: 20, width: "100%" }}>{children}</main>
       </div>
     </div>
   );

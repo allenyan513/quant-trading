@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SymbolLink } from "@/components/symbol-link";
 import { useLive } from "@/components/live";
 import { Badge, Card, StatusBadge, TimeText, statusColor } from "@/components/ui";
 import { SUBSYSTEMS, subsystemColor } from "@/lib/subsystems";
@@ -158,7 +159,7 @@ export default function OverviewPage() {
                 <StatusBadge status={e.level} />
                 <span style={{ color: subsystemColor(e.service) }}>[{e.service}]</span>
                 <span style={{ fontWeight: 600 }}>{e.event}</span>
-                {e.symbol && <Link href={`/workspace/data/symbol/${e.symbol}/overall`}><Badge>{e.symbol}</Badge></Link>}
+                {e.symbol && <SymbolLink symbol={e.symbol} />}
                 <span style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {JSON.stringify(e.fields)}
                 </span>

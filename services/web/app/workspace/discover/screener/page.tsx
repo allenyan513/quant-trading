@@ -5,6 +5,7 @@ import { mutate } from "swr";
 import { LiveTable, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
+import { SymbolLink } from "@/components/symbol-link";
 import { fmtFull } from "@/lib/format";
 import { apiSend, apiAction } from "@/lib/api-client";
 
@@ -105,7 +106,7 @@ function RunScreenerButton() {
 
 const columns: Column<CandidateRow>[] = [
   { key: "lastSeenAt", header: "Last seen", render: (r) => <TimeText ts={r.lastSeenAt} />, width: 128 },
-  { key: "symbol", header: "Symbol", render: (r) => <Badge>{r.symbol}</Badge> },
+  { key: "symbol", header: "Symbol", render: (r) => <SymbolLink symbol={r.symbol} /> },
   { key: "source", header: "Source", render: (r) => <Badge>{r.source}</Badge> },
   { key: "score", header: "Score", render: (r) => (r.score == null ? "—" : r.score.toFixed(3)) },
   { key: "discoveryReason", header: "Reason", render: (r) => <span style={{ fontSize: 13 }}>{r.discoveryReason ?? "—"}</span> },

@@ -5,6 +5,7 @@ import { mutate } from "swr";
 import { useLive } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, StatusBadge, TimeText } from "@/components/ui";
+import { SymbolLink } from "@/components/symbol-link";
 import { apiSend } from "@/lib/api-client";
 
 interface NewsRow {
@@ -204,7 +205,7 @@ export default function NewsPage() {
 
       {error && <div style={{ color: "#f85149", marginBottom: 8 }}>Error: {String(error.message ?? error)}</div>}
 
-      <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
+      <div style={{ overflowX: "auto", border: "1px solid var(--border)" }}>
         <table>
           <thead>
             <tr>
@@ -236,7 +237,7 @@ export default function NewsPage() {
                 <td style={tdStyle}>
                   <Badge color={catColor[r.category] ?? "#8a97ab"}>{r.category}</Badge>
                 </td>
-                <td style={tdStyle}>{r.symbol ? <Badge>{r.symbol}</Badge> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
+                <td style={tdStyle}>{r.symbol ? <SymbolLink symbol={r.symbol} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td style={tdStyle}>
                   {r.url ? (
                     <a href={r.url} target="_blank" rel="noreferrer" style={{ color: "var(--text)" }}>
@@ -382,6 +383,7 @@ const thStyle: React.CSSProperties = {
   fontSize: 12,
   color: "var(--muted)",
   borderBottom: "1px solid var(--border)",
+  borderRight: "1px solid var(--border)",
   position: "sticky",
   top: 0,
   background: "var(--panel)",
@@ -391,6 +393,7 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "8px 12px",
   borderBottom: "1px solid var(--border)",
+  borderRight: "1px solid var(--border)",
   verticalAlign: "top",
   fontSize: 13,
 };

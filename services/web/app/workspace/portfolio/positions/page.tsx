@@ -45,7 +45,7 @@ function weight(p: HoldingsPosition): string {
   return p.weightPct == null ? "—" : `${p.weightPct.toFixed(1)}%`;
 }
 
-const td: React.CSSProperties = { padding: "8px 12px", borderBottom: "1px solid var(--border)", fontSize: 13, whiteSpace: "nowrap" };
+const td: React.CSSProperties = { padding: "8px 12px", borderBottom: "1px solid var(--border)", borderRight: "1px solid var(--border)", fontSize: 13, whiteSpace: "nowrap" };
 const th: React.CSSProperties = { ...td, color: "var(--muted)", fontSize: 12, textAlign: "left" };
 
 export default function HoldingsPositionsPage() {
@@ -68,7 +68,7 @@ export default function HoldingsPositionsPage() {
       )}
 
       {rows.length > 0 && (
-        <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
+        <div style={{ overflowX: "auto", border: "1px solid var(--border)" }}>
           <table>
             <thead>
               <tr>

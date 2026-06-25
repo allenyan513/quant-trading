@@ -7,8 +7,8 @@
  */
 
 import { useState } from "react";
-import Link from "next/link";
 import { Columns3 } from "lucide-react";
+import { SymbolLink } from "@/components/symbol-link";
 import { useLive, type Column } from "@/components/live";
 import { Badge, TimeText } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
@@ -135,11 +135,7 @@ export const columns: Column<WatchRow>[] = [
     key: "symbol",
     header: "Symbol",
     sort: (r) => r.symbol,
-    render: (r) => (
-      <Link href={`/workspace/data/symbol/${r.symbol}/overall`} draggable={false} style={{ textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
-        <Badge>{r.symbol}</Badge>
-      </Link>
-    ),
+    render: (r) => <SymbolLink symbol={r.symbol} />,
     width: 90,
   },
   { key: "name", header: "Name", sort: (r) => r.name, render: (r) => <span style={{ fontSize: 12 }}>{r.name ?? "—"}</span>, width: 170 },

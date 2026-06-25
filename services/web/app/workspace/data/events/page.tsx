@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SymbolLink } from "@/components/symbol-link";
 import { LiveTable, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, JsonView, Meta, StatusBadge, TimeText } from "@/components/ui";
@@ -25,7 +25,7 @@ const columns: Column<EventRow>[] = [
   {
     key: "symbol",
     header: "Symbol",
-    render: (r) => (r.symbol ? <Link href={`/workspace/data/symbol/${r.symbol}/overall`}><Badge>{r.symbol}</Badge></Link> : "—"),
+    render: (r) => (r.symbol ? <SymbolLink symbol={r.symbol} /> : "—"),
   },
   { key: "eventType", header: "Type", render: (r) => (r.eventType ? <Badge>{r.eventType}</Badge> : "—") },
   { key: "headline", header: "Headline", render: (r) => r.headline ?? "—" },
