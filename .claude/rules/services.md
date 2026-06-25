@@ -47,7 +47,7 @@ paths:
 每张表的**创建写**只有一个 owner，其它服务只读（表名按 owner 加前缀，见 `database.md`「表命名」）：
 
 - `data_events` / `data_notifications` / `data_candidates` / `data_watchlist` / `data_watchlist_lists` / `data_news_items`（及其余 `data_*` 拉取表）← **data**。`data_watchlist_lists` = per-user 自选分组(tabs)，`data_watchlist.list_id` 指向它(可空,null=All)；web forward create/rename/delete/reorder/assign(#164)。
-- marketdata 读穿缓存（`data_daily_prices` / `data_income_statement` / `data_balance_sheet` / `data_cash_flow` / `data_financial_ratios` / `data_analyst_estimates` / `data_ratings` / `data_price_targets` / `data_marketdata_fetches`）经 `@qt/shared/marketdata` 写入 ← 逻辑上归 **data**（data 的分诊 agent 主动预热；alpha 命中热缓存,miss 时同一读穿层回填——这是允许的共享 read-through,非乱写）。
+- marketdata 读穿缓存（`data_daily_prices` / `data_income_statement` / `data_balance_sheet` / `data_cash_flow` / `data_financial_ratios` / `data_analyst_estimates` / `data_ratings` / `data_price_targets` / `data_company_profile` / `data_marketdata_fetches`）经 `@qt/shared/marketdata` 写入 ← 逻辑上归 **data**（data 的分诊 agent 主动预热；alpha 命中热缓存,miss 时同一读穿层回填——这是允许的共享 read-through,非乱写）。`data_company_profile` = 整条 FMP profile(getProfile 落库,喂 symbol Overview tab,#167)。
 - `data_valuation_snapshots` ← **data**（确定性 reference valuation 引擎住在 data，`src/valuation/`；写不可变快照。alpha 经 `POST /internal/valuation` 取回作为重定价输入，不写该表）。
 - `alpha_trading_signals` / `alpha_signal_audits` / `alpha_signal_deliveries` ← **alpha**（alpha 投递前必已写入 `alpha_trading_signals`；信号带 `snapshot_id` 指向 `data_valuation_snapshots`；portfolio **绝不 insert** 它）。
 - `portfolio_positions` ← **portfolio**。portfolio 拥有持仓生命周期，并把它**镜像**到 `alpha_trading_signals.status`（开→平/止损/止盈/到期）——这是唯一允许的"非 owner 写"，且只写 `status` 一列。

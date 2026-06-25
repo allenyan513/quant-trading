@@ -25,7 +25,7 @@ import {
 import { getOwnershipForSymbol as sharedGetOwnership } from "@qt/shared/ownership-read";
 import { get8KForSymbol as sharedGet8K } from "@qt/shared/edgar-8k-read";
 import { getInsidersForSymbol as sharedGetInsiders } from "@qt/shared/form4-read";
-import { listPositions, listNews, listSignals } from "./lists.js";
+import { listSignals } from "./lists.js";
 
 /** Latest reference-valuation snapshot. Shared with data's MCP (see @qt/shared/research). */
 export const getLatestValuation = (symbol: string) => sharedGetLatestValuation(db(), symbol);
@@ -116,20 +116,6 @@ export async function getCompanyProfile(symbol: string) {
     .limit(1);
   if (!row) return null;
   return { profile: row.data as Record<string, unknown>, knownAt: row.knownAt };
-}
-
-/** Lightweight summary for the per-symbol Overall tab: valuation gap, open
- * positions, latest news, latest key ratios. Composes existing read fns so the
- * cards each link to their deep-dive tab. (The heavy activity timeline stays on
- * the existing /api/symbol/[symbol] trace route.) */
-export async function getSymbolOverview(symbol: string) {
-  const [valuation, openPositions, news, ratios] = await Promise.all([
-    getLatestValuation(symbol),
-    listPositions({ symbol, status: "open", limit: 5 }),
-    listNews({ symbol, limit: 5 }),
-    getLatestRatios(symbol),
-  ]);
-  return { symbol, valuation, positions: openPositions, news, ratios };
 }
 
 /** Multi-period statements for the Financials tab. Reads the 4 cached statement
