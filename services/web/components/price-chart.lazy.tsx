@@ -8,11 +8,11 @@
  */
 
 import dynamic from "next/dynamic";
-import type { Bar } from "./price-chart";
+import type { Bar, Band, ChartMarker, MarkerKind } from "./price-chart";
 
 export const PriceChartLazy = dynamic(() => import("./price-chart").then((m) => m.PriceChart), {
   ssr: false,
-  loading: () => <div style={{ height: 420, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>Loading chart…</div>,
+  loading: () => <div style={{ height: 460, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>Loading chart…</div>,
 });
 
-export type { Bar };
+export type { Bar, Band, ChartMarker, MarkerKind };

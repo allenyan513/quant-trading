@@ -63,12 +63,18 @@ export async function getPrices(db: ResearchDb, symbol: string, opts: { days?: n
     if (r.asOf && typeof r.fv === "number" && Number.isFinite(r.fv)) fvByDate.set(r.asOf.slice(0, 10), r.fv);
   }
   const fvHistory = [...fvByDate.entries()].map(([time, value]) => ({ time, value }));
+  // Buy-zone band: the latest snapshot's consensus fair-value range, for horizontal
+  // guide lines on the chart (drawn as price lines, not a time series).
+  const d = (val?.detail ?? null) as { consensus_fair_value?: number; consensus_low?: number; consensus_high?: number } | null;
+  const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  const band = d ? { fair: num(d.consensus_fair_value), low: num(d.consensus_low), high: num(d.consensus_high) } : null;
   return {
     symbol,
     bars: rows.reverse(),
     fairValue: val?.fairValuePerShare ?? null,
     asOf: val?.createdAt ?? null,
     fvHistory,
+    band,
   };
 }
 

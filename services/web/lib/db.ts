@@ -37,6 +37,7 @@ export const {
   ratings,
   priceTargets,
   dividends,
+  earningsCalendar,
   valuationSnapshots,
   morningBriefs,
   events,
