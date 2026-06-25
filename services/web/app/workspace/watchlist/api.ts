@@ -1,3 +1,8 @@
+import { mutate } from "swr";
+
+/** Revalidates both the rows (/api/watchlist) and the groups (/api/watchlist/lists). */
+export const refresh = () => mutate((k) => typeof k === "string" && k.startsWith("/api/watchlist"));
+
 /**
  * Client helper for the watchlist write endpoints: fire the request, unwrap the
  * { ok, error } envelope, and alert on failure. Returns true on success.
