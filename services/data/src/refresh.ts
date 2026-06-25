@@ -77,13 +77,25 @@ export async function revalue(symbol: string): Promise<boolean> {
   }
 }
 
+// Symbols currently warming in the background — in-memory dedup so concurrent page
+// opens don't stack warms while one is in flight. A per-instance Set suffices (the
+// 24h DB watermark is the cross-instance / cross-restart gate).
+const inFlightWarms = new Set<string>();
+
 /**
  * Page-open auto-refresh: warm + pull news + revalue a symbol, but at most once
  * per 24h (the manual "Refresh data" button is gone). Returns immediately —
- * `skipped` if warmed within the TTL, else `started` with the work kicked off in
- * the BACKGROUND (Cloud Run keeps the instance alive after the response). The
- * watermark is stamped up-front so concurrent opens don't stack warms; per-dataset
- * freshness gates still suppress redundant FMP calls inside the warm.
+ * `skipped` if warmed within the TTL or a warm is already in flight, else `started`.
+ *
+ * The warm runs in the BACKGROUND (fire-and-forget) — this relies on data's
+ * Cloud Run instance keeping CPU allocated after the response (min-instances>=1 /
+ * "CPU always allocated"), the same infra assumption as the existing news-triage
+ * fire-and-forget. If that infra changes, this work would stall post-response.
+ *
+ * The 24h watermark is stamped ONLY after a successful warm, so a transient FMP/DB
+ * failure retries on the next open instead of being suppressed for 24h; concurrent
+ * opens are deduped by the in-flight Set meanwhile. Per-dataset freshness gates
+ * still suppress redundant FMP calls inside the warm.
  */
 export async function ensureFresh(symbol: string): Promise<{ symbol: string; status: "skipped" | "started" }> {
   const sym = symbol.toUpperCase();
@@ -95,14 +107,25 @@ export async function ensureFresh(symbol: string): Promise<{ symbol: string; sta
   if (fetchedAt && Date.now() - fetchedAt.getTime() <= WARM_TTL_MS) {
     return { symbol: sym, status: "skipped" };
   }
-  // Stamp first (dedupe concurrent opens within the window), then warm in the background.
-  const now = new Date();
-  await db()
-    .insert(marketdataFetches)
-    .values({ symbol: sym, dataset: WARM_DATASET, fetchedAt: now })
-    .onConflictDoUpdate({ target: [marketdataFetches.symbol, marketdataFetches.dataset], set: { fetchedAt: now } });
-  void warmAndPullNews(sym)
-    .then(() => revalue(sym))
-    .catch((err) => log.warn("refresh.ensure_failed", { symbol: sym, error: msg(err) }));
+  if (inFlightWarms.has(sym)) return { symbol: sym, status: "skipped" };
+  inFlightWarms.add(sym);
+  void (async () => {
+    try {
+      const res = await warmAndPullNews(sym);
+      await revalue(sym);
+      // Stamp the 24h watermark only when the warm actually succeeded.
+      if (res.warmed) {
+        const now = new Date();
+        await db()
+          .insert(marketdataFetches)
+          .values({ symbol: sym, dataset: WARM_DATASET, fetchedAt: now })
+          .onConflictDoUpdate({ target: [marketdataFetches.symbol, marketdataFetches.dataset], set: { fetchedAt: now } });
+      }
+    } catch (err) {
+      log.warn("refresh.ensure_failed", { symbol: sym, error: msg(err) });
+    } finally {
+      inFlightWarms.delete(sym);
+    }
+  })();
   return { symbol: sym, status: "started" };
 }

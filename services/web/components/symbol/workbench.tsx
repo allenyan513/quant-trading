@@ -14,11 +14,18 @@ import { WatchlistRail } from "@/components/symbol/watchlist-rail";
 import { DecisionPanel } from "@/components/symbol/decision-panel";
 import { apiSend } from "@/lib/api-client";
 
+// Symbols already ensured this session — skip the request on remount / tab switch.
+// (The server has its own 24h gate; this just avoids the redundant round-trips.)
+const ensuredSymbols = new Set<string>();
+
 export function SymbolWorkbench({ symbol, children }: { symbol: string; children: React.ReactNode }) {
   // Auto stale-while-revalidate: on opening a symbol, ask data to refresh it
   // (warm + revalue, at most once per 24h, in the background). Fire-and-forget —
   // no spinner; SWR polling brings the fresher data in. Replaces the manual button.
   useEffect(() => {
+    const sym = symbol.toUpperCase();
+    if (ensuredSymbols.has(sym)) return;
+    ensuredSymbols.add(sym);
     void apiSend(`/api/data/symbol/${encodeURIComponent(symbol)}/ensure`, "POST");
   }, [symbol]);
 
