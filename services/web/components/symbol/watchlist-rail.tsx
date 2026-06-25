@@ -33,7 +33,7 @@ const verdictDot: Record<string, string> = {
 export function WatchlistRail({ symbol }: { symbol: string }) {
   const router = useRouter();
   const params = useParams<{ symbol: string }>();
-  const seg = useSelectedLayoutSegment() ?? "overall";
+  const seg = useSelectedLayoutSegment() ?? "chart";
   const active = (params.symbol ?? symbol).toUpperCase();
   const { data: rows } = useLive<RailRow[]>("/api/watchlist");
   const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
