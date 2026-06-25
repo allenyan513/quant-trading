@@ -182,14 +182,31 @@ export function PriceChart({
 
     // Pane 1 — RSI.
     const rsiPane = chart.addPane();
-    const rs = rsiPane.addSeries(LineSeries, { color: RSI_C, lineWidth: 1, priceLineVisible: false, lastValueVisible: true });
+    // Fixed 0–100 scale: correct for RSI, and lets the pane size even when the
+    // series is empty (toggled off) — avoids the null-autoscale crash.
+    const rs = rsiPane.addSeries(LineSeries, {
+      color: RSI_C,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+    });
     rs.createPriceLine({ price: 70, color: BORDER, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
     rs.createPriceLine({ price: 30, color: BORDER, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
     rsiRef.current = rs;
 
     // Pane 2 — events lane (a flat hidden series carries the markers, time-aligned).
+    // Its scale needs a REAL fixed range: a pane whose only series returns null
+    // autoscale can't size itself (lightweight-charts ensureNotNull crash).
     const evPane = chart.addPane();
-    const ev = evPane.addSeries(LineSeries, { color: "transparent", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: NEUTRAL });
+    const ev = evPane.addSeries(LineSeries, {
+      color: "transparent",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: -1, maxValue: 1 } }),
+    });
     ev.priceScale().applyOptions({ visible: false });
     evRef.current = ev;
     markersRef.current = createSeriesMarkers(ev, []);
