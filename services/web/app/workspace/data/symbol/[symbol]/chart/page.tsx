@@ -61,7 +61,7 @@ export default function ChartTab() {
   const rangeDays = RANGES.find((r) => r.key === range)?.days ?? 252;
   const markers = useMemo(() => (overlays?.markers ?? []).filter((m) => !hidden.has(m.kind)), [overlays, hidden]);
   const costBasis = useMemo(
-    () => holdings?.positions.find((p) => p.symbol === symbol && p.assetClass !== "OPT")?.avgPrice ?? null,
+    () => holdings?.positions?.find((p) => p.symbol === symbol && p.assetClass !== "OPT")?.avgPrice ?? null,
     [holdings, symbol],
   );
 

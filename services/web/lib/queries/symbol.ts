@@ -193,7 +193,7 @@ export async function getChartOverlays(symbol: string): Promise<{ markers: Chart
     else if (tx.signal === "sell") markers.push({ time: t, kind: "insider_sell", label: "S" });
   }
   for (const d of divs) {
-    const ex = day((d.data as { date?: string }).date);
+    const ex = day((d.data as { date?: string } | null)?.date);
     if (ex) markers.push({ time: ex, kind: "dividend", label: "D" });
   }
   return { markers };
