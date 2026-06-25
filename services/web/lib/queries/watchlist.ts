@@ -12,6 +12,9 @@ import {
   incomeStatement,
   balanceSheet,
   cashFlow,
+  financialRatios,
+  ratings,
+  priceTargets,
   valuationSnapshots,
   positions,
   universe,
@@ -71,9 +74,11 @@ export async function listWatchlistOverview(userId: string) {
   if (wl.length === 0) return [];
   const syms = wl.map((w) => w.symbol);
 
-  // Daily-close momentum (Change% / YTD%) from the cached prices: latest two closes
-  // per symbol for the day change, and the first close of the current year for YTD.
+  // Daily-close history from the cached prices: latest two closes (day change),
+  // the first close of the current year (YTD), and the trailing-year window for
+  // the 52-week high + 1-year return.
   const yearStart = `${new Date().getUTCFullYear()}-01-01`;
+  const oneYearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
   const recentSub = db()
     .select({
       symbol: dailyPrices.symbol,
@@ -84,7 +89,7 @@ export async function listWatchlistOverview(userId: string) {
     .where(inArray(dailyPrices.symbol, syms))
     .as("recent");
 
-  const [vals, pos, uni, recent, ytdRows] = await Promise.all([
+  const [vals, pos, uni, recent, ytdRows, hi52Rows, y1Rows, ratiosRows, targetRows, ratingRows] = await Promise.all([
     // Latest snapshot per symbol (DISTINCT ON keyed by symbol, newest first).
     db()
       .selectDistinctOn([valuationSnapshots.symbol], {
@@ -102,18 +107,64 @@ export async function listWatchlistOverview(userId: string) {
       .select({ symbol: positions.symbol, shares: positions.shares, entryPrice: positions.entryPrice })
       .from(positions)
       .where(and(eq(positions.status, "open"), inArray(positions.symbol, syms))),
-    db().select({ symbol: universe.symbol, sector: universe.sector, beta: universe.beta }).from(universe).where(inArray(universe.symbol, syms)),
+    db()
+      .select({
+        symbol: universe.symbol,
+        name: universe.name,
+        sector: universe.sector,
+        industry: universe.industry,
+        archetype: universe.archetype,
+        beta: universe.beta,
+      })
+      .from(universe)
+      .where(inArray(universe.symbol, syms)),
     db().select({ symbol: recentSub.symbol, close: recentSub.close, rn: recentSub.rn }).from(recentSub).where(sql`${recentSub.rn} <= 2`),
     db()
       .selectDistinctOn([dailyPrices.symbol], { symbol: dailyPrices.symbol, close: dailyPrices.close })
       .from(dailyPrices)
       .where(and(inArray(dailyPrices.symbol, syms), gte(dailyPrices.tradeDate, yearStart)))
       .orderBy(dailyPrices.symbol, dailyPrices.tradeDate),
+    // 52-week high (max intraday high over the trailing year).
+    db()
+      .select({ symbol: dailyPrices.symbol, hi: sql<number>`max(${dailyPrices.high})` })
+      .from(dailyPrices)
+      .where(and(inArray(dailyPrices.symbol, syms), gte(dailyPrices.tradeDate, oneYearAgo)))
+      .groupBy(dailyPrices.symbol),
+    // First close on/after one year ago → 1-year-return base.
+    db()
+      .selectDistinctOn([dailyPrices.symbol], { symbol: dailyPrices.symbol, close: dailyPrices.close })
+      .from(dailyPrices)
+      .where(and(inArray(dailyPrices.symbol, syms), gte(dailyPrices.tradeDate, oneYearAgo)))
+      .orderBy(dailyPrices.symbol, dailyPrices.tradeDate),
+    // Latest fundamentals row per symbol (P/E, P/B, D/E, margin, yield, EV/EBITDA).
+    db()
+      .selectDistinctOn([financialRatios.symbol], { symbol: financialRatios.symbol, data: financialRatios.data })
+      .from(financialRatios)
+      .where(inArray(financialRatios.symbol, syms))
+      .orderBy(financialRatios.symbol, desc(financialRatios.knownAt)),
+    // Latest analyst price target per symbol.
+    db()
+      .selectDistinctOn([priceTargets.symbol], { symbol: priceTargets.symbol, data: priceTargets.data })
+      .from(priceTargets)
+      .where(inArray(priceTargets.symbol, syms))
+      .orderBy(priceTargets.symbol, desc(priceTargets.observedAt)),
+    // Latest analyst rating/grade per symbol.
+    db()
+      .selectDistinctOn([ratings.symbol], { symbol: ratings.symbol, data: ratings.data })
+      .from(ratings)
+      .where(inArray(ratings.symbol, syms))
+      .orderBy(ratings.symbol, desc(ratings.observedAt)),
   ]);
 
   const vBy = new Map(vals.map((v) => [v.symbol, v]));
   const pBy = new Map(pos.map((p) => [p.symbol, p]));
   const uBy = new Map(uni.map((u) => [u.symbol, u]));
+  const hi52By = new Map(hi52Rows.map((r) => [r.symbol, r.hi]));
+  const y1By = new Map<string, number>();
+  for (const r of y1Rows) if (r.close != null) y1By.set(r.symbol, r.close);
+  const ratiosBy = new Map(ratiosRows.map((r) => [r.symbol, r.data as Record<string, unknown>]));
+  const targetBy = new Map(targetRows.map((r) => [r.symbol, r.data as Record<string, unknown>]));
+  const ratingBy = new Map(ratingRows.map((r) => [r.symbol, r.data as Record<string, unknown>]));
   const lastBy = new Map<string, number>();
   const prevBy = new Map<string, number>();
   for (const r of recent) {
@@ -124,30 +175,57 @@ export async function listWatchlistOverview(userId: string) {
   const ytdBaseBy = new Map<string, number>();
   for (const r of ytdRows) if (r.close != null) ytdBaseBy.set(r.symbol, r.close);
 
+  const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  const str = (x: unknown): string | null => (typeof x === "string" && x.length > 0 ? x : null);
+
   return wl
     .map((w) => {
       const v = vBy.get(w.symbol);
       const p = pBy.get(w.symbol);
+      const u = uBy.get(w.symbol);
+      const ratios = ratiosBy.get(w.symbol);
+      const tgt = targetBy.get(w.symbol);
+      const rating = ratingBy.get(w.symbol);
       const last = lastBy.get(w.symbol) ?? null;
       const prev = prevBy.get(w.symbol) ?? null;
       const ytdBase = ytdBaseBy.get(w.symbol) ?? null;
+      const hi52 = hi52By.get(w.symbol) ?? null;
+      const y1 = y1By.get(w.symbol) ?? null;
+      const target = num(tgt?.priceTarget);
+      const entry = p?.entryPrice ?? null;
+      const nm = num(ratios?.netProfitMargin); // FMP stores margins as a fraction
       return {
         symbol: w.symbol,
         note: w.note,
         addedAt: w.addedAt,
         listId: w.listId ?? null,
-        sector: uBy.get(w.symbol)?.sector ?? null,
-        beta: uBy.get(w.symbol)?.beta ?? null,
+        name: u?.name ?? null,
+        sector: u?.sector ?? null,
+        industry: u?.industry ?? null,
+        archetype: u?.archetype ?? null,
+        beta: u?.beta ?? null,
         changePct: last != null && prev != null && prev !== 0 ? ((last - prev) / prev) * 100 : null,
         ytdPct: last != null && ytdBase != null && ytdBase !== 0 ? ((last - ytdBase) / ytdBase) * 100 : null,
+        ret1y: last != null && y1 != null && y1 !== 0 ? ((last - y1) / y1) * 100 : null,
+        pctBelow52w: last != null && hi52 != null && hi52 !== 0 ? ((last - hi52) / hi52) * 100 : null,
         fairValue: v?.fairValue ?? null,
         price: v?.price ?? null,
         upsidePct: v?.upsidePct ?? null,
         verdict: v?.verdict ?? null,
         asOf: v?.asOf ?? null,
+        analystTarget: target,
+        targetUpsidePct: target != null && last != null && last !== 0 ? ((target - last) / last) * 100 : null,
+        analystRating: str(rating?.newGrade),
+        pe: num(ratios?.priceToEarningsRatio),
+        pb: num(ratios?.priceToBookRatio),
+        de: num(ratios?.debtToEquityRatio),
+        netMargin: nm != null ? nm * 100 : null,
+        divYield: num(ratios?.dividendYieldPercentage), // already a percent
+        evEbitda: num(ratios?.enterpriseValueMultiple),
         held: !!p,
         shares: p?.shares ?? null,
-        entryPrice: p?.entryPrice ?? null,
+        entryPrice: entry,
+        plPct: entry != null && entry !== 0 && last != null ? ((last - entry) / entry) * 100 : null,
       };
     })
     // Most undervalued first; symbols without a valuation sink to the bottom.
