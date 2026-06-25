@@ -8,6 +8,7 @@ import { Plus, Columns3 } from "lucide-react";
 import { LiveTable, useLive, type Column } from "@/components/live";
 import { Badge, TimeText } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
+import { watchlistSend } from "./api";
 
 // Revalidates both the rows (/api/watchlist) and the groups (/api/watchlist/lists).
 const refresh = () => mutate((k) => typeof k === "string" && k.startsWith("/api/watchlist"));
@@ -63,23 +64,9 @@ function BottomAdd({ activeList }: { activeList: string }) {
     if (!symbol) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/watchlist", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !j.ok) {
-        alert(`add failed: ${j.error ?? res.status}`);
-        return;
-      }
-      if (activeList !== "all") {
-        await fetch("/api/watchlist/assign", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ symbol, listId: activeList }),
-        });
-      }
+      if (!(await watchlistSend("/api/watchlist", "POST", { symbol }))) return;
+      // If a group tab is active, drop the new symbol straight into it.
+      if (activeList !== "all") await watchlistSend("/api/watchlist/assign", "POST", { symbol, listId: activeList });
       setSym("");
       await refresh();
     } finally {
@@ -123,17 +110,7 @@ function AssignCell({ symbol, listId }: { symbol: string; listId: string | null 
   async function assign(value: string) {
     setBusy(true);
     try {
-      const res = await fetch("/api/watchlist/assign", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol, listId: value || null }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !j.ok) {
-        alert(`assign failed: ${j.error ?? res.status}`);
-        return;
-      }
-      await refresh();
+      if (await watchlistSend("/api/watchlist/assign", "POST", { symbol, listId: value || null })) await refresh();
     } finally {
       setBusy(false);
     }
@@ -163,13 +140,7 @@ function RemoveButton({ symbol }: { symbol: string }) {
     if (!window.confirm(`Remove ${symbol} from watchlist?`)) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !j.ok) {
-        alert(`remove failed: ${j.error ?? res.status}`);
-        return;
-      }
-      await refresh();
+      if (await watchlistSend(`/api/watchlist/${encodeURIComponent(symbol)}`, "DELETE")) await refresh();
     } finally {
       setBusy(false);
     }
@@ -355,27 +326,25 @@ export default function WatchlistPage() {
   async function newList() {
     const name = window.prompt("New list name")?.trim();
     if (!name) return;
-    await fetch("/api/watchlist/lists", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
-    await refresh();
+    if (await watchlistSend("/api/watchlist/lists", "POST", { name })) await refresh();
   }
   async function renameList(id: string, current: string) {
     const name = window.prompt("Rename list", current)?.trim();
     if (!name || name === current) return;
-    await fetch(`/api/watchlist/lists/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
-    await refresh();
+    if (await watchlistSend(`/api/watchlist/lists/${id}`, "PATCH", { name })) await refresh();
   }
   async function deleteList(id: string) {
     if (!window.confirm("Delete this list? Its symbols return to All.")) return;
-    await fetch(`/api/watchlist/lists/${id}`, { method: "DELETE" });
-    setActiveList("all");
-    await refresh();
+    if (await watchlistSend(`/api/watchlist/lists/${id}`, "DELETE")) {
+      setActiveList("all");
+      await refresh();
+    }
   }
 
   // Drag-and-drop: drag a row onto a tab to (re)group it; drag a tab to reorder.
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   async function assignSymbolToList(symbol: string, listId: string | null) {
-    await fetch("/api/watchlist/assign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ symbol, listId }) });
-    await refresh();
+    if (await watchlistSend("/api/watchlist/assign", "POST", { symbol, listId })) await refresh();
   }
   async function reorderTabs(draggedId: string, targetId: string) {
     const ids = (lists ?? []).map((l) => l.id);
@@ -385,8 +354,7 @@ export default function WatchlistPage() {
     const [moved] = ids.splice(from, 1);
     if (moved === undefined) return;
     ids.splice(to, 0, moved);
-    await fetch("/api/watchlist/lists/reorder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }) });
-    await refresh();
+    if (await watchlistSend("/api/watchlist/lists/reorder", "POST", { ids })) await refresh();
   }
   // A tab accepts two drop kinds: a dragged row (→ assign its symbol; null for All)
   // or a dragged tab (→ reorder). targetId is "all" for the All tab.
