@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { LiveTable, useLive } from "@/components/live";
-import { watchlistSend, refresh } from "./api";
+import { apiAction } from "@/lib/api-client";
+import { refresh } from "./api";
 import { columns, ColumnsMenu, DEFAULT_VISIBLE, COLS_KEY, type WatchRow, type WL } from "./columns";
 
 /** Bottom control: a "+" that reveals an inline input to add a symbol (IBKR-style).
@@ -19,9 +20,9 @@ function BottomAdd({ activeList }: { activeList: string }) {
     if (!symbol) return;
     setBusy(true);
     try {
-      if (!(await watchlistSend("/api/watchlist", "POST", { symbol }))) return;
+      if (!(await apiAction("/api/watchlist", "POST", { symbol }))) return;
       // If a group tab is active, drop the new symbol straight into it.
-      if (activeList !== "all") await watchlistSend("/api/watchlist/assign", "POST", { symbol, listId: activeList });
+      if (activeList !== "all") await apiAction("/api/watchlist/assign", "POST", { symbol, listId: activeList });
       setSym("");
       await refresh();
     } finally {
@@ -87,16 +88,16 @@ export default function WatchlistPage() {
   async function newList() {
     const name = window.prompt("New list name")?.trim();
     if (!name) return;
-    if (await watchlistSend("/api/watchlist/lists", "POST", { name })) await refresh();
+    if (await apiAction("/api/watchlist/lists", "POST", { name })) await refresh();
   }
   async function renameList(id: string, current: string) {
     const name = window.prompt("Rename list", current)?.trim();
     if (!name || name === current) return;
-    if (await watchlistSend(`/api/watchlist/lists/${id}`, "PATCH", { name })) await refresh();
+    if (await apiAction(`/api/watchlist/lists/${id}`, "PATCH", { name })) await refresh();
   }
   async function deleteList(id: string) {
     if (!window.confirm("Delete this list? Its symbols return to All.")) return;
-    if (await watchlistSend(`/api/watchlist/lists/${id}`, "DELETE")) {
+    if (await apiAction(`/api/watchlist/lists/${id}`, "DELETE")) {
       setActiveList("all");
       await refresh();
     }
@@ -105,7 +106,7 @@ export default function WatchlistPage() {
   // Drag-and-drop: drag a row onto a tab to (re)group it; drag a tab to reorder.
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   async function assignSymbolToList(symbol: string, listId: string | null) {
-    if (await watchlistSend("/api/watchlist/assign", "POST", { symbol, listId })) await refresh();
+    if (await apiAction("/api/watchlist/assign", "POST", { symbol, listId })) await refresh();
   }
   async function reorderTabs(draggedId: string, targetId: string) {
     const ids = (lists ?? []).map((l) => l.id);
@@ -115,7 +116,7 @@ export default function WatchlistPage() {
     const [moved] = ids.splice(from, 1);
     if (moved === undefined) return;
     ids.splice(to, 0, moved);
-    if (await watchlistSend("/api/watchlist/lists/reorder", "POST", { ids })) await refresh();
+    if (await apiAction("/api/watchlist/lists/reorder", "POST", { ids })) await refresh();
   }
   // A tab accepts two drop kinds: a dragged row (→ assign its symbol; null for All)
   // or a dragged tab (→ reorder). targetId is "all" for the All tab.

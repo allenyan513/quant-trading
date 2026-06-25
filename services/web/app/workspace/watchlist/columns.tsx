@@ -12,7 +12,8 @@ import { Columns3 } from "lucide-react";
 import { useLive, type Column } from "@/components/live";
 import { Badge, TimeText } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
-import { watchlistSend, refresh } from "./api";
+import { apiAction } from "@/lib/api-client";
+import { refresh } from "./api";
 
 export interface WatchRow {
   symbol: string;
@@ -60,7 +61,7 @@ function AssignCell({ symbol, listId }: { symbol: string; listId: string | null 
   async function assign(value: string) {
     setBusy(true);
     try {
-      if (await watchlistSend("/api/watchlist/assign", "POST", { symbol, listId: value || null })) await refresh();
+      if (await apiAction("/api/watchlist/assign", "POST", { symbol, listId: value || null })) await refresh();
     } finally {
       setBusy(false);
     }
@@ -90,7 +91,7 @@ function RemoveButton({ symbol }: { symbol: string }) {
     if (!window.confirm(`Remove ${symbol} from watchlist?`)) return;
     setBusy(true);
     try {
-      if (await watchlistSend(`/api/watchlist/${encodeURIComponent(symbol)}`, "DELETE")) await refresh();
+      if (await apiAction(`/api/watchlist/${encodeURIComponent(symbol)}`, "DELETE")) await refresh();
     } finally {
       setBusy(false);
     }

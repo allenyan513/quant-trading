@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { mutate } from "swr";
 import { useLive } from "@/components/live";
+import { apiAction } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
 
@@ -37,27 +38,16 @@ function WatchlistToggle({ symbol, inWatchlist }: { symbol: string; inWatchlist:
 
   async function toggle() {
     if (busy) return;
+    if (added && !window.confirm(`Remove ${symbol} from watchlist?`)) return;
     setBusy(true);
     try {
-      if (added) {
-        if (!window.confirm(`Remove ${symbol} from watchlist?`)) return;
-        const res = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || !j.ok) return void alert(`remove failed: ${j.error ?? res.status}`);
-        setLocal(false);
-      } else {
-        const res = await fetch("/api/watchlist", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ symbol }),
-        });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || !j.ok) return void alert(`add failed: ${j.error ?? res.status}`);
-        setLocal(true);
+      const ok = added
+        ? await apiAction(`/api/watchlist/${encodeURIComponent(symbol)}`, "DELETE")
+        : await apiAction("/api/watchlist", "POST", { symbol });
+      if (ok) {
+        setLocal(!added);
+        mutate(shellKey);
       }
-      mutate(shellKey);
-    } catch (e) {
-      alert(`failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
