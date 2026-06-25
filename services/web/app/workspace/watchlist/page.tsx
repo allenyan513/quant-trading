@@ -5,17 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import { Plus, Columns3 } from "lucide-react";
-import { LiveTable, type Column } from "@/components/live";
+import { LiveTable, useLive, type Column } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, TimeText } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
 
+// Revalidates both the rows (/api/watchlist) and the groups (/api/watchlist/lists).
 const refresh = () => mutate((k) => typeof k === "string" && k.startsWith("/api/watchlist"));
 
 interface WatchRow {
   symbol: string;
   note: string | null;
   addedAt: string;
+  listId: string | null;
   sector: string | null;
   beta: number | null;
   changePct: number | null;
@@ -29,8 +31,14 @@ interface WatchRow {
   entryPrice: number | null;
 }
 
-/** Bottom control: a "+" that reveals an inline input to add a symbol (IBKR-style). */
-function BottomAdd() {
+interface WL {
+  id: string;
+  name: string;
+}
+
+/** Bottom control: a "+" that reveals an inline input to add a symbol (IBKR-style).
+ *  When a group tab is active, the new symbol is dropped straight into it. */
+function BottomAdd({ activeList }: { activeList: string }) {
   const [open, setOpen] = useState(false);
   const [sym, setSym] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,6 +57,13 @@ function BottomAdd() {
       if (!res.ok || !j.ok) {
         alert(`add failed: ${j.error ?? res.status}`);
         return;
+      }
+      if (activeList !== "all") {
+        await fetch("/api/watchlist/assign", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ symbol, listId: activeList }),
+        });
       }
       setSym("");
       await refresh();
@@ -83,6 +98,47 @@ function BottomAdd() {
         {busy ? "Adding…" : "Add"}
       </button>
     </div>
+  );
+}
+
+/** Per-row group assignment dropdown (— = ungrouped / All). */
+function AssignCell({ symbol, listId }: { symbol: string; listId: string | null }) {
+  const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
+  const [busy, setBusy] = useState(false);
+  async function assign(value: string) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/watchlist/assign", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ symbol, listId: value || null }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !j.ok) {
+        alert(`assign failed: ${j.error ?? res.status}`);
+        return;
+      }
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <span onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <select
+        value={listId ?? ""}
+        disabled={busy}
+        onChange={(e) => assign(e.target.value)}
+        style={{ background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, padding: "3px 6px", fontSize: 12, maxWidth: 120 }}
+      >
+        <option value="">—</option>
+        {(lists ?? []).map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 
@@ -122,6 +178,13 @@ const verdictColor: Record<string, string> = {
   overvalued: "#f85149",
 };
 
+const pctCell = (v: number | null) =>
+  v == null ? (
+    <span style={{ color: "var(--muted)" }}>—</span>
+  ) : (
+    <span style={{ color: v >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(v)}</span>
+  );
+
 const columns: Column<WatchRow>[] = [
   {
     key: "symbol",
@@ -136,43 +199,10 @@ const columns: Column<WatchRow>[] = [
   },
   { key: "sector", header: "Sector", sort: (r) => r.sector, render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.sector ?? "—"}</span> },
   { key: "price", header: "Price", sort: (r) => r.price, render: (r) => fmtMoney(r.price) },
-  {
-    key: "changePct",
-    header: "Change %",
-    sort: (r) => r.changePct,
-    render: (r) =>
-      r.changePct == null ? (
-        <span style={{ color: "var(--muted)" }}>—</span>
-      ) : (
-        <span style={{ color: r.changePct >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(r.changePct)}</span>
-      ),
-    width: 90,
-  },
-  {
-    key: "ytdPct",
-    header: "YTD %",
-    sort: (r) => r.ytdPct,
-    render: (r) =>
-      r.ytdPct == null ? (
-        <span style={{ color: "var(--muted)" }}>—</span>
-      ) : (
-        <span style={{ color: r.ytdPct >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(r.ytdPct)}</span>
-      ),
-    width: 80,
-  },
+  { key: "changePct", header: "Change %", sort: (r) => r.changePct, render: (r) => pctCell(r.changePct), width: 90 },
+  { key: "ytdPct", header: "YTD %", sort: (r) => r.ytdPct, render: (r) => pctCell(r.ytdPct), width: 80 },
   { key: "fairValue", header: "Fair value", sort: (r) => r.fairValue, render: (r) => fmtMoney(r.fairValue) },
-  {
-    key: "upsidePct",
-    header: "Upside",
-    sort: (r) => r.upsidePct,
-    render: (r) =>
-      r.upsidePct == null ? (
-        <span style={{ color: "var(--muted)" }}>—</span>
-      ) : (
-        <span style={{ color: r.upsidePct >= 0 ? "#3fb950" : "#f85149", fontWeight: 600 }}>{fmtPct(r.upsidePct)}</span>
-      ),
-    width: 90,
-  },
+  { key: "upsidePct", header: "Upside", sort: (r) => r.upsidePct, render: (r) => pctCell(r.upsidePct), width: 90 },
   {
     key: "verdict",
     header: "Verdict",
@@ -189,6 +219,7 @@ const columns: Column<WatchRow>[] = [
   { key: "beta", header: "Beta", sort: (r) => r.beta, render: (r) => (r.beta == null ? <span style={{ color: "var(--muted)" }}>—</span> : r.beta.toFixed(2)), width: 70 },
   { key: "note", header: "Note", render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.note ?? "—"}</span> },
   { key: "addedAt", header: "Added", sort: (r) => new Date(r.addedAt).getTime(), render: (r) => <TimeText ts={r.addedAt} />, width: 120 },
+  { key: "list", header: "List", render: (r) => <AssignCell symbol={r.symbol} listId={r.listId} />, width: 130 },
   { key: "actions", header: "", render: (r) => <RemoveButton symbol={r.symbol} />, width: 70 },
 ];
 
@@ -206,8 +237,9 @@ const TOGGLEABLE: { key: string; label: string }[] = [
   { key: "beta", label: "Beta" },
   { key: "note", label: "Note" },
   { key: "addedAt", label: "Added" },
+  { key: "list", label: "List" },
 ];
-const DEFAULT_VISIBLE = ["price", "changePct", "fairValue", "upsidePct", "verdict", "held", "beta"];
+const DEFAULT_VISIBLE = ["price", "changePct", "fairValue", "upsidePct", "verdict", "held", "beta", "list"];
 const COLS_KEY = "watchlist:columns";
 
 function ColumnsMenu({ visible, onToggle }: { visible: Set<string>; onToggle: (key: string) => void }) {
@@ -236,6 +268,8 @@ function ColumnsMenu({ visible, onToggle }: { visible: Set<string>; onToggle: (k
 
 export default function WatchlistPage() {
   const router = useRouter();
+  const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
+  const [activeList, setActiveList] = useState<string>("all");
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE));
   // Load saved column choice after mount (server + first client render use the
   // default → no hydration mismatch).
@@ -260,28 +294,103 @@ export default function WatchlistPage() {
   }
   const shownColumns = columns.filter((c) => c.key === "symbol" || c.key === "actions" || visible.has(c.key));
 
+  async function newList() {
+    const name = window.prompt("New list name")?.trim();
+    if (!name) return;
+    await fetch("/api/watchlist/lists", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+    await refresh();
+  }
+  async function renameList(id: string, current: string) {
+    const name = window.prompt("Rename list", current)?.trim();
+    if (!name || name === current) return;
+    await fetch(`/api/watchlist/lists/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+    await refresh();
+  }
+  async function deleteList(id: string) {
+    if (!window.confirm("Delete this list? Its symbols return to All.")) return;
+    await fetch(`/api/watchlist/lists/${id}`, { method: "DELETE" });
+    setActiveList("all");
+    await refresh();
+  }
+
   return (
     <div>
       <PageTitle subsystem="data" sub="Your private watchlist · valuation gap / buy zone (fair value vs price) · whether held">
         Watchlist
       </PageTitle>
+
+      <div style={tabBar}>
+        <button onClick={() => setActiveList("all")} style={tabStyle(activeList === "all")}>
+          All
+        </button>
+        {(lists ?? []).map((l) => {
+          const on = activeList === l.id;
+          return (
+            <button key={l.id} onClick={() => setActiveList(l.id)} style={tabStyle(on)}>
+              {l.name}
+              {on && (
+                <>
+                  <span role="button" title="Rename" onClick={(e) => { e.stopPropagation(); renameList(l.id, l.name); }} style={tabAction}>
+                    ✎
+                  </span>
+                  <span role="button" title="Delete" onClick={(e) => { e.stopPropagation(); deleteList(l.id); }} style={tabAction}>
+                    ×
+                  </span>
+                </>
+              )}
+            </button>
+          );
+        })}
+        <button onClick={newList} title="New list" style={{ ...tabStyle(false), padding: "5px 9px" }}>
+          <Plus size={14} strokeWidth={2} />
+        </button>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 12px" }}>
         <p style={{ color: "var(--muted)", margin: 0, fontSize: 13 }}>
-          Sorted by upside (most undervalued first). Click a header to sort; double-click a row to open.
+          Click a header to sort; double-click a row to open; set a row&apos;s <b>List</b> to group it.
         </p>
         <ColumnsMenu visible={visible} onToggle={toggle} />
       </div>
+
       <LiveTable
         path="/api/watchlist"
         rowKey={(r: WatchRow) => r.symbol}
         columns={shownColumns}
+        rowFilter={activeList === "all" ? undefined : (r) => r.listId === activeList}
         onRowDoubleClick={(r) => router.push(`/workspace/data/symbol/${r.symbol}/overall`)}
-        emptyText="Watchlist is empty — add one below, or click “Add to watchlist” on a symbol page."
+        emptyText={activeList === "all" ? "Watchlist is empty — add one below." : "No symbols in this list yet — add below or set a row's List."}
       />
-      <BottomAdd />
+      <BottomAdd activeList={activeList} />
     </div>
   );
 }
+
+const tabBar: React.CSSProperties = {
+  display: "flex",
+  gap: 4,
+  alignItems: "center",
+  flexWrap: "wrap",
+  borderBottom: "1px solid var(--border)",
+  margin: "4px 0 12px",
+  paddingBottom: 6,
+};
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "5px 12px",
+  borderRadius: 7,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  border: "1px solid transparent",
+  color: active ? "var(--accent)" : "var(--muted)",
+  background: active ? "var(--panel-2)" : "transparent",
+});
+
+const tabAction: React.CSSProperties = { fontSize: 12, opacity: 0.7, padding: "0 2px", cursor: "pointer" };
 
 const colsBtn: React.CSSProperties = {
   display: "inline-flex",

@@ -25,6 +25,7 @@ export function db() {
 export const {
   universe,
   watchlist,
+  watchlistLists,
   candidates,
   dailyPrices,
   incomeStatement,

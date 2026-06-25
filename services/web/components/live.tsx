@@ -47,9 +47,11 @@ interface LiveTableProps<Row> {
   pageSize?: number;
   /** Double-click a row (e.g. to open the symbol detail page). */
   onRowDoubleClick?: (row: Row) => void;
+  /** Client-side row filter applied to the fetched data (e.g. by active group tab). */
+  rowFilter?: (row: Row) => boolean;
 }
 
-export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick }: LiveTableProps<Row>) {
+export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -78,7 +80,8 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
 
   const { data, error, isLoading } = useLive<Row[]>(url);
   const fetched = data ?? [];
-  const ordered = sort ? sortRows(fetched, columns, sort) : fetched;
+  const filtered = rowFilter ? fetched.filter(rowFilter) : fetched;
+  const ordered = sort ? sortRows(filtered, columns, sort) : filtered;
   const hasMore = pageSize ? ordered.length > pageSize : false;
   const rows = pageSize ? ordered.slice(0, pageSize) : ordered;
 

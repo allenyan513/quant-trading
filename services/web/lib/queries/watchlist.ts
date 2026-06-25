@@ -3,10 +3,11 @@
  * All read-only, Node runtime only.
  */
 
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   watchlist,
+  watchlistLists,
   dailyPrices,
   incomeStatement,
   balanceSheet,
@@ -134,6 +135,7 @@ export async function listWatchlistOverview(userId: string) {
         symbol: w.symbol,
         note: w.note,
         addedAt: w.addedAt,
+        listId: w.listId ?? null,
         sector: uBy.get(w.symbol)?.sector ?? null,
         beta: uBy.get(w.symbol)?.beta ?? null,
         changePct: last != null && prev != null && prev !== 0 ? ((last - prev) / prev) * 100 : null,
@@ -156,4 +158,13 @@ export async function listWatchlistOverview(userId: string) {
       const bv = b.upsidePct ?? -Infinity;
       return av === bv ? 0 : bv - av;
     });
+}
+
+/** The signed-in user's named watchlist groups (tabs), ordered. */
+export async function listUserWatchlistLists(userId: string): Promise<Array<{ id: string; name: string }>> {
+  return db()
+    .select({ id: watchlistLists.id, name: watchlistLists.name })
+    .from(watchlistLists)
+    .where(eq(watchlistLists.userId, userId))
+    .orderBy(asc(watchlistLists.sortOrder), asc(watchlistLists.createdAt));
 }
