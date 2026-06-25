@@ -19,7 +19,7 @@ export function Badge({ children, color }: { children: ReactNode; color?: string
       style={{
         display: "inline-block",
         padding: "1px 8px",
-        borderRadius: 999,
+        borderRadius: 0,
         fontSize: 12,
         fontWeight: 600,
         color: c,
