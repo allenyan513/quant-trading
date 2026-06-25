@@ -30,10 +30,11 @@ interface Position {
 }
 
 const RANGES: { key: string; label: string; days: number | null }[] = [
-  { key: "3M", label: "3M", days: 63 },
   { key: "6M", label: "6M", days: 126 },
   { key: "1Y", label: "1Y", days: 252 },
-  { key: "All", label: "All", days: null },
+  { key: "5Y", label: "5Y", days: 1260 },
+  { key: "10Y", label: "10Y", days: 2520 },
+  { key: "Max", label: "Max", days: null },
 ];
 
 const MARKER_TYPES: { key: MarkerKind; label: string }[] = [
@@ -54,7 +55,7 @@ export default function ChartTab() {
   const [showRSI, setRSI] = useState(true);
   const [hidden, setHidden] = useState<Set<MarkerKind>>(() => new Set());
 
-  const { data, error } = useLive<Prices>(`/api/data/symbol/${symbol}/prices?days=800`);
+  const { data, error } = useLive<Prices>(`/api/data/symbol/${symbol}/prices?days=2600`);
   const { data: overlays } = useLive<{ markers: ChartMarker[] }>(`/api/data/symbol/${symbol}/overlays`);
   const { data: holdings } = useLive<{ positions: Position[] }>(`/api/holdings/positions`);
 

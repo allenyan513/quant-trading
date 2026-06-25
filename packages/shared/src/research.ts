@@ -36,7 +36,7 @@ export async function getLatestValuation(db: ResearchDb, symbol: string) {
 /** OHLCV bars (ascending by date, as lightweight-charts requires) + the latest
  *  fair value and the per-asOf fair-value history for the overlay line. */
 export async function getPrices(db: ResearchDb, symbol: string, opts: { days?: number } = {}) {
-  const days = Math.min(opts.days ?? 800, 2000);
+  const days = Math.min(opts.days ?? 800, 3000); // up to ~12y of daily bars (long-range chart)
   const [rows, val, fvRows] = await Promise.all([
     db
       .select({
