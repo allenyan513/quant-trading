@@ -1,5 +1,5 @@
 /**
- * Read queries: watchlist "home base" + per-symbol data freshness.
+ * Read queries: watchlist "home base" overview + named groups.
  * All read-only, Node runtime only.
  */
 
@@ -10,9 +10,6 @@ import {
   watchlistLists,
   dailyPrices,
   quotes,
-  incomeStatement,
-  balanceSheet,
-  cashFlow,
   financialRatios,
   ratings,
   priceTargets,
@@ -20,50 +17,6 @@ import {
   positions,
   universe,
 } from "../db.js";
-
-/** Per-watchlist-symbol data freshness: latest price date + latest filing knownAt.
- *  Scoped to the session user's watchlist (the table is per-user). */
-export async function getDataFreshness(userId: string) {
-  const symbols = await db().select().from(watchlist).where(eq(watchlist.userId, userId)).orderBy(watchlist.symbol);
-
-  const [prices, inc, bal, cf] = await Promise.all([
-    db()
-      .select({ symbol: dailyPrices.symbol, last: sql<string>`max(${dailyPrices.tradeDate})` })
-      .from(dailyPrices)
-      .groupBy(dailyPrices.symbol),
-    db()
-      .select({ symbol: incomeStatement.symbol, last: sql<string>`max(${incomeStatement.knownAt})` })
-      .from(incomeStatement)
-      .groupBy(incomeStatement.symbol),
-    db()
-      .select({ symbol: balanceSheet.symbol, last: sql<string>`max(${balanceSheet.knownAt})` })
-      .from(balanceSheet)
-      .groupBy(balanceSheet.symbol),
-    db()
-      .select({ symbol: cashFlow.symbol, last: sql<string>`max(${cashFlow.knownAt})` })
-      .from(cashFlow)
-      .groupBy(cashFlow.symbol),
-  ]);
-
-  const map = (rows: { symbol: string; last: string | null }[]) => {
-    const m: Record<string, string | null> = {};
-    for (const r of rows) m[r.symbol] = r.last;
-    return m;
-  };
-  const pm = map(prices);
-  const im = map(inc);
-  const bm = map(bal);
-  const cm = map(cf);
-
-  return symbols.map((s) => ({
-    symbol: s.symbol,
-    addedAt: s.addedAt,
-    lastPriceDate: pm[s.symbol] ?? null,
-    lastIncomeKnownAt: im[s.symbol] ?? null,
-    lastBalanceKnownAt: bm[s.symbol] ?? null,
-    lastCashFlowKnownAt: cm[s.symbol] ?? null,
-  }));
-}
 
 /**
  * Watchlist "home base": each symbol joined with its latest reference valuation

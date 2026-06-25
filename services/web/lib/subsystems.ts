@@ -71,7 +71,6 @@ export const SUBSYSTEMS: Subsystem[] = [
       { href: "/workspace/data/events", label: "Events" },
       { href: "/workspace/data/notifications", label: "Notifications" },
       { href: "/workspace/data/candidates", label: "Candidates" },
-      { href: "/workspace/data/freshness", label: "Freshness" },
     ],
   },
   {
