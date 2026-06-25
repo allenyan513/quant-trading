@@ -2,9 +2,10 @@
 
 /**
  * 3-pane shell for the per-symbol detail page (IBKR-style, research-oriented):
- * [ watchlist rail | center tabs+content | decision panel ]. The grid + responsive
- * collapse live in globals.css (`.symbol-workbench`); the left rail toggles via a
- * class. The center keeps the existing SymbolTabs + the routed tab content.
+ * [ watchlist rail | center tabs+content | decision panel ]. The grid lives in
+ * globals.css (`.symbol-workbench`) — panes sit flush, divided by the rail/panel
+ * border lines; below ~1100px the side rails fold away. The center keeps the
+ * existing SymbolTabs + the routed tab content.
  */
 
 import { SymbolTabs } from "@/components/symbol-tabs";
@@ -18,7 +19,7 @@ export function SymbolWorkbench({ symbol, children }: { symbol: string; children
         <WatchlistRail symbol={symbol} />
       </aside>
 
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, padding: "0 14px" }}>
         <SymbolTabs />
         {children}
       </div>

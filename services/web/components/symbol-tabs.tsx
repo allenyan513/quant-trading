@@ -27,5 +27,5 @@ export function SymbolTabs() {
   // (e.g. aapl→AAPL) makes Next treat it as a different route branch and unmounts
   // the shared layout, defeating cross-tab state preservation.
   const params = useParams<{ symbol: string }>();
-  return <SectionTabs base={`/workspace/data/symbol/${params.symbol ?? ""}`} tabs={TABS} defaultSeg="chart" margin="12px 0 16px" />;
+  return <SectionTabs base={`/workspace/data/symbol/${params.symbol ?? ""}`} tabs={TABS} defaultSeg="chart" margin="0 0 12px" />;
 }

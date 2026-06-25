@@ -53,7 +53,7 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
     pos && pos.avgPrice && pos.avgPrice !== 0 && pos.markPrice != null ? ((pos.markPrice - pos.avgPrice) / pos.avgPrice) * 100 : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--border)", background: "var(--panel)" }}>
+    <div style={{ display: "flex", flexDirection: "column", borderLeft: "1px solid var(--border)" }}>
       {/* Quote */}
       <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>

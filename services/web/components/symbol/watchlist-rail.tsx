@@ -47,7 +47,7 @@ export function WatchlistRail({ symbol }: { symbol: string }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--border)", maxHeight: "calc(100vh - 90px)", position: "sticky", top: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", borderRight: "1px solid var(--border)", maxHeight: "calc(100vh - 90px)", position: "sticky", top: 0 }}>
       <div style={{ display: "flex", gap: 2, padding: 6, borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
         <button onClick={() => setGroup("all")} style={tab(group === "all")}>All</button>
         {(lists ?? []).map((l) => (
