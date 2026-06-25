@@ -375,12 +375,6 @@ app.get(
   }),
 );
 
-// SEVERED (cron, JOB_TOKEN-guarded): the daily full-watchlist refresh lost its
-// driver when the watchlist became per-user (no global house universe to iterate).
-// No-op so the GitHub Actions cron stays green; per-symbol warming still happens
-// reactively (news triage) and on watchlist add. See follow-up issue.
-app.post("/jobs/refresh-watchlist", (c) => c.json(ok({ severed: true, scanned: 0 })));
-
 // Save/update the IBKR Flex credentials (token + query id) for the configured
 // account. Written here (data owns data_holdings_accounts); the web "Connect
 // IBKR" form forwards to this endpoint so the dashboard stays read-only on DB.
@@ -658,15 +652,6 @@ app.post(
     return computeReferenceValuation(symbol, { forceRefresh });
   }),
 );
-
-// SEVERED: the watchlist-wide valuation sweep lost its driver (house universe →
-// per-user). No-op; per-symbol reference valuation is still at /internal/valuation.
-// See follow-up issue.
-app.post("/internal/valuation-sweep", (c) => c.json(ok({ severed: true, swept: 0 })));
-
-// SEVERED: discovery TTL expiry is gone — the per-user watchlist has no source/TTL
-// columns. No-op so any scheduler stays green. See follow-up issue.
-app.post("/internal/expire-watchlist", (c) => c.json(ok({ severed: true, removed: 0 })));
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });

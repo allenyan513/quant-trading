@@ -10,9 +10,9 @@
  * valuation fired best-effort).
  *
  * NOTE: the old daily `/jobs/refresh-watchlist` cron that iterated the whole house
- * watchlist was SEVERED when the watchlist became per-user (see follow-up issue) —
- * only these per-symbol primitives remain. Reactive coverage still comes from news
- * triage warming and on-add warming.
+ * watchlist was removed when the watchlist became per-user — only these per-symbol
+ * primitives remain. Coverage now comes from news-triage warming, on-add warming,
+ * and the page-open `ensureFresh` (24h-gated) below.
  *
  * Every step is isolated: one failed dataset (e.g. a premium-gated statement, or
  * alpha being briefly unreachable) must never abort the rest.

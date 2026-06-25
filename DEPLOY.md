@@ -142,22 +142,20 @@ mkjob() { gcloud scheduler jobs create http "$1" --location=$REGION --schedule="
 mkjob data-news-pull   "0 9-17 * * 1-5"  "$DATA_URL" /news/pull  '{"days":1}'
 mkjob data-news-triage "30 9-17 * * 1-5" "$DATA_URL" /news/triage
 mkjob data-scan        "0 22 * * 1-5"    "$DATA_URL" /scan/earnings
-mkjob data-expire      "0 6 * * *"       "$DATA_URL" /internal/expire-watchlist
 mkjob data-redeliver   "*/5 * * * *"     "$DATA_URL" /internal/redeliver
 # alpha
 mkjob alpha-reprocess  "*/5 * * * *"     "$ALPHA_URL" /internal/reprocess
 mkjob alpha-redeliver  "*/5 * * * *"     "$ALPHA_URL" /internal/redeliver
-mkjob alpha-valsweep   "0 18 * * 1-5"    "$ALPHA_URL" /internal/valuation-sweep   # watchlist buy-zone fair values
 # portfolio — without this, open positions never close on stop/target/expiry
 mkjob portfolio-track  "*/30 9-16 * * 1-5" "$PORTFOLIO_URL" /jobs/track
 ```
 
-The `JOB_TOKEN`-guarded `/jobs/*` endpoints (`/jobs/refresh-watchlist` and
-`/jobs/sync-holdings` on the `data` service) are driven by **GitHub Actions** instead
-(`.github/workflows/{daily-refresh,sync-holdings}.yml`), which POST them with a
-`Bearer $JOB_TOKEN` header. Set the `DATA_URL` and `JOB_TOKEN` repo
-secrets to match the deployed data service; no Cloud Scheduler job is needed for
-those two.
+The `JOB_TOKEN`-guarded `/jobs/*` endpoints on the `data` service
+(`/jobs/sync-13f`, `/jobs/sync-earnings`, `/jobs/sync-holdings`) are driven by
+**GitHub Actions** instead (`.github/workflows/sync-{13f,earnings,holdings}.yml`),
+which POST them with a `Bearer $JOB_TOKEN` header. Set the `DATA_URL` and `JOB_TOKEN`
+repo secrets to match the deployed data service; no Cloud Scheduler job is needed for
+those.
 
 ## 6. Verify
 
