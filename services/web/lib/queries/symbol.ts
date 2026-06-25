@@ -7,6 +7,7 @@ import { and, desc, eq } from "drizzle-orm";
 import {
   db,
   universe,
+  companyProfile,
   valuationSnapshots,
   dailyPrices,
   watchlist,
@@ -102,6 +103,19 @@ export async function getCompanyShell(symbol: string, userId?: string) {
     asOf: val?.createdAt ?? null,
     inWatchlist: wl.length > 0,
   };
+}
+
+/** Full FMP company profile for the Overall tab (description / CEO / employees /
+ * address / website / exchange / ipoDate …). Warmed by data into data_company_profile;
+ * returns the raw FMP row + when it was fetched, or null if not yet warmed. */
+export async function getCompanyProfile(symbol: string) {
+  const [row] = await db()
+    .select({ data: companyProfile.data, knownAt: companyProfile.knownAt })
+    .from(companyProfile)
+    .where(eq(companyProfile.symbol, symbol.toUpperCase()))
+    .limit(1);
+  if (!row) return null;
+  return { profile: row.data as Record<string, unknown>, knownAt: row.knownAt };
 }
 
 /** Lightweight summary for the per-symbol Overall tab: valuation gap, open
