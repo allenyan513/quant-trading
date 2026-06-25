@@ -4,5 +4,5 @@ import { redirect } from "next/navigation";
  *  redirect is safe (no client-tree React #310). */
 export default async function LegendIndex({ params }: { params: Promise<{ cik: string }> }) {
   const { cik } = await params;
-  redirect(`/workspace/data/legends/${cik}/holdings`);
+  redirect(`/workspace/discover/legends/${cik}/holdings`);
 }

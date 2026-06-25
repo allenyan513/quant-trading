@@ -34,7 +34,7 @@ export default async function LegendLayout({
   return (
     <div>
       <PageTitle subsystem="data" sub={name}>
-        <Link href="/workspace/data/legends" style={{ color: "var(--muted)", textDecoration: "none" }}>
+        <Link href="/workspace/discover/legends" style={{ color: "var(--muted)", textDecoration: "none" }}>
           Legends 13F
         </Link>{" "}
         / {name}

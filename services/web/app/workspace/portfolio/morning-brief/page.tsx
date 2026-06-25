@@ -28,7 +28,7 @@ const columns: Column<BriefRow>[] = [
     key: "briefDate",
     header: "Date",
     render: (r) => (
-      <Link href={`/workspace/data/morning-brief/${r.briefDate}`} style={{ color: "#58a6ff", fontWeight: 600, textDecoration: "none" }}>
+      <Link href={`/workspace/portfolio/morning-brief/${r.briefDate}`} style={{ color: "#58a6ff", fontWeight: 600, textDecoration: "none" }}>
         {r.briefDate}
       </Link>
     ),

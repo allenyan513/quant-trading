@@ -152,6 +152,9 @@ importers:
       lightweight-charts:
         specifier: ^5.0.0
         version: 5.2.0
+      lucide-react:
+        specifier: ^0.460.0
+        version: 0.460.0(react@19.2.6)
       mcp-handler:
         specifier: ^1.1.0
         version: 1.1.0(@modelcontextprotocol/sdk@1.26.0(zod@3.25.76))(next@15.5.18(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
@@ -2000,6 +2003,11 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
+
+  lucide-react@0.460.0:
+    resolution: {integrity: sha512-BVtq/DykVeIvRTJvRAgCsOwaGL8Un3Bxh8MbDxMhEWlZay3T4IpEKDEpwt5KZ0KJMHzgm6jrltxlT5eXOWXDHg==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -4139,6 +4147,10 @@ snapshots:
       fancy-canvas: 2.1.0
 
   longest-streak@3.1.0: {}
+
+  lucide-react@0.460.0(react@19.2.6):
+    dependencies:
+      react: 19.2.6
 
   magic-string@0.30.21:
     dependencies:

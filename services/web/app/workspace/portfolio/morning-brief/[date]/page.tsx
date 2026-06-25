@@ -22,7 +22,7 @@ export default async function BriefDetailPage({ params }: { params: Promise<{ da
       <PageTitle subsystem="data" sub={`Generated ${fmtFull(brief.createdAt)}`}>
         {`Morning brief · ${brief.briefDate}`}
       </PageTitle>
-      <Link href="/workspace/data/morning-brief" style={{ color: "#58a6ff", fontSize: 13, textDecoration: "none" }}>
+      <Link href="/workspace/portfolio/morning-brief" style={{ color: "#58a6ff", fontSize: 13, textDecoration: "none" }}>
         ← Back to list
       </Link>
       <div style={{ marginTop: 14 }}>

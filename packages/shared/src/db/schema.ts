@@ -57,9 +57,23 @@ export const watchlist = pgTable(
     symbol: text("symbol").notNull(),
     note: text("note"),
     addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    listId: text("list_id").references(() => watchlistLists.id, { onDelete: "set null" }), // null = "All"/ungrouped
   },
   (t) => [primaryKey({ columns: [t.userId, t.symbol] })],
 );
+
+/**
+ * Per-user named watchlist groups (tabs, IBKR-style). `data_watchlist.list_id`
+ * points here; deleting a list set-nulls its members (they fall back to "All").
+ * data owns it (T12); web forwards create/rename/delete and reads it scoped to the user.
+ */
+export const watchlistLists = pgTable("data_watchlist_lists", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
 
 /**
  * `candidates` — the discovery review queue. Deterministic scanners (data,

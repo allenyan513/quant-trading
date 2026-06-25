@@ -95,7 +95,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     blurb:
       "Sole owner of the positions ledger: deterministic sizing to open positions, settling closes on stop-loss / take-profit / expiry. No LLM.",
     tables: ["positions"],
-    pages: [{ href: "/workspace/portfolio/positions", label: "Positions" }],
+    pages: [{ href: "/workspace/paper/positions", label: "Positions" }],
   },
 ];
 
@@ -106,79 +106,24 @@ export const SYSTEM_PAGES: SubsystemPage[] = [
 ];
 
 /**
- * Product-facing sidebar grouping (issue: nav restructure, Phase 1). The backend
- * is still three services (SUBSYSTEMS above — that stays the source of truth for
- * page chips, landing pages, the overview swimlanes and health). But the user-facing
- * nav is grouped by TASK like a trading platform (IBKR/moomoo), not by which service
- * owns the data: Portfolio / Watchlist / Discover / News / Alpha, plus a collapsed
- * System area for the engineering/observability pages. Hrefs are unchanged — this is
- * a presentation regroup only, no routes moved. The paper-trading ledger
- * (/portfolio/positions) is intentionally omitted (hidden) for now.
+ * Product-facing left nav — three flat top-level entries (no sub-lists). Each goes
+ * to a section: Watchlist (single page), Discover and Portfolio (tabbed pages whose
+ * tab bars fold in movers/screener/calendars/legends/news and positions/performance/
+ * trades/morning-brief/settings respectively). Alpha + System + the paper-trading
+ * ledger routes still exist but are intentionally OFF the nav (reach them by URL).
  */
 export interface NavSection {
   label: string;
-  /** Wayfinding dot colour for the section (no longer tints text/active state —
-   *  the nav uses a single accent; see components/nav.tsx). */
+  /** Top-level destination for this entry. */
+  href: string;
+  /** Small wayfinding dot colour. */
   color: string;
-  pages: SubsystemPage[];
-  /** Collapsed by default (engineering/internal area). */
-  collapsed?: boolean;
-  /** De-emphasised in the nav (rendered dimmer). v1 demotes the Alpha automated
-   *  signal loop while keeping its routes alive — North Star §10. */
-  dimmed?: boolean;
 }
 
 export const NAV_SECTIONS: NavSection[] = [
-  {
-    label: "Portfolio",
-    color: "#f0883e",
-    pages: [
-      { href: "/workspace/data/holdings", label: "Portfolio" }, // your real (IBKR-synced) holdings
-      { href: "/workspace/data/morning-brief", label: "Morning Brief" },
-    ],
-  },
-  {
-    label: "Watchlist",
-    color: "#3fb950",
-    pages: [{ href: "/workspace/data/watchlist", label: "Watchlist" }],
-  },
-  {
-    label: "Discover",
-    color: "#58a6ff",
-    pages: [
-      { href: "/workspace/data/movers", label: "Market movers" },
-      { href: "/workspace/data/candidates", label: "Screener" },
-      { href: "/workspace/data/earnings", label: "Earnings calendar" },
-      { href: "/workspace/data/economic", label: "Economic calendar" },
-      { href: "/workspace/data/legends", label: "Legends 13F" },
-    ],
-  },
-  {
-    label: "News",
-    color: "#d29922",
-    pages: [{ href: "/workspace/data/news", label: "News" }],
-  },
-  {
-    label: "Alpha",
-    color: "#a371f7",
-    dimmed: true, // demoted in v1 (MCP + facts is the focus); routes stay alive
-    pages: [
-      { href: "/workspace/alpha/signals", label: "Signals" },
-      { href: "/workspace/alpha/valuations", label: "Valuations" },
-    ],
-  },
-  {
-    label: "System",
-    color: "#8a97ab",
-    collapsed: true,
-    pages: [
-      { href: "/workspace/system", label: "Overview" },
-      { href: "/workspace/system/logs", label: "Logs" },
-      { href: "/workspace/data/events", label: "Events" },
-      { href: "/workspace/data/notifications", label: "Notifications" },
-      { href: "/workspace/data/freshness", label: "Freshness" },
-    ],
-  },
+  { label: "Watchlist", href: "/workspace/watchlist", color: "#3fb950" },
+  { label: "Discover", href: "/workspace/discover", color: "#58a6ff" },
+  { label: "Portfolio", href: "/workspace/portfolio", color: "#f0883e" },
 ];
 
 
@@ -198,10 +143,8 @@ export function navSectionForPath(pathname: string | null): NavSection | undefin
   if (!pathname) return undefined; // usePathname() can be null (pre-render / no router ctx)
   let best: { section: NavSection; len: number } | undefined;
   for (const section of NAV_SECTIONS) {
-    for (const p of section.pages) {
-      if ((pathname === p.href || pathname.startsWith(`${p.href}/`)) && (!best || p.href.length > best.len)) {
-        best = { section, len: p.href.length };
-      }
+    if ((pathname === section.href || pathname.startsWith(`${section.href}/`)) && (!best || section.href.length > best.len)) {
+      best = { section, len: section.href.length };
     }
   }
   return best?.section;
