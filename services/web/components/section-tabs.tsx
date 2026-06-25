@@ -17,7 +17,7 @@ export interface TabDef {
 
 const ACCENT = "#58a6ff";
 
-export function SectionTabs({ base, tabs, defaultSeg }: { base: string; tabs: TabDef[]; defaultSeg: string }) {
+export function SectionTabs({ base, tabs, defaultSeg, margin = "4px 0 16px" }: { base: string; tabs: TabDef[]; defaultSeg: string; margin?: string }) {
   const router = useRouter();
   const active = useSelectedLayoutSegment() ?? defaultSeg;
 
@@ -36,7 +36,7 @@ export function SectionTabs({ base, tabs, defaultSeg }: { base: string; tabs: Ta
   }, [active, base, tabs, router]);
 
   return (
-    <nav style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", margin: "4px 0 16px", overflowX: "auto" }}>
+    <nav style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", margin, overflowX: "auto" }}>
       {tabs.map((t) => {
         const on = active === t.seg;
         return (
