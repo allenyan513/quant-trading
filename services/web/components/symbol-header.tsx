@@ -85,28 +85,22 @@ function RefreshButton({ symbol }: { symbol: string }) {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/data/symbol/${encodeURIComponent(symbol)}/warm`, { method: "POST" });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !j.ok) {
-        alert(`Refresh failed: ${j.error ?? res.status}`);
-        return;
+      if (await apiAction(`/api/data/symbol/${encodeURIComponent(symbol)}/warm`, "POST")) {
+        // Revalidate shell/overview/financials/prices (/api/data/symbol/<sym>/…)
+        // AND the news tab (/api/news?symbol=<sym>…), since warm now also pulls
+        // this symbol's news. Match both raw and URL-encoded keys (BRK/B etc.).
+        const enc = encodeURIComponent(symbol);
+        await mutate(
+          (k) =>
+            typeof k === "string" &&
+            (k.startsWith(`/api/data/symbol/${symbol}/`) ||
+              k.startsWith(`/api/data/symbol/${enc}/`) ||
+              k.startsWith(`/api/data/valuation/${symbol}`) ||
+              k.startsWith(`/api/data/valuation/${enc}`) ||
+              k.startsWith(`/api/news?symbol=${symbol}`) ||
+              k.startsWith(`/api/news?symbol=${enc}`)),
+        );
       }
-      // Revalidate shell/overview/financials/prices (/api/data/symbol/<sym>/…)
-      // AND the news tab (/api/news?symbol=<sym>…), since warm now also pulls
-      // this symbol's news. Match both raw and URL-encoded keys (BRK/B etc.).
-      const enc = encodeURIComponent(symbol);
-      await mutate(
-        (k) =>
-          typeof k === "string" &&
-          (k.startsWith(`/api/data/symbol/${symbol}/`) ||
-            k.startsWith(`/api/data/symbol/${enc}/`) ||
-            k.startsWith(`/api/data/valuation/${symbol}`) ||
-            k.startsWith(`/api/data/valuation/${enc}`) ||
-            k.startsWith(`/api/news?symbol=${symbol}`) ||
-            k.startsWith(`/api/news?symbol=${enc}`)),
-      );
-    } catch (e) {
-      alert(`Refresh failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }

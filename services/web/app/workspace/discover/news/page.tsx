@@ -5,6 +5,7 @@ import { mutate } from "swr";
 import { useLive } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { Badge, StatusBadge, TimeText } from "@/components/ui";
+import { apiSend } from "@/lib/api-client";
 
 interface NewsRow {
   id: string;
@@ -67,55 +68,31 @@ function PullBar() {
 
   async function pull() {
     setBusy(true);
-    try {
-      const res = await fetch("/api/news/pull", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ days }),
-      });
-      const j = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        data?: { pulled: number; inserted: number; queued: number; byCategory: Record<string, number> };
-        error?: string;
-      };
-      if (!res.ok || !j.ok) {
-        alert(`pull failed: ${j.error ?? res.status}`);
-        return;
-      }
-      const d = j.data!;
+    const r = await apiSend<{ pulled: number; inserted: number; queued: number; byCategory: Record<string, number> }>("/api/news/pull", "POST", { days });
+    if (r.ok && r.data) {
+      const d = r.data;
       const by = Object.entries(d.byCategory)
         .map(([k, v]) => `${k}:${v}`)
         .join(" · ");
       alert(`Pulled ${d.pulled}, ${d.inserted} new in staging, ${d.queued} auto-queued for triage\n${by}`);
       await refreshNews();
-    } finally {
-      setBusy(false);
+    } else {
+      alert(`pull failed: ${r.error}`);
     }
+    setBusy(false);
   }
 
   async function triage() {
     setBusy(true);
-    try {
-      const res = await fetch("/api/news/triage", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
-      const j = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        data?: { considered: number; triaged: number; screenedOut: number; failed: number };
-        error?: string;
-      };
-      if (!res.ok || !j.ok) {
-        alert(`triage failed: ${j.error ?? res.status}`);
-        return;
-      }
-      const d = j.data!;
+    const r = await apiSend<{ considered: number; triaged: number; screenedOut: number; failed: number }>("/api/news/triage", "POST", {});
+    if (r.ok && r.data) {
+      const d = r.data;
       alert(`Triaged ${d.considered}: passed ${d.triaged} · screened out ${d.screenedOut} · failed ${d.failed}`);
       await refreshNews();
-    } finally {
-      setBusy(false);
+    } else {
+      alert(`triage failed: ${r.error}`);
     }
+    setBusy(false);
   }
 
   return (
@@ -162,27 +139,15 @@ export default function NewsPage() {
 
   async function postNotify(ids: string[], symbolOverride: Record<string, string> = {}) {
     setBusy(true);
-    try {
-      const res = await fetch("/api/news/notify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ids, symbolOverride }),
-      });
-      const j = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        data?: { notified: number; skipped: number; notifications: number };
-        error?: string;
-      };
-      if (!res.ok || !j.ok) {
-        alert(`notify failed: ${j.error ?? res.status}`);
-        return;
-      }
-      const d = j.data!;
+    const r = await apiSend<{ notified: number; skipped: number; notifications: number }>("/api/news/notify", "POST", { ids, symbolOverride });
+    if (r.ok && r.data) {
+      const d = r.data;
       alert(`Notified ${d.notified} (bundled into ${d.notifications} notifications sent to alpha)${d.skipped ? `, skipped ${d.skipped} with no ticker` : ""}`);
       await refreshNews();
-    } finally {
-      setBusy(false);
+    } else {
+      alert(`notify failed: ${r.error}`);
     }
+    setBusy(false);
   }
 
   function notifyOne(r: NewsRow) {
