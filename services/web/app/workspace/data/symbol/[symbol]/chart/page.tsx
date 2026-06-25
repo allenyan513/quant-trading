@@ -4,8 +4,8 @@
  * Chart tab — research-grade price chart that fills the viewport (no page scroll):
  * candles + volume + fair-value/buy-zone, MA50/MA200, RSI + MACD panes, your
  * cost-basis line, and an events lane (earnings / 8-K / insider / dividend) from
- * our facts layer. All controls live in one top bar; the chart fills the rest.
- * Loads via PriceChartLazy (ssr:false) so lightweight-charts never hits the server.
+ * our facts layer. Controls live in one top bar (range · Indicators ▾ · Events ▾ ·
+ * Buy zone); the chart fills the rest. Loads via PriceChartLazy (ssr:false).
  */
 
 import { useMemo, useState } from "react";
@@ -28,12 +28,11 @@ interface Position {
   avgPrice: number | null;
 }
 
-const RANGES: { key: string; label: string; days: number | null }[] = [
+const RANGES: { key: string; label: string; days: number }[] = [
   { key: "6M", label: "6M", days: 126 },
   { key: "1Y", label: "1Y", days: 252 },
   { key: "5Y", label: "5Y", days: 1260 },
   { key: "10Y", label: "10Y", days: 2520 },
-  { key: "Max", label: "Max", days: null },
 ];
 
 const MARKER_TYPES: { key: MarkerKind; label: string; color: string }[] = [
@@ -48,7 +47,6 @@ export default function ChartTab() {
   const params = useParams<{ symbol: string }>();
   const symbol = (params.symbol ?? "").toUpperCase();
   const [range, setRange] = useState("1Y");
-  const [log, setLog] = useState(false);
   const [showMA50, setMA50] = useState(true);
   const [showMA200, setMA200] = useState(true);
   const [showRSI, setRSI] = useState(true);
@@ -60,7 +58,7 @@ export default function ChartTab() {
   const { data: overlays } = useLive<{ markers: ChartMarker[] }>(`/api/data/symbol/${symbol}/overlays`);
   const { data: holdings } = useLive<{ positions: Position[] }>(`/api/holdings/positions`);
 
-  const rangeDays = RANGES.find((r) => r.key === range)?.days ?? null;
+  const rangeDays = RANGES.find((r) => r.key === range)?.days ?? 252;
   const markers = useMemo(() => (overlays?.markers ?? []).filter((m) => !hidden.has(m.kind)), [overlays, hidden]);
   const costBasis = useMemo(
     () => holdings?.positions.find((p) => p.symbol === symbol && p.assetClass !== "OPT")?.avgPrice ?? null,
@@ -74,6 +72,12 @@ export default function ChartTab() {
       else n.add(k);
       return n;
     });
+  const toggleIndicator = (k: string) => {
+    if (k === "ma50") setMA50((v) => !v);
+    else if (k === "ma200") setMA200((v) => !v);
+    else if (k === "rsi") setRSI((v) => !v);
+    else if (k === "macd") setMACD((v) => !v);
+  };
 
   const band = data?.band ?? null;
 
@@ -85,14 +89,21 @@ export default function ChartTab() {
             <button key={r.key} onClick={() => setRange(r.key)} style={pill(range === r.key)}>{r.label}</button>
           ))}
         </span>
-        <button onClick={() => setLog((v) => !v)} style={pill(log)} title="Log price scale — equal vertical distance = equal % change (clearer over long ranges)">log</button>
-        <span style={{ display: "flex", gap: 4 }}>
-          <button onClick={() => setMA50((v) => !v)} style={pill(showMA50, "#d29922")}>MA50</button>
-          <button onClick={() => setMA200((v) => !v)} style={pill(showMA200, "#a371f7")}>MA200</button>
-          <button onClick={() => setRSI((v) => !v)} style={pill(showRSI)}>RSI</button>
-          <button onClick={() => setMACD((v) => !v)} style={pill(showMACD)}>MACD</button>
-        </span>
-        <EventsMenu hidden={hidden} onToggle={toggleMarker} />
+        <CheckMenu
+          label="Indicators"
+          onToggle={toggleIndicator}
+          items={[
+            { key: "ma50", label: "MA50", color: "#d29922", checked: showMA50 },
+            { key: "ma200", label: "MA200", color: "#a371f7", checked: showMA200 },
+            { key: "rsi", label: "RSI", color: "#58a6ff", checked: showRSI },
+            { key: "macd", label: "MACD", color: "#58a6ff", checked: showMACD },
+          ]}
+        />
+        <CheckMenu
+          label="Events"
+          onToggle={(k) => toggleMarker(k as MarkerKind)}
+          items={MARKER_TYPES.map((m) => ({ key: m.key, label: m.label, color: m.color, checked: !hidden.has(m.key) }))}
+        />
         <button onClick={() => setShowVal((v) => !v)} style={pill(showVal, "#79c0ff")} title="Show/hide fair-value & buy-zone lines">Buy zone</button>
         {(data?.fairValue != null || (band?.low != null && band?.high != null)) && (
           <span style={{ fontSize: 12, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }} title={data?.asOf ? `valued ${data.asOf}` : undefined}>
@@ -115,7 +126,6 @@ export default function ChartTab() {
             band={data.band}
             costBasis={costBasis}
             markers={markers}
-            log={log}
             showMA50={showMA50}
             showMA200={showMA200}
             showRSI={showRSI}
@@ -128,21 +138,21 @@ export default function ChartTab() {
   );
 }
 
-/** Events ▾ dropdown — the per-type marker toggles, collapsed off the chart. */
-function EventsMenu({ hidden, onToggle }: { hidden: Set<MarkerKind>; onToggle: (k: MarkerKind) => void }) {
+/** A "<label> ▾" dropdown of colored checkboxes — used for Indicators and Events. */
+function CheckMenu({ label, items, onToggle }: { label: string; items: { key: string; label: string; color?: string; checked: boolean }[]; onToggle: (k: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ position: "relative" }}>
-      <button onClick={() => setOpen((o) => !o)} style={pill(false)}>Events ▾</button>
+      <button onClick={() => setOpen((o) => !o)} style={pill(false)}>{label} ▾</button>
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 30 }} />
           <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 31, background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 8, padding: 6, minWidth: 150, boxShadow: "0 12px 32px rgba(0,0,0,0.5)" }}>
-            {MARKER_TYPES.map((m) => (
-              <label key={m.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", fontSize: 13, color: "var(--text)", cursor: "pointer" }}>
-                <input type="checkbox" checked={!hidden.has(m.key)} onChange={() => onToggle(m.key)} />
-                <span style={{ width: 9, height: 9, background: m.color, flexShrink: 0 }} />
-                {m.label}
+            {items.map((it) => (
+              <label key={it.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", fontSize: 13, color: "var(--text)", cursor: "pointer" }}>
+                <input type="checkbox" checked={it.checked} onChange={() => onToggle(it.key)} />
+                {it.color && <span style={{ width: 9, height: 9, background: it.color, flexShrink: 0 }} />}
+                {it.label}
               </label>
             ))}
           </div>
