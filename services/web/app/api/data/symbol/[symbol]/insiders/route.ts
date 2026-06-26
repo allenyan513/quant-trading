@@ -1,10 +1,10 @@
-import { handle } from "@/lib/api";
 import { getInsidersData } from "@/lib/queries";
+import { publicRoute } from "@/lib/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ symbol: string }> }) {
+export const GET = publicRoute(async (_req, ctx: { params: Promise<{ symbol: string }> }) => {
   const { symbol } = await ctx.params;
-  return handle(() => getInsidersData(symbol.toUpperCase()));
-}
+  return getInsidersData(symbol.toUpperCase());
+});

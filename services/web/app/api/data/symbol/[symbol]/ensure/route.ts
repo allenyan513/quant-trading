@@ -1,5 +1,5 @@
-import { handle } from "@/lib/api";
 import { dataPost } from "@/lib/data-proxy";
+import { publicRoute } from "@/lib/route";
 
 export const runtime = "nodejs";
 
@@ -9,9 +9,7 @@ export const runtime = "nodejs";
  * (at most once per 24h). Fire-and-forget from the client; SWR polling surfaces the
  * fresher rows. Replaces the manual "Refresh data" button for the common case.
  */
-export async function POST(_req: Request, ctx: { params: Promise<{ symbol: string }> }) {
-  return handle(async () => {
-    const { symbol } = await ctx.params;
-    return dataPost("/ensure", { symbol: symbol.toUpperCase() });
-  });
-}
+export const POST = publicRoute(async (_req, ctx: { params: Promise<{ symbol: string }> }) => {
+  const { symbol } = await ctx.params;
+  return dataPost("/ensure", { symbol: symbol.toUpperCase() });
+});
