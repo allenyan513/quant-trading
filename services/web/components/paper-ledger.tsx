@@ -10,9 +10,9 @@
 import { useMemo, useState } from "react";
 import { mutate } from "swr";
 import { useLive } from "@/components/live";
-import { useQuotes, type LiveQuote } from "@/components/quotes";
+import { useQuotes } from "@/components/quotes";
 import { apiSend, apiAction } from "@/lib/api-client";
-import { fmtMoney, fmtPct } from "@/lib/format";
+import { fmtMoney } from "@/lib/format";
 
 export interface PaperPos {
   symbol: string;
@@ -62,67 +62,6 @@ export function usePaperAccount() {
   const unrealized = positions.reduce((s, p) => s + (markOf(p) - p.avgCost) * p.quantity, 0);
   const cash = acct?.cash ?? 0;
   return { acct, error, positions, quotes, cash, posValue, unrealized, equity: cash + posValue };
-}
-
-/** Cash / positions value / P&L / equity bar + Reset. */
-export function AccountHeader(p: { cash: number; posValue: number; unrealized: number; realizedPnl: number; equity: number; hasPositions: boolean }) {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 1, border: "1px solid var(--border)", background: "var(--border)" }}>
-      <Stat label="Cash / buying power" value={fmtMoney(p.cash)} />
-      <Stat label="Positions value" value={fmtMoney(p.posValue)} />
-      <Stat label="Unrealized P&L" value={fmtMoney(p.unrealized)} color={pnlColor(p.hasPositions ? p.unrealized : null)} />
-      <Stat label="Realized P&L" value={fmtMoney(p.realizedPnl)} color={pnlColor(p.realizedPnl)} />
-      <Stat label="Total equity" value={fmtMoney(p.equity)} strong />
-      <div style={{ flex: 1, background: "var(--panel)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-        <ResetButton />
-      </div>
-    </div>
-  );
-}
-
-/** Net positions with live mark-to-market + a per-row Close (sell all). */
-export function PaperPositions({ positions, quotes }: { positions: PaperPos[]; quotes: Map<string, LiveQuote> }) {
-  if (positions.length === 0) return <Empty>No positions yet — place an order from a symbol&rsquo;s detail page.</Empty>;
-  return (
-    <div style={{ overflowX: "auto", border: "1px solid var(--border)" }}>
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th style={th}>Symbol</th>
-            <th style={{ ...th, ...num }}>Qty</th>
-            <th style={{ ...th, ...num }}>Avg cost</th>
-            <th style={{ ...th, ...num }}>Last</th>
-            <th style={{ ...th, ...num }}>Mkt value</th>
-            <th style={{ ...th, ...num }}>Unrealized P&L</th>
-            <th style={{ ...th, ...num }}>Unr. %</th>
-            <th style={th} />
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map((p) => {
-            const live = quotes.get(p.symbol)?.price ?? null;
-            const mark = live ?? p.avgCost;
-            const upl = (mark - p.avgCost) * p.quantity;
-            const uplPct = p.avgCost !== 0 ? (mark / p.avgCost - 1) * 100 : null;
-            return (
-              <tr key={p.symbol}>
-                <td style={{ ...td, fontWeight: 600 }}>{p.symbol}</td>
-                <td style={{ ...td, ...num }}>{p.quantity}</td>
-                <td style={{ ...td, ...num }}>{fmtMoney(p.avgCost)}</td>
-                <td style={{ ...td, ...num }}>{live == null ? "—" : fmtMoney(live)}</td>
-                <td style={{ ...td, ...num }}>{fmtMoney(mark * p.quantity)}</td>
-                <td style={{ ...td, ...num, color: pnlColor(upl) }}>{fmtMoney(upl)}</td>
-                <td style={{ ...td, ...num, color: pnlColor(uplPct) }}>{fmtPct(uplPct)}</td>
-                <td style={{ ...td, ...num }}>
-                  <CloseButton symbol={p.symbol} quantity={p.quantity} />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
 }
 
 /** The order blotter — every fill/rejection, newest first. */
@@ -234,31 +173,7 @@ export function PaperTicket({ symbol }: { symbol: string }) {
   );
 }
 
-function CloseButton({ symbol, quantity }: { symbol: string; quantity: number }) {
-  const [busy, setBusy] = useState(false);
-  async function close() {
-    if (busy || !window.confirm(`Sell all ${quantity} ${symbol}?`)) return;
-    setBusy(true);
-    try {
-      await apiAction("/api/paper/orders", "POST", { symbol, side: "sell", quantity });
-      await refreshPaper();
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <button
-      onClick={close}
-      disabled={busy}
-      title={`Sell all ${quantity} ${symbol}`}
-      style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--muted)", padding: "3px 10px", fontSize: 12, borderRadius: 5, cursor: busy ? "default" : "pointer" }}
-    >
-      {busy ? "…" : "Close"}
-    </button>
-  );
-}
-
-function ResetButton() {
+export function ResetButton() {
   const [busy, setBusy] = useState(false);
   async function reset() {
     if (busy || !window.confirm("Reset the paper account? This wipes all positions and the blotter and restores starting cash.")) return;
@@ -277,15 +192,6 @@ function ResetButton() {
     >
       {busy ? "Resetting…" : "↺ Reset account"}
     </button>
-  );
-}
-
-function Stat({ label, value, color, strong }: { label: string; value: string; color?: string; strong?: boolean }) {
-  return (
-    <div style={{ background: "var(--panel)", padding: "10px 16px", minWidth: 150, flex: "0 0 auto" }}>
-      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: strong ? 18 : 16, fontWeight: strong ? 800 : 700, color: color ?? "var(--text)", fontVariantNumeric: "tabular-nums" }}>{value}</div>
-    </div>
   );
 }
 

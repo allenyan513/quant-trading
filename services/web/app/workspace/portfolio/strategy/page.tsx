@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
+import { PortfolioWorkbench } from "@/components/portfolio/portfolio-workbench";
 
-/** Bare Strategy ledger → its positions tab. */
-export default function StrategyIndex() {
-  redirect("/workspace/portfolio/strategy/positions");
+export default function StrategyPage() {
+  return <PortfolioWorkbench ledger="strategy" />;
 }

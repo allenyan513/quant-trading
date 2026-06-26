@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
+import { PortfolioWorkbench } from "@/components/portfolio/portfolio-workbench";
 
-/** Bare Live ledger → its positions tab. */
-export default function LiveIndex() {
-  redirect("/workspace/portfolio/live/positions");
+export default function LivePage() {
+  return <PortfolioWorkbench ledger="live" />;
 }

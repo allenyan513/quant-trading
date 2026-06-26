@@ -47,7 +47,7 @@ const VERDICT_HEADLINE: Record<string, string> = {
   overvalued: "Trading above fair value",
 };
 
-export function DecisionPanel({ symbol }: { symbol: string }) {
+export function DecisionPanel({ symbol, tradeable = true }: { symbol: string; tradeable?: boolean }) {
   const { data: shell } = useLive<Shell | null>(`/api/data/symbol/${symbol}/shell`);
   const { data: holdings } = useLive<{ positions: Position[] }>(`/api/holdings/positions`);
   const { data: paper } = useLive<PaperAccount>(`/api/paper/account`);
@@ -119,16 +119,19 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
         )}
       </div>
 
-      {/* Paper trade — market orders into the per-user Paper account (simulated). */}
-      <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>
-          Paper trade
+      {/* Paper trade — market orders into the per-user Paper account (simulated).
+          Hidden on read-only ledgers (Live/Strategy in the portfolio workbench). */}
+      {tradeable && (
+        <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>
+            Paper trade
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+            {paperPos ? `Paper: ${paperPos.quantity} sh @ ${fmtMoney(paperPos.avgCost)}` : "No paper position"}
+          </div>
+          <PaperTicket symbol={symbol} />
         </div>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
-          {paperPos ? `Paper: ${paperPos.quantity} sh @ ${fmtMoney(paperPos.avgCost)}` : "No paper position"}
-        </div>
-        <PaperTicket symbol={symbol} />
-      </div>
+      )}
 
       {/* Actions — watchlist toggle is primary; data auto-refreshes on open, so
           refresh is just a tiny "force now" override. */}

@@ -94,7 +94,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     blurb:
       "Owner of the trading-accounts domain — three ledgers: Strategy (signal-driven sim), Paper (per-user order-driven), Live (IBKR mirror). No LLM.",
     tables: ["positions", "portfolio_paper_*", "portfolio_holdings_*"],
-    pages: [{ href: "/workspace/portfolio/strategy/positions", label: "Strategy" }],
+    pages: [{ href: "/workspace/portfolio/strategy", label: "Strategy" }],
   },
 ];
 

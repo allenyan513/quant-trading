@@ -77,6 +77,27 @@ table {
   }
 }
 
+/* Portfolio = 2-pane account workbench: [positions table | symbol detail rail].
+   Same full-bleed IBKR look; the right rail folds away on narrow screens. */
+.portfolio-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 0;
+  align-items: start;
+}
+.portfolio-rail {
+  position: sticky;
+  top: 12px;
+}
+@media (max-width: 1100px) {
+  .portfolio-workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .portfolio-rail {
+    display: none;
+  }
+}
+
 /* On narrow viewports the fixed sidebar would crowd the content, so collapse it
    into a horizontal, wrapping top strip: each section's header and its page
    links flow inline, sections wrap onto new rows as needed. */

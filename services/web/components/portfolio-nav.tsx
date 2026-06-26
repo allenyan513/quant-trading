@@ -21,7 +21,7 @@ export function PortfolioNav() {
   return (
     <div style={{ display: "inline-flex", gap: 2, border: "1px solid var(--border)", borderRadius: 8, padding: 2, margin: "4px 0 12px" }}>
       {LEDGERS.map((l) => (
-        <Link key={l.seg} href={`/workspace/portfolio/${l.seg}/positions`} style={seg(active === l.seg)}>
+        <Link key={l.seg} href={`/workspace/portfolio/${l.seg}`} style={seg(active === l.seg)}>
           {l.label}
         </Link>
       ))}

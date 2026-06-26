@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
+import { PortfolioWorkbench } from "@/components/portfolio/portfolio-workbench";
 
-/** Bare Paper ledger → its positions tab. */
-export default function PaperIndex() {
-  redirect("/workspace/portfolio/paper/positions");
+export default function PaperPage() {
+  return <PortfolioWorkbench ledger="paper" />;
 }
