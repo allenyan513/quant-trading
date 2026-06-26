@@ -61,44 +61,67 @@ interface LiveTableProps<Row> {
   selectedKey?: string;
 }
 
-type Sort = { key: string; dir: "asc" | "desc" };
+export type SortState = { key: string; dir: "asc" | "desc" } | null;
+type SortVal = string | number | boolean | null | undefined;
+
+/** Shared client-side table sort — a tri-state header (asc → desc → off) plus the
+ *  comparison, optionally persisted per-browser under `table:sort:<storageKey>`. Used
+ *  by LiveTable AND the portfolio positions table so both sort identically.
+ *  `getAccessor(key)` returns a column's value accessor (undefined → not sortable). */
+export function useSort<Row>(rows: Row[], getAccessor: (key: string) => ((row: Row) => SortVal) | undefined, storageKey?: string) {
+  const [sort, setSort] = useState<SortState>(null);
+  const store = storageKey ? `table:sort:${storageKey}` : null;
+  // Apply the saved sort after mount (SSR + first render use null → no hydration mismatch).
+  useEffect(() => {
+    if (!store) return;
+    const saved = localStorage.getItem(store);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved) as { key: string; dir: "asc" | "desc" };
+      if (parsed && typeof parsed.key === "string" && (parsed.dir === "asc" || parsed.dir === "desc")) setSort(parsed);
+    } catch {
+      /* ignore malformed */
+    }
+  }, [store]);
+  // Click a sortable header: asc → desc → off (back to the source order).
+  const cycle = (key: string) => {
+    const next: SortState = !sort || sort.key !== key ? { key, dir: "asc" } : sort.dir === "asc" ? { key, dir: "desc" } : null;
+    setSort(next);
+    if (store) {
+      if (next) localStorage.setItem(store, JSON.stringify(next));
+      else localStorage.removeItem(store);
+    }
+  };
+  const accessor = sort ? getAccessor(sort.key) : undefined;
+  const sorted = sort && accessor ? sortByAccessor(rows, accessor, sort.dir) : rows;
+  return { sorted, sort, cycle };
+}
+
+/** Comparison by an accessor; nullish/empty values always sink to the bottom. */
+function sortByAccessor<Row>(rows: Row[], accessor: (row: Row) => SortVal, dir: "asc" | "desc"): Row[] {
+  const d = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const va = accessor(a);
+    const vb = accessor(b);
+    const an = va == null || va === "";
+    const bn = vb == null || vb === "";
+    if (an && bn) return 0;
+    if (an) return 1; // nulls last
+    if (bn) return -1;
+    if (typeof va === "number" && typeof vb === "number") return (va - vb) * d;
+    return String(va).localeCompare(String(vb)) * d;
+  });
+}
 
 export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData, storageKey, onRowClick, selectedKey }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  // Default to null so SSR and the first client render agree; the saved sort (if any)
-  // is applied after mount in the effect below — same no-hydration-mismatch dance the
-  // watchlist column choice uses.
-  const [sort, setSort] = useState<Sort | null>(null);
-
-  const sortStore = storageKey ? `table:sort:${storageKey}` : null;
-  useEffect(() => {
-    if (!sortStore) return;
-    const saved = localStorage.getItem(sortStore);
-    if (!saved) return;
-    try {
-      const parsed = JSON.parse(saved) as Sort;
-      if (parsed && typeof parsed.key === "string" && (parsed.dir === "asc" || parsed.dir === "desc")) setSort(parsed);
-    } catch {
-      /* ignore malformed */
-    }
-  }, [sortStore]);
 
   // Changing a filter resets to the first page.
   function setFilter(key: string, val: string) {
     setValues((v) => ({ ...v, [key]: val }));
     setOffset(0);
-  }
-
-  // Click a sortable header: asc → desc → off (back to the API's default order).
-  function cycleSort(key: string) {
-    const next: Sort | null = !sort || sort.key !== key ? { key, dir: "asc" } : sort.dir === "asc" ? { key, dir: "desc" } : null;
-    setSort(next);
-    if (sortStore) {
-      if (next) localStorage.setItem(sortStore, JSON.stringify(next));
-      else localStorage.removeItem(sortStore);
-    }
   }
 
   const qs = new URLSearchParams();
@@ -114,7 +137,7 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
   const { data, error, isLoading } = useLive<Row[]>(url);
   const fetched = data ?? [];
   const filtered = rowFilter ? fetched.filter(rowFilter) : fetched;
-  const ordered = sort ? sortRows(filtered, columns, sort) : filtered;
+  const { sorted: ordered, sort, cycle } = useSort(filtered, (key) => columns.find((c) => c.key === key)?.sort, storageKey);
   const hasMore = pageSize ? ordered.length > pageSize : false;
   const rows = pageSize ? ordered.slice(0, pageSize) : ordered;
 
@@ -166,7 +189,7 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
                 return (
                   <th
                     key={c.key}
-                    onClick={sortable ? () => cycleSort(c.key) : undefined}
+                    onClick={sortable ? () => cycle(c.key) : undefined}
                     style={{ ...thStyle, width: c.width, cursor: sortable ? "pointer" : "default", userSelect: "none" }}
                   >
                     {c.header}
@@ -253,24 +276,6 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
       )}
     </div>
   );
-}
-
-/** Client-side sort by a column's `sort` accessor; nullish values always sink to the bottom. */
-function sortRows<Row>(rows: Row[], columns: Column<Row>[], sort: { key: string; dir: "asc" | "desc" }): Row[] {
-  const accessor = columns.find((c) => c.key === sort.key)?.sort;
-  if (!accessor) return rows;
-  const dir = sort.dir === "asc" ? 1 : -1;
-  return [...rows].sort((a, b) => {
-    const va = accessor(a);
-    const vb = accessor(b);
-    const an = va == null || va === "";
-    const bn = vb == null || vb === "";
-    if (an && bn) return 0;
-    if (an) return 1; // nulls last
-    if (bn) return -1;
-    if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
-    return String(va).localeCompare(String(vb)) * dir;
-  });
 }
 
 const pageBtn = (disabled: boolean): React.CSSProperties => ({

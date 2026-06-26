@@ -98,6 +98,37 @@ table {
   }
 }
 
+/* IBKR-style tick flash: a live value briefly highlights on a new quote — green on an
+   uptick, red on a downtick — then fades. Direction = THIS update vs the previous one
+   (transient), distinct from the steady day-change text color. Driven by <TickValue>. */
+@keyframes tickUp {
+  from {
+    background: color-mix(in srgb, var(--up) 38%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+@keyframes tickDown {
+  from {
+    background: color-mix(in srgb, var(--down) 38%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+.tick-flash-up,
+.tick-flash-down {
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.tick-flash-up {
+  animation: tickUp 0.6s ease-out;
+}
+.tick-flash-down {
+  animation: tickDown 0.6s ease-out;
+}
+
 /* On narrow viewports the fixed sidebar would crowd the content, so collapse it
    into a horizontal, wrapping top strip: each section's header and its page
    links flow inline, sections wrap onto new rows as needed. */

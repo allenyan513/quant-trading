@@ -8,8 +8,9 @@
  */
 
 import { useEffect, useMemo } from "react";
-import { useLive, LiveTable, type Column } from "@/components/live";
+import { useLive, LiveTable, useSort, type Column, type SortState } from "@/components/live";
 import { useQuotes } from "@/components/quotes";
+import { TickValue } from "@/components/tick-cell";
 import { usePaperAccount, PaperBlotter, type PaperAccount } from "@/components/paper-ledger";
 import { fmtMoney, fmtPct, fmtNum } from "@/lib/format";
 import type { Ledger } from "@/components/portfolio/ledgers";
@@ -36,11 +37,35 @@ interface HoldingRow {
   symbol: string;
   label: string;
   last: number | null;
+  dayChangePct: number | null;
   avg: number | null;
   mktValue: number;
   unrealized: number;
   unrealizedPct: number | null;
   selectable: boolean;
+}
+
+/** Column → sort accessor for the positions table (fed to the shared useSort). */
+const POS_ACCESSORS: Record<string, (r: HoldingRow) => string | number | null> = {
+  symbol: (r) => r.label,
+  last: (r) => r.last,
+  avg: (r) => r.avg,
+  mktValue: (r) => r.mktValue,
+  unrealized: (r) => r.unrealized,
+  unrealizedPct: (r) => r.unrealizedPct,
+};
+
+/** A clickable, sortable column header (mirrors LiveTable's ▲▼↕ affordance). */
+function SortHeader({ k, label, align, sort, onSort }: { k: string; label: string; align?: boolean; sort: SortState; onSort: (k: string) => void }) {
+  const dir = sort?.key === k ? sort.dir : null;
+  return (
+    <th onClick={() => onSort(k)} style={{ ...th, ...(align ? num : {}), cursor: "pointer", userSelect: "none" }}>
+      {label}
+      <span style={{ marginLeft: 4, fontSize: 10, color: dir ? "var(--accent)" : "var(--border)" }}>
+        {dir === "asc" ? "▲" : dir === "desc" ? "▼" : "↕"}
+      </span>
+    </th>
+  );
 }
 
 interface LivePos {
@@ -68,12 +93,14 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
   const rows: HoldingRow[] =
     ledger === "paper"
       ? paper.positions.map((p) => {
-          const last = quotes.get(p.symbol)?.price ?? null;
+          const q = quotes.get(p.symbol);
+          const last = q?.price ?? null;
           const mark = last ?? p.avgCost;
           return {
             symbol: p.symbol,
             label: p.symbol,
             last,
+            dayChangePct: q?.changePct ?? null,
             avg: p.avgCost,
             mktValue: mark * p.quantity,
             unrealized: (mark - p.avgCost) * p.quantity,
@@ -84,7 +111,8 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
       : (live?.positions ?? [])
           .filter((p) => p.assetClass !== "CASH")
           .map((p) => {
-            const last = quotes.get(p.symbol)?.price ?? p.markPrice ?? null;
+            const q = quotes.get(p.symbol);
+            const last = q?.price ?? p.markPrice ?? null;
             const avg = p.avgPrice;
             const mktValue = p.positionValue ?? (last != null ? last * p.quantity : 0);
             const unrealized = last != null && avg != null ? (last - avg) * p.quantity : 0;
@@ -92,6 +120,7 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
               symbol: p.symbol,
               label: optionLabel(p),
               last,
+              dayChangePct: q?.changePct ?? null,
               avg,
               mktValue,
               unrealized,
@@ -99,6 +128,9 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
               selectable: true,
             };
           });
+
+  // Click any column header to sort — reuses LiveTable's sort engine, persisted per browser.
+  const { sorted, sort, cycle } = useSort(rows, (key) => POS_ACCESSORS[key], "portfolio-positions");
 
   // Auto-select the first holding so the right rail isn't empty on load.
   const firstSel = rows.find((r) => r.selectable)?.symbol;
@@ -118,23 +150,25 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr>
-            <th style={th}>Symbol</th>
-            <th style={{ ...th, ...num }}>Last</th>
-            <th style={{ ...th, ...num }}>Avg</th>
-            <th style={{ ...th, ...num }}>Mkt value</th>
-            <th style={{ ...th, ...num }}>Unrealized</th>
-            <th style={{ ...th, ...num }}>%</th>
+            <SortHeader k="symbol" label="Symbol" sort={sort} onSort={cycle} />
+            <SortHeader k="last" label="Last" align sort={sort} onSort={cycle} />
+            <SortHeader k="avg" label="Avg" align sort={sort} onSort={cycle} />
+            <SortHeader k="mktValue" label="Mkt value" align sort={sort} onSort={cycle} />
+            <SortHeader k="unrealized" label="Unrealized" align sort={sort} onSort={cycle} />
+            <SortHeader k="unrealizedPct" label="%" align sort={sort} onSort={cycle} />
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {sorted.map((r) => (
             <tr
               key={r.label}
               onClick={() => r.selectable && onSelect(r.symbol)}
               style={{ cursor: r.selectable ? "pointer" : "default", background: selected === r.symbol ? "var(--panel-2)" : undefined }}
             >
               <td style={{ ...td, fontWeight: 600 }}>{r.label}</td>
-              <td style={{ ...td, ...num }}>{r.last == null ? "—" : fmtMoney(r.last)}</td>
+              <td style={{ ...td, ...num }}>
+                <TickValue value={r.last} dayChangePct={r.dayChangePct} format={(v) => (v == null ? "—" : fmtMoney(v))} />
+              </td>
               <td style={{ ...td, ...num }}>{fmtMoney(r.avg)}</td>
               <td style={{ ...td, ...num }}>{fmtMoney(r.mktValue)}</td>
               <td style={{ ...td, ...num, color: pnl(r.unrealized) }}>{fmtMoney(r.unrealized)}</td>

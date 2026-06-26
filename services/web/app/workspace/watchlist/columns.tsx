@@ -12,6 +12,7 @@ import { SymbolLink } from "@/components/symbol-link";
 import { useLive, type Column } from "@/components/live";
 import { Badge, TimeText } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/format";
+import { TickValue } from "@/components/tick-cell";
 import { apiAction } from "@/lib/api-client";
 import { refresh } from "./api";
 
@@ -142,7 +143,7 @@ export const columns: Column<WatchRow>[] = [
   { key: "sector", header: "Sector", sort: (r) => r.sector, render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.sector ?? "—"}</span> },
   { key: "industry", header: "Industry", sort: (r) => r.industry, render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.industry ?? "—"}</span> },
   { key: "archetype", header: "Type", sort: (r) => r.archetype, render: (r) => (r.archetype ? <Badge>{r.archetype}</Badge> : dash), width: 110 },
-  { key: "price", header: "Price", sort: (r) => r.price, render: (r) => fmtMoney(r.price) },
+  { key: "price", header: "Price", sort: (r) => r.price, render: (r) => <TickValue value={r.price} dayChangePct={r.changePct} format={fmtMoney} />, width: 90 },
   { key: "changePct", header: "Change %", sort: (r) => r.changePct, render: (r) => pctCell(r.changePct), width: 90 },
   { key: "ytdPct", header: "YTD %", sort: (r) => r.ytdPct, render: (r) => pctCell(r.ytdPct), width: 80 },
   { key: "ret1y", header: "1Y %", sort: (r) => r.ret1y, render: (r) => pctCell(r.ret1y), width: 80 },
