@@ -82,7 +82,7 @@ export function Nav() {
               Signed in as
               <div style={{ color: "var(--text)", marginTop: 2, wordBreak: "break-all" }}>{email || "—"}</div>
             </div>
-            <Link href="/workspace/portfolio/settings" onClick={() => setMenuOpen(false)} style={menuRow}>
+            <Link href="/workspace/portfolio/live/settings" onClick={() => setMenuOpen(false)} style={menuRow}>
               <PlugZap size={16} strokeWidth={1.75} /> IBKR connection
             </Link>
             <button

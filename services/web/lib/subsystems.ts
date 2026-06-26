@@ -92,9 +92,9 @@ export const SUBSYSTEMS: Subsystem[] = [
     port: 8084,
     color: "#f0883e",
     blurb:
-      "Sole owner of the positions ledger: deterministic sizing to open positions, settling closes on stop-loss / take-profit / expiry. No LLM.",
-    tables: ["positions"],
-    pages: [{ href: "/workspace/paper/positions", label: "Positions" }],
+      "Owner of the trading-accounts domain — three ledgers: Strategy (signal-driven sim), Paper (per-user order-driven), Live (IBKR mirror). No LLM.",
+    tables: ["positions", "portfolio_paper_*", "portfolio_holdings_*"],
+    pages: [{ href: "/workspace/portfolio/live", label: "Live" }],
   },
 ];
 
@@ -105,11 +105,12 @@ export const SYSTEM_PAGES: SubsystemPage[] = [
 ];
 
 /**
- * Product-facing left nav — three flat top-level entries (no sub-lists). Each goes
- * to a section: Watchlist (single page), Discover and Portfolio (tabbed pages whose
- * tab bars fold in movers/screener/calendars/legends/news and positions/performance/
- * trades/morning-brief/settings respectively). Alpha + System + the paper-trading
- * ledger routes still exist but are intentionally OFF the nav (reach them by URL).
+ * Product-facing left nav — three flat top-level entries (no sub-lists). Each goes to
+ * a section: Watchlist (single page + symbol-detail rail), Discover (tabbed:
+ * movers/screener/calendars/legends/news) and Portfolio (a Live | Paper ledger toggle,
+ * each ledger tabbed Positions/Activity/Performance/Morning brief/Settings). Alpha +
+ * System still exist but are intentionally OFF the nav (reach them by URL); the
+ * Strategy ledger is off the UI too (backend only).
  */
 export interface NavSection {
   label: string;
@@ -120,9 +121,9 @@ export interface NavSection {
 }
 
 export const NAV_SECTIONS: NavSection[] = [
+  { label: "Portfolio", href: "/workspace/portfolio", color: "#f0883e" },
   { label: "Watchlist", href: "/workspace/watchlist", color: "#3fb950" },
   { label: "Discover", href: "/workspace/discover", color: "#58a6ff" },
-  { label: "Portfolio", href: "/workspace/portfolio", color: "#f0883e" },
 ];
 
 

@@ -1,34 +1,32 @@
 "use client";
 
 /**
- * Portfolio header: a Paper | Live segmented toggle over the section. "Live" is the
- * read-only IBKR account (the existing positions/performance/trades/… tabs); "Paper"
- * is the per-user, order-driven simulated account (single page). The Live sub-tabs
- * only show in Live mode; Paper has no sub-tabs.
+ * Portfolio header: the Live | Paper segmented toggle. The active ledger is the App
+ * Router's selected layout segment (live/paper); each ledger's own sub-tabs (Positions
+ * / Activity / …) are rendered by its nested layout, so this is just the top-level
+ * ledger switch. (Strategy is off the UI — see below.)
  */
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { SectionTabs, type TabDef } from "@/components/section-tabs";
+import { useSelectedLayoutSegment } from "next/navigation";
 
-const LIVE_TABS: TabDef[] = [
-  { seg: "positions", label: "Positions" },
-  { seg: "performance", label: "Performance" },
-  { seg: "trades", label: "Trades" },
-  { seg: "morning-brief", label: "Morning brief" },
-  { seg: "settings", label: "Settings" },
+// Strategy (the signal-driven sim) is intentionally OFF the UI for now — it's a
+// half-baked ledger; its backend (strategy.ts / portfolio_positions / /jobs/track /
+// /api/positions) keeps running. Re-add a polished Strategy view later.
+const LEDGERS = [
+  { seg: "live", label: "Live · IBKR" },
+  { seg: "paper", label: "Paper" },
 ];
 
 export function PortfolioNav() {
-  const pathname = usePathname();
-  const isPaper = pathname.startsWith("/workspace/portfolio/paper");
+  const active = useSelectedLayoutSegment() ?? "live";
   return (
-    <div>
-      <div style={{ display: "inline-flex", gap: 2, border: "1px solid var(--border)", borderRadius: 8, padding: 2, margin: "4px 0 12px" }}>
-        <Link href="/workspace/portfolio/paper" style={seg(isPaper)}>Paper</Link>
-        <Link href="/workspace/portfolio/positions" style={seg(!isPaper)}>Live · IBKR</Link>
-      </div>
-      {!isPaper && <SectionTabs base="/workspace/portfolio" tabs={LIVE_TABS} defaultSeg="positions" margin="0 0 16px" />}
+    <div style={{ display: "inline-flex", gap: 2, border: "1px solid var(--border)", borderRadius: 8, padding: 2, margin: "4px 0 12px" }}>
+      {LEDGERS.map((l) => (
+        <Link key={l.seg} href={`/workspace/portfolio/${l.seg}`} style={seg(active === l.seg)}>
+          {l.label}
+        </Link>
+      ))}
     </div>
   );
 }

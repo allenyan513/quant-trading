@@ -1,4 +1,6 @@
 /**
+ * Live ledger — the real IBKR account mirror (Flex sync → portfolio_holdings_*).
+ *
  * IBKR Flex brokerage sync — ported from legends/value-scope's portfolio-sync,
  * simplified for a single account (the maintainer's own) on Drizzle/Postgres.
  *

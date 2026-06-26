@@ -3,8 +3,10 @@
 /**
  * Right-rail decision panel for the symbol workbench — the research counterpart to
  * IBKR's order-entry rail. Answers "is this a buy at today's price, and how much do
- * I hold?": quote → valuation verdict + fair value/upside → your position → watchlist
- * + refresh actions. No order entry. Reads the DB-only "company shell" + holdings.
+ * I hold?": quote → valuation verdict + fair value/upside → your position → paper
+ * trade ticket → watchlist + refresh. The paper ticket places MARKET orders into the
+ * per-user Paper account (this is the order-entry rail; Live/IBKR stays read-only).
+ * Reads the DB-only "company shell" + holdings + paper account.
  */
 
 import { useState } from "react";
@@ -13,6 +15,7 @@ import { useLive } from "@/components/live";
 import { useQuotes } from "@/components/quotes";
 import { apiAction } from "@/lib/api-client";
 import { StatusBadge } from "@/components/ui";
+import { PaperTicket, type PaperAccount } from "@/components/paper-ledger";
 import { fmtMoney, fmtPct } from "@/lib/format";
 
 interface Shell {
@@ -44,9 +47,11 @@ const VERDICT_HEADLINE: Record<string, string> = {
   overvalued: "Trading above fair value",
 };
 
-export function DecisionPanel({ symbol }: { symbol: string }) {
+export function DecisionPanel({ symbol, tradeable = true }: { symbol: string; tradeable?: boolean }) {
   const { data: shell } = useLive<Shell | null>(`/api/data/symbol/${symbol}/shell`);
   const { data: holdings } = useLive<{ positions: Position[] }>(`/api/holdings/positions`);
+  const { data: paper } = useLive<PaperAccount>(`/api/paper/account`);
+  const paperPos = (paper?.positions ?? []).find((p) => p.symbol === symbol);
   const s = shell ?? null;
   // Live quote (market-hours ticking) overlays the static shell price.
   const live = useQuotes([symbol]).get(symbol);
@@ -113,6 +118,20 @@ export function DecisionPanel({ symbol }: { symbol: string }) {
           <div style={{ fontSize: 12, color: "var(--muted)" }}>Not held</div>
         )}
       </div>
+
+      {/* Paper trade — market orders into the per-user Paper account (simulated).
+          Hidden on the read-only Live ledger in the portfolio workbench. */}
+      {tradeable && (
+        <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>
+            Paper trade
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+            {paperPos ? `Paper: ${paperPos.quantity} sh @ ${fmtMoney(paperPos.avgCost)}` : "No paper position"}
+          </div>
+          <PaperTicket symbol={symbol} />
+        </div>
+      )}
 
       {/* Actions — watchlist toggle is primary; data auto-refreshes on open, so
           refresh is just a tiny "force now" override. */}

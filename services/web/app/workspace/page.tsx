@@ -37,7 +37,7 @@ export default async function HomePage() {
           title="Connect your IBKR account"
           desc="Sync your holdings, trades, and NAV curve via an IBKR Flex query (read-only)."
           badge={s.ibkrConnected ? "Connected" : "Not connected"}
-          cta={{ href: "/workspace/portfolio/settings", label: s.ibkrConnected ? "Manage" : "Connect" }}
+          cta={{ href: "/workspace/portfolio/live/settings", label: s.ibkrConnected ? "Manage" : "Connect" }}
         />
         <Step
           n={2}

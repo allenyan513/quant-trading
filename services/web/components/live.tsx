@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useState, useEffect, type ReactNode } from "react";
 
 async function fetcher(url: string) {
   const res = await fetch(url);
@@ -51,13 +51,39 @@ interface LiveTableProps<Row> {
   rowFilter?: (row: Row) => boolean;
   /** When set, rows are draggable; the returned string is put on dataTransfer "symbol". */
   getRowDragData?: (row: Row) => string;
+  /** When set, the chosen sort column/direction is remembered in localStorage under this
+   *  key, so it survives navigating away and back (a view preference, kept client-side —
+   *  same approach as the watchlist column-visibility choice). */
+  storageKey?: string;
+  /** Single-click a row → select it (e.g. to drive a side detail rail). */
+  onRowClick?: (row: Row) => void;
+  /** rowKey of the currently-selected row, highlighted. */
+  selectedKey?: string;
 }
 
-export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData }: LiveTableProps<Row>) {
+type Sort = { key: string; dir: "asc" | "desc" };
+
+export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData, storageKey, onRowClick, selectedKey }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
+  // Default to null so SSR and the first client render agree; the saved sort (if any)
+  // is applied after mount in the effect below — same no-hydration-mismatch dance the
+  // watchlist column choice uses.
+  const [sort, setSort] = useState<Sort | null>(null);
+
+  const sortStore = storageKey ? `table:sort:${storageKey}` : null;
+  useEffect(() => {
+    if (!sortStore) return;
+    const saved = localStorage.getItem(sortStore);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved) as Sort;
+      if (parsed && typeof parsed.key === "string" && (parsed.dir === "asc" || parsed.dir === "desc")) setSort(parsed);
+    } catch {
+      /* ignore malformed */
+    }
+  }, [sortStore]);
 
   // Changing a filter resets to the first page.
   function setFilter(key: string, val: string) {
@@ -67,7 +93,12 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
 
   // Click a sortable header: asc → desc → off (back to the API's default order).
   function cycleSort(key: string) {
-    setSort((s) => (!s || s.key !== key ? { key, dir: "asc" } : s.dir === "asc" ? { key, dir: "desc" } : null));
+    const next: Sort | null = !sort || sort.key !== key ? { key, dir: "asc" } : sort.dir === "asc" ? { key, dir: "desc" } : null;
+    setSort(next);
+    if (sortStore) {
+      if (next) localStorage.setItem(sortStore, JSON.stringify(next));
+      else localStorage.removeItem(sortStore);
+    }
   }
 
   const qs = new URLSearchParams();
@@ -172,9 +203,19 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
                           }
                         : undefined
                     }
-                    onClick={expand ? () => setOpen(isOpen ? null : k) : undefined}
+                    onClick={
+                      expand || onRowClick
+                        ? () => {
+                            if (expand) setOpen(isOpen ? null : k);
+                            onRowClick?.(row);
+                          }
+                        : undefined
+                    }
                     onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
-                    style={{ cursor: expand || onRowDoubleClick ? "pointer" : "default", background: isOpen ? "var(--panel-2)" : undefined }}
+                    style={{
+                      cursor: expand || onRowDoubleClick || onRowClick ? "pointer" : "default",
+                      background: isOpen || selectedKey === k ? "var(--panel-2)" : undefined,
+                    }}
                   >
                     {expand && <td style={{ ...tdStyle, color: "var(--muted)" }}>{isOpen ? "▾" : "▸"}</td>}
                     {columns.map((c) => (
