@@ -133,14 +133,22 @@ const mcpHandler = createMcpHandler(
         title: "Get Paper Account",
         description:
           "Fetch the signed-in user's SIMULATED paper-trading account as structured JSON: cash (= buying " +
-          "power), cumulative realized P&L, net positions (symbol, quantity, average cost), and the recent " +
-          "order blotter. Private + per-user. Use to check the account before deciding a trade, or to " +
-          "review fills after place_paper_order. This is the paper account — NOT the real brokerage (that's get_holdings).",
+          "power), cumulative realized P&L, net positions (symbol, quantity, average cost), the resting " +
+          "WORKING limit orders (workingOrders — not yet filled, cancellable via cancel_paper_order), and " +
+          "the recent terminal order blotter (filled / rejected / cancelled). Private + per-user. Use to " +
+          "check the account before deciding a trade, or to review fills after place_paper_order. This is " +
+          "the paper account — NOT the real brokerage (that's get_holdings).",
         inputSchema: {},
       },
       async (_args, extra) => {
         const userId = userIdFrom(extra);
         if (!userId) return UNAUTH;
+        // Match any resting limit orders that have crossed before reading (no cron — matched on access).
+        try {
+          await portfolioPost("/paper/match", { userId });
+        } catch {
+          // Best-effort: a match failure must not block reading the account.
+        }
         const data = await getPaperAccount(db(), userId);
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       },
@@ -151,29 +159,66 @@ const mcpHandler = createMcpHandler(
       {
         title: "Place Paper Order",
         description:
-          "Place a MARKET order in the signed-in user's SIMULATED paper account and get the fill back. " +
-          "Fills immediately at the current live quote: buys debit cash (rejected if insufficient funds), " +
-          "sells reduce/close a long (rejected if it would go short — no short selling). Long equity only; " +
-          "options and short are not supported yet. SIMULATED — never touches a real brokerage, places no " +
-          "real-money trade. Returns fill price, resulting position, and remaining cash, or a rejection " +
-          "reason. Pass a unique idempotencyKey so a retry never fills twice.",
+          "Place an order in the signed-in user's SIMULATED paper account. orderType 'market' (default) " +
+          "fills immediately at the current live quote and returns the fill; 'limit' rests as a WORKING " +
+          "order and fills when the quote crosses your limit (buy: quote ≤ limit; sell: quote ≥ limit), at " +
+          "the crossing market price — never worse than your limit — use a limit order for a watch/entry " +
+          "at a target price (status comes back 'working'). " +
+          "Buys debit cash (rejected if insufficient funds); sells reduce/close a long (rejected if it " +
+          "would go short — no short selling yet). Long equity only. Optionally attach a thesis (rationale " +
+          "+ targetPrice / stopPrice / timeHorizon) — recorded with the order, informational only, never " +
+          "auto-executed. SIMULATED — never touches a real brokerage. Returns the fill (or working/" +
+          "rejected status), resulting position, and remaining cash. Pass a unique idempotencyKey so a " +
+          "retry never fills twice.",
         inputSchema: {
           symbol: z.string().describe("Ticker, e.g. MU or AAPL."),
           side: z.enum(["buy", "sell"]).describe("buy to open/add a long; sell to reduce/close it."),
           quantity: z.number().positive().describe("Number of shares (must be > 0)."),
+          orderType: z.enum(["market", "limit"]).optional().describe("market (default) fills now; limit rests until the quote crosses."),
+          limitPrice: z.number().positive().optional().describe("Required for a limit order — the price to fill at."),
+          tif: z.enum(["day", "gtc"]).optional().describe("Time in force for a limit order: gtc (default) or day (expires end of the ET day)."),
+          thesis: z.string().optional().describe("Recorded rationale for the trade (why, and when to exit). Informational."),
+          targetPrice: z.number().positive().optional().describe("Planned take-profit price (recorded, not auto-executed)."),
+          stopPrice: z.number().positive().optional().describe("Planned stop price (recorded, not auto-executed)."),
+          timeHorizon: z.string().optional().describe("Planned holding window, free text (e.g. '3 months')."),
           idempotencyKey: z.string().optional().describe("Optional unique key to dedup retries of the SAME order."),
         },
       },
-      async ({ symbol, side, quantity, idempotencyKey }, extra) => {
+      async ({ symbol, side, quantity, orderType, limitPrice, tif, thesis, targetPrice, stopPrice, timeHorizon, idempotencyKey }, extra) => {
         const userId = userIdFrom(extra);
         if (!userId) return UNAUTH;
         try {
           // Forwards to portfolio (owner). A business rejection (e.g. insufficient_funds) comes back as
           // JSON with status:"rejected" — that's a normal result, not an error.
-          const res = await portfolioPost("/paper/orders", { userId, symbol, side, quantity, source: "mcp", idempotencyKey });
+          const res = await portfolioPost("/paper/orders", { userId, symbol, side, quantity, orderType, limitPrice, tif, thesis, targetPrice, stopPrice, timeHorizon, source: "mcp", idempotencyKey });
           return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
         } catch (e) {
           return { content: [{ type: "text", text: `Failed to place order: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+        }
+      },
+    );
+
+    server.registerTool(
+      "cancel_paper_order",
+      {
+        title: "Cancel Paper Order",
+        description:
+          "Cancel a resting WORKING limit order in the signed-in user's SIMULATED paper account, by its " +
+          "order id (from get_paper_account's workingOrders). Only a working order can be cancelled; a " +
+          "filled/rejected/already-cancelled order is left unchanged (the response reports its status). " +
+          "Private + per-user.",
+        inputSchema: {
+          orderId: z.string().describe("The working order's id (from get_paper_account workingOrders)."),
+        },
+      },
+      async ({ orderId }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        try {
+          const res = await portfolioPost("/paper/orders/cancel", { userId, orderId });
+          return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: "text", text: `Failed to cancel order: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
         }
       },
     );
@@ -193,7 +238,8 @@ const mcpHandler = createMcpHandler(
       "• Public research (no account needed): get_symbol_research, list_13f_investors, " +
       "get_13f_investor, search_sec_filings.\n" +
       "• Private, per-user account (scoped to your signed-in user): get_holdings (real IBKR portfolio), " +
-      "get_watchlist, get_paper_account, place_paper_order (simulated), submit_morning_brief.\n\n" +
+      "get_watchlist, get_paper_account, place_paper_order + cancel_paper_order (simulated), " +
+      "submit_morning_brief.\n\n" +
       "Naming convention: get_* fetches one resource, list_* returns a collection, search_* runs a " +
       "query; write tools use a plain action verb (place_*, submit_*). The private tools always act on " +
       "the authenticated user's own data — never pass another user's identity.",

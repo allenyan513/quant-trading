@@ -789,10 +789,13 @@ export const positions = pgTable(
 // ---- Paper trading (per-user, discretionary / AI-assisted simulated account) ----
 //
 // Distinct from `portfolio_positions` (the house signal-driven sim above): these are
-// PER-USER, ORDER-driven books you trade into from the page or via MCP. v1 = market
-// orders, long equity, cash-accounted, filled at the live quote. Options / short /
-// limit / automation are deferred (`asset_class` + a later negative `quantity` leave
-// room). Owned by the portfolio service; web reads only.
+// PER-USER, ORDER-driven books you trade into from the page or via MCP. Long equity,
+// cash-accounted. Market orders fill immediately at the live quote; LIMIT orders rest
+// as `status='working'` and fill when the quote crosses the limit, at the crossing
+// quote (matched on page open — see paper.ts `matchWorkingOrders`). Each order can carry a recorded
+// thesis (rationale/target/stop/horizon — informational, never auto-executed).
+// Short selling, options, and partial fills are deferred (`asset_class` + a later
+// negative `quantity` leave room). Owned by the portfolio service; web reads only.
 
 export const paperAccounts = pgTable("portfolio_paper_accounts", {
   userId: text("user_id").primaryKey().references(() => authUser.id, { onDelete: "cascade" }),
@@ -811,19 +814,33 @@ export const paperOrders = pgTable(
     symbol: text("symbol").notNull(),
     side: text("side").notNull(), // buy|sell
     assetClass: text("asset_class").default("EQUITY").notNull(), // reserve for options
+    orderType: text("order_type").default("market").notNull(), // market|limit
     quantity: doublePrecision("quantity").notNull(),
-    fillPrice: doublePrecision("fill_price"), // null on reject
-    status: text("status").notNull(), // filled|rejected
-    rejectReason: text("reject_reason"), // no_price | insufficient_funds | insufficient_shares
-    realizedPnl: doublePrecision("realized_pnl"), // sells only
+    limitPrice: doublePrecision("limit_price"), // limit orders only (null for market)
+    tif: text("tif").default("gtc").notNull(), // day|gtc — time in force for working limit orders
+    fillPrice: doublePrecision("fill_price"), // null until filled / on reject
+    // working = resting limit order (not yet filled); filled|rejected = terminal trade/attempt;
+    // cancelled = user-cancelled or day_expired working order.
+    status: text("status").notNull(), // working|filled|cancelled|rejected
+    rejectReason: text("reject_reason"), // no_price | bad_quantity | insufficient_funds | insufficient_shares | day_expired
+    realizedPnl: doublePrecision("realized_pnl"), // reductions/sells only
+    // Thesis (recorded entry rationale + plan; informational in v1, never auto-executed).
+    thesis: text("thesis"), // free-text rationale
+    targetPrice: doublePrecision("target_price"), // planned take-profit
+    stopPrice: doublePrecision("stop_price"), // planned stop
+    timeHorizon: text("time_horizon"), // planned holding window (free text)
     source: text("source").notNull(), // manual|mcp
     idempotencyKey: text("idempotency_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    filledAt: timestamp("filled_at", { withTimezone: true }), // set when a working/market order fills
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }), // set on cancel / day_expired
   },
   (t) => [
     index("idx_paper_orders_user").on(t.userId, t.createdAt),
     // Dedup retried submissions (esp. MCP). Partial: only enforced when a key is given.
     uniqueIndex("uq_paper_orders_idem").on(t.userId, t.idempotencyKey).where(sql`${t.idempotencyKey} is not null`),
+    // Working-order scan (matcher / Orders view): hot path filters by user + status='working'.
+    index("idx_paper_orders_working").on(t.userId, t.status),
   ],
 );
 
