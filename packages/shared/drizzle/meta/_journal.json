@@ -239,6 +239,13 @@
       "when": 1782414069209,
       "tag": "0033_puzzling_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1782431236701,
+      "tag": "0034_wild_madripoor",
+      "breakpoints": true
     }
   ]
 }

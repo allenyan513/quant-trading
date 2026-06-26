@@ -20,6 +20,9 @@ import { registerPublicTools } from "@/lib/mcp/register-public-tools";
 import { getHoldingsExport, HOLDINGS_SECTIONS } from "@/lib/mcp/holdings";
 import { listWatchlistOverview } from "@/lib/queries";
 import { dataPost } from "@/lib/data-proxy";
+import { portfolioPost } from "@/lib/portfolio-proxy";
+import { getPaperAccount } from "@qt/shared/paper-read";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,6 +116,57 @@ const mcpHandler = createMcpHandler(
           return { content: [{ type: "text", text: `Saved morning brief for ${date}.` }] };
         } catch (e) {
           return { content: [{ type: "text", text: `Failed to save brief: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+        }
+      },
+    );
+
+    server.registerTool(
+      "get_paper_account",
+      {
+        title: "Your paper-trading account (cash, positions, blotter)",
+        description:
+          "Fetch the signed-in user's SIMULATED paper-trading account as structured JSON: cash (= buying " +
+          "power), cumulative realized P&L, net positions (symbol, quantity, average cost), and the recent " +
+          "order blotter. Private + per-user. Use to check the account before deciding a trade, or to " +
+          "review fills after place_paper_order. This is the paper account — NOT the real brokerage (that's get_holdings).",
+        inputSchema: {},
+      },
+      async (_args, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        const data = await getPaperAccount(db(), userId);
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      },
+    );
+
+    server.registerTool(
+      "place_paper_order",
+      {
+        title: "Place a paper-trading market order (buy/sell)",
+        description:
+          "Place a MARKET order in the signed-in user's SIMULATED paper account and get the fill back. " +
+          "Fills immediately at the current live quote: buys debit cash (rejected if insufficient funds), " +
+          "sells reduce/close a long (rejected if it would go short — no short selling). Long equity only; " +
+          "options and short are not supported yet. SIMULATED — never touches a real brokerage, places no " +
+          "real-money trade. Returns fill price, resulting position, and remaining cash, or a rejection " +
+          "reason. Pass a unique idempotencyKey so a retry never fills twice.",
+        inputSchema: {
+          symbol: z.string().describe("Ticker, e.g. MU or AAPL."),
+          side: z.enum(["buy", "sell"]).describe("buy to open/add a long; sell to reduce/close it."),
+          quantity: z.number().positive().describe("Number of shares (must be > 0)."),
+          idempotencyKey: z.string().optional().describe("Optional unique key to dedup retries of the SAME order."),
+        },
+      },
+      async ({ symbol, side, quantity, idempotencyKey }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        try {
+          // Forwards to portfolio (owner). A business rejection (e.g. insufficient_funds) comes back as
+          // JSON with status:"rejected" — that's a normal result, not an error.
+          const res = await portfolioPost("/paper/orders", { userId, symbol, side, quantity, source: "mcp", idempotencyKey });
+          return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: "text", text: `Failed to place order: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
         }
       },
     );

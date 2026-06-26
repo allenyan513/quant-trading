@@ -786,6 +786,59 @@ export const positions = pgTable(
   ],
 );
 
+// ---- Paper trading (per-user, discretionary / AI-assisted simulated account) ----
+//
+// Distinct from `portfolio_positions` (the house signal-driven sim above): these are
+// PER-USER, ORDER-driven books you trade into from the page or via MCP. v1 = market
+// orders, long equity, cash-accounted, filled at the live quote. Options / short /
+// limit / automation are deferred (`asset_class` + a later negative `quantity` leave
+// room). Owned by the portfolio service; web reads only.
+
+export const paperAccounts = pgTable("portfolio_paper_accounts", {
+  userId: text("user_id").primaryKey().references(() => authUser.id, { onDelete: "cascade" }),
+  cash: doublePrecision("cash").notNull(),
+  startingCash: doublePrecision("starting_cash").notNull(),
+  realizedPnl: doublePrecision("realized_pnl").default(0).notNull(), // cumulative closed P&L
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+});
+
+export const paperOrders = pgTable(
+  "portfolio_paper_orders",
+  {
+    id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    side: text("side").notNull(), // buy|sell
+    assetClass: text("asset_class").default("EQUITY").notNull(), // reserve for options
+    quantity: doublePrecision("quantity").notNull(),
+    fillPrice: doublePrecision("fill_price"), // null on reject
+    status: text("status").notNull(), // filled|rejected
+    rejectReason: text("reject_reason"), // no_price | insufficient_funds | insufficient_shares
+    realizedPnl: doublePrecision("realized_pnl"), // sells only
+    source: text("source").notNull(), // manual|mcp
+    idempotencyKey: text("idempotency_key"),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    index("idx_paper_orders_user").on(t.userId, t.createdAt),
+    // Dedup retried submissions (esp. MCP). Partial: only enforced when a key is given.
+    uniqueIndex("uq_paper_orders_idem").on(t.userId, t.idempotencyKey).where(sql`${t.idempotencyKey} is not null`),
+  ],
+);
+
+export const paperPositions = pgTable(
+  "portfolio_paper_positions",
+  {
+    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    quantity: doublePrecision("quantity").notNull(),
+    avgCost: doublePrecision("avg_cost").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.symbol] })],
+);
+
 // ---- Signal delivery outbox (alpha -> portfolio) ----
 
 export const signalDeliveries = pgTable(

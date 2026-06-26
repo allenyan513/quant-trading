@@ -89,6 +89,8 @@ export const config = {
   // ---- Portfolio construction (T7) deterministic sizing params ----
   /** Total paper capital (USD). Only scales notional, not weight logic. */
   portfolioCapital: () => Number(optionalEnv("PORTFOLIO_CAPITAL", "100000")),
+  /** Starting cash for a new per-user paper-trading account (USD). */
+  paperStartingCash: () => Number(optionalEnv("PAPER_STARTING_CASH", "100000")),
   /** Base weight per conviction tier (fraction of capital). */
   sizeByConviction: () => ({
     low: Number(optionalEnv("SIZE_LOW", "0.01")),
