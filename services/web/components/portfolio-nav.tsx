@@ -14,12 +14,12 @@ import { useSelectedLayoutSegment } from "next/navigation";
 // half-baked ledger; its backend (strategy.ts / portfolio_positions / /jobs/track /
 // /api/positions) keeps running. Re-add a polished Strategy view later.
 const LEDGERS = [
-  { seg: "live", label: "Live · IBKR" },
   { seg: "paper", label: "Paper" },
+  { seg: "live", label: "Live · IBKR" },
 ];
 
 export function PortfolioNav() {
-  const active = useSelectedLayoutSegment() ?? "live";
+  const active = useSelectedLayoutSegment() ?? "paper";
   return (
     <div style={{ display: "inline-flex", gap: 2, border: "1px solid var(--border)", borderRadius: 8, padding: 2, margin: "4px 0 12px" }}>
       {LEDGERS.map((l) => (
