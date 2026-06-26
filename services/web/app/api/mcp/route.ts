@@ -11,6 +11,13 @@
  * 401 + WWW-Authenticate pointing at /.well-known/oauth-protected-resource → Claude
  * runs the OAuth dance (DCR + PKCE) against the AS and retries with a bearer.
  *
+ * The server advertises its identity (serverInfo "SweetValueLab" + instructions) so
+ * the connector card shows a branded name/description instead of an anonymous tool
+ * list. Tool naming is regular: get_* fetches one resource, list_* a collection,
+ * search_* a query; writes use a plain action verb (place_*, submit_*). Each tool's
+ * `title` is the Title-Case mirror of its id (clean label in the picker), and the
+ * `description` carries the detail the model needs to pick it.
+ *
  * basePath "/api" ⇒ served at /api/mcp.
  */
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
@@ -46,7 +53,7 @@ const mcpHandler = createMcpHandler(
     server.registerTool(
       "get_holdings",
       {
-        title: "Your brokerage holdings (positions, trades, performance)",
+        title: "Get Holdings",
         description:
           "Fetch the signed-in user's own IBKR portfolio as structured JSON: current positions " +
           "(symbol, asset class, quantity, market value, weight, option greeks), recent trades, and " +
@@ -72,7 +79,7 @@ const mcpHandler = createMcpHandler(
     server.registerTool(
       "get_watchlist",
       {
-        title: "Your watchlist (followed symbols + valuation)",
+        title: "Get Watchlist",
         description:
           "Fetch the signed-in user's private watchlist as structured JSON: each followed symbol with " +
           "its note, latest reference valuation (fair value / price / upside % / verdict), sector, and " +
@@ -91,7 +98,7 @@ const mcpHandler = createMcpHandler(
     server.registerTool(
       "submit_morning_brief",
       {
-        title: "Save today's morning brief to your archive",
+        title: "Submit Morning Brief",
         description:
           "Persist a generated morning brief for the signed-in user so it appears in their dashboard " +
           "archive (/data/morning-brief). Call this at the END of the morning-brief skill — after you've " +
@@ -123,7 +130,7 @@ const mcpHandler = createMcpHandler(
     server.registerTool(
       "get_paper_account",
       {
-        title: "Your paper-trading account (cash, positions, blotter)",
+        title: "Get Paper Account",
         description:
           "Fetch the signed-in user's SIMULATED paper-trading account as structured JSON: cash (= buying " +
           "power), cumulative realized P&L, net positions (symbol, quantity, average cost), and the recent " +
@@ -142,7 +149,7 @@ const mcpHandler = createMcpHandler(
     server.registerTool(
       "place_paper_order",
       {
-        title: "Place a paper-trading market order (buy/sell)",
+        title: "Place Paper Order",
         description:
           "Place a MARKET order in the signed-in user's SIMULATED paper account and get the fill back. " +
           "Fills immediately at the current live quote: buys debit cash (rejected if insufficient funds), " +
@@ -171,7 +178,26 @@ const mcpHandler = createMcpHandler(
       },
     );
   },
-  {},
+  {
+    // Server identity + guidance shown to the connecting client (and surfaced in
+    // Claude's connector card). Without this the server has no name/description and
+    // reads as an anonymous set of tools — set it to brand the connector.
+    serverInfo: { name: "SweetValueLab", version: "1.0.0" },
+    capabilities: { tools: {} },
+    instructions:
+      "SweetValueLab — the facts layer for AI-native equity research (https://sweetvaluelab.com). " +
+      "Point-in-time-correct US-equity facts (SEC filings, ownership, 13F superinvestor holdings, " +
+      "insider trades, and a deterministic reference valuation), served as structured JSON for your " +
+      "Claude to reason over.\n\n" +
+      "Tools fall into two groups:\n" +
+      "• Public research (no account needed): get_symbol_research, list_13f_investors, " +
+      "get_13f_investor, search_filings.\n" +
+      "• Private, per-user account (scoped to your signed-in user): get_holdings (real IBKR portfolio), " +
+      "get_watchlist, get_paper_account, place_paper_order (simulated), submit_morning_brief.\n\n" +
+      "Naming convention: get_* fetches one resource, list_* returns a collection, search_* runs a " +
+      "query; write tools use a plain action verb (place_*, submit_*). The private tools always act on " +
+      "the authenticated user's own data — never pass another user's identity.",
+  },
   { basePath: "/api" },
 );
 
