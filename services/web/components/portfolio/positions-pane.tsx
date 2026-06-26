@@ -3,9 +3,8 @@
 /**
  * Left pane of the Portfolio workbench: a positions table (IBKR/watchlist styling)
  * with row selection that drives the right-rail symbol detail, plus an Activity tab
- * (the ledger's executed history). Same shape for all three ledgers; only the data
- * source + columns differ. Live/Paper are live-marked holdings; Strategy is the
- * signal-driven sim (entry/status/realized).
+ * (the ledger's executed history). Same shape for every ledger; only the data source
+ * + columns differ (Live = IBKR mirror, Paper = order-driven sim).
  */
 
 import { useEffect, useMemo } from "react";
@@ -24,11 +23,7 @@ const num: React.CSSProperties = { textAlign: "right", fontVariantNumeric: "tabu
 
 /** The Positions tab content — a selectable holdings table (drives the right rail). */
 export function PositionsTable({ ledger, selected, onSelect }: { ledger: Ledger; selected: string | null; onSelect: (s: string) => void }) {
-  return ledger === "strategy" ? (
-    <StrategyPositions selected={selected} onSelect={onSelect} status="open" />
-  ) : (
-    <HoldingsTable ledger={ledger} selected={selected} onSelect={onSelect} />
-  );
+  return <HoldingsTable ledger={ledger} selected={selected} onSelect={onSelect} />;
 }
 
 /** The Activity tab content — the ledger's executed history. */
@@ -111,6 +106,10 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
     if (!selected && firstSel) onSelect(firstSel);
   }, [firstSel, selected, onSelect]);
 
+  // Hold the empty state back until the account/holdings have loaded, so it doesn't
+  // flash "No positions" before the data arrives.
+  const loading = ledger === "paper" ? !paper.acct : !live;
+  if (loading) return <Empty>Loading…</Empty>;
   if (rows.length === 0) {
     return <Empty>{ledger === "paper" ? "No paper positions — buy from a symbol's detail page." : "No positions."}</Empty>;
   }
@@ -148,71 +147,15 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
   );
 }
 
-/** Strategy: signal-driven positions (open or closed). */
-interface StratRow {
-  signalId: string;
-  symbol: string;
-  direction: string;
-  status: string;
-  entryPrice: number | null;
-  exitPrice: number | null;
-  shares: number | null;
-  targetNotional: number | null;
-  realizedReturn: number | null;
-}
-function StrategyPositions({ selected, onSelect, status }: { selected: string | null; onSelect: (s: string) => void; status: "open" | "closed" }) {
-  const { data } = useLive<StratRow[]>("/api/positions?limit=500");
-  const rows = (data ?? []).filter((r) => r.status === status);
-  const first = rows[0]?.symbol;
-  useEffect(() => {
-    if (status === "open" && !selected && first) onSelect(first);
-  }, [first, selected, onSelect, status]);
-  if (rows.length === 0) return <Empty>No {status} signal positions.</Empty>;
-  return (
-    <div style={{ overflowX: "auto", border: "1px solid var(--border)" }}>
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th style={th}>Symbol</th>
-            <th style={th}>Dir</th>
-            <th style={{ ...th, ...num }}>Notional</th>
-            <th style={{ ...th, ...num }}>Entry</th>
-            <th style={{ ...th, ...num }}>Shares</th>
-            {status === "closed" && <th style={{ ...th, ...num }}>Realized</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr
-              key={r.signalId}
-              onClick={() => onSelect(r.symbol)}
-              style={{ cursor: "pointer", background: selected === r.symbol ? "var(--panel-2)" : undefined }}
-            >
-              <td style={{ ...td, fontWeight: 600 }}>{r.symbol}</td>
-              <td style={{ ...td, color: r.direction === "buy" ? GREEN : RED, textTransform: "uppercase" }}>{r.direction}</td>
-              <td style={{ ...td, ...num }}>{fmtMoney(r.targetNotional)}</td>
-              <td style={{ ...td, ...num }}>{fmtMoney(r.entryPrice)}</td>
-              <td style={{ ...td, ...num }}>{fmtNum(r.shares)}</td>
-              {status === "closed" && (
-                <td style={{ ...td, ...num, color: pnl(r.realizedReturn) }}>{r.realizedReturn == null ? "—" : fmtPct(r.realizedReturn * 100)}</td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function Activity({ ledger }: { ledger: Ledger }) {
   if (ledger === "paper") return <PaperActivity />;
-  if (ledger === "strategy") return <StrategyPositions selected={null} onSelect={() => {}} status="closed" />;
   return <LiveTable path="/api/holdings/trades" rowKey={(r: HoldingsTrade) => `${r.tradeDate}-${r.symbol}-${r.externalTradeId}`} columns={TRADE_COLS} emptyText="No trades." />;
 }
 
 function PaperActivity() {
   const { data: acct } = useLive<PaperAccount>("/api/paper/account");
-  return <PaperBlotter orders={acct?.orders ?? []} />;
+  if (!acct) return <Empty>Loading…</Empty>;
+  return <PaperBlotter orders={acct.orders} />;
 }
 
 interface HoldingsTrade {

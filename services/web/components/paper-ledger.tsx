@@ -85,7 +85,9 @@ export function PaperBlotter({ orders }: { orders: PaperOrder[] }) {
         <tbody>
           {orders.map((o) => (
             <tr key={o.id}>
-              <td style={{ ...td, color: "var(--muted)" }}>{new Date(o.createdAt).toLocaleString()}</td>
+              <td style={{ ...td, color: "var(--muted)" }} suppressHydrationWarning>
+                {new Date(o.createdAt).toLocaleString()}
+              </td>
               <td style={{ ...td, fontWeight: 600 }}>{o.symbol}</td>
               <td style={{ ...td, color: o.side === "buy" ? GREEN : RED, textTransform: "uppercase" }}>{o.side}</td>
               <td style={{ ...td, ...num }}>{o.quantity}</td>

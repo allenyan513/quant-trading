@@ -105,11 +105,12 @@ export const SYSTEM_PAGES: SubsystemPage[] = [
 ];
 
 /**
- * Product-facing left nav — three flat top-level entries (no sub-lists). Each goes
- * to a section: Watchlist (single page), Discover and Portfolio (tabbed pages whose
- * tab bars fold in movers/screener/calendars/legends/news and positions/performance/
- * trades/morning-brief/settings respectively). Alpha + System + the paper-trading
- * ledger routes still exist but are intentionally OFF the nav (reach them by URL).
+ * Product-facing left nav — three flat top-level entries (no sub-lists). Each goes to
+ * a section: Watchlist (single page + symbol-detail rail), Discover (tabbed:
+ * movers/screener/calendars/legends/news) and Portfolio (a Live | Paper ledger toggle,
+ * each ledger tabbed Positions/Activity/Performance/Morning brief/Settings). Alpha +
+ * System still exist but are intentionally OFF the nav (reach them by URL); the
+ * Strategy ledger is off the UI too (backend only).
  */
 export interface NavSection {
   label: string;

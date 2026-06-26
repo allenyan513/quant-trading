@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * Portfolio header: the Live | Paper | Strategy segmented toggle (3 ledgers). The
- * active ledger is the App Router's selected layout segment (live/paper/strategy);
- * each ledger's own sub-tabs (Positions / Activity / …) are rendered by its nested
- * layout, so this is just the top-level ledger switch.
+ * Portfolio header: the Live | Paper segmented toggle. The active ledger is the App
+ * Router's selected layout segment (live/paper); each ledger's own sub-tabs (Positions
+ * / Activity / …) are rendered by its nested layout, so this is just the top-level
+ * ledger switch. (Strategy is off the UI — see below.)
  */
 
 import Link from "next/link";

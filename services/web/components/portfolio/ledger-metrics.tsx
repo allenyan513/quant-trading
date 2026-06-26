@@ -50,7 +50,7 @@ function Strip({ s }: { s: AccountSummary }) {
 }
 
 export function LedgerMetrics({ ledger }: { ledger: Ledger }) {
-  // Strategy is off the UI; only Live/Paper render a KPI strip.
+  // Live/Paper each render the same strip from their own normalized summary.
   return ledger === "paper" ? <PaperMetrics /> : <LiveMetrics />;
 }
 

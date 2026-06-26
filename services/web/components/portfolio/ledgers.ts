@@ -1,8 +1,6 @@
-/** The three portfolio ledgers (account types). One layout, different data/actions. */
-export type Ledger = "live" | "paper" | "strategy";
-
-export const LEDGER_LABEL: Record<Ledger, string> = {
-  live: "Live · IBKR",
-  paper: "Paper",
-  strategy: "Strategy",
-};
+/**
+ * The portfolio ledgers the UI renders (account types — one layout, different
+ * data/actions). Strategy (the signal-driven sim) is intentionally OFF the UI for now;
+ * its backend keeps running. Re-add it here when a polished view exists.
+ */
+export type Ledger = "live" | "paper";

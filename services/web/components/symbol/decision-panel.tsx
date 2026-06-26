@@ -120,7 +120,7 @@ export function DecisionPanel({ symbol, tradeable = true }: { symbol: string; tr
       </div>
 
       {/* Paper trade — market orders into the per-user Paper account (simulated).
-          Hidden on read-only ledgers (Live/Strategy in the portfolio workbench). */}
+          Hidden on the read-only Live ledger in the portfolio workbench. */}
       {tradeable && (
         <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>
