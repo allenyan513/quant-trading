@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useState, useEffect, type ReactNode } from "react";
 
 async function fetcher(url: string) {
   const res = await fetch(url);

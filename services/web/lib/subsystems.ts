@@ -94,7 +94,7 @@ export const SUBSYSTEMS: Subsystem[] = [
     blurb:
       "Owner of the trading-accounts domain — three ledgers: Strategy (signal-driven sim), Paper (per-user order-driven), Live (IBKR mirror). No LLM.",
     tables: ["positions", "portfolio_paper_*", "portfolio_holdings_*"],
-    pages: [{ href: "/workspace/portfolio/strategy", label: "Strategy" }],
+    pages: [{ href: "/workspace/portfolio/live", label: "Live" }],
   },
 ];
 
@@ -120,9 +120,9 @@ export interface NavSection {
 }
 
 export const NAV_SECTIONS: NavSection[] = [
+  { label: "Portfolio", href: "/workspace/portfolio", color: "#f0883e" },
   { label: "Watchlist", href: "/workspace/watchlist", color: "#3fb950" },
   { label: "Discover", href: "/workspace/discover", color: "#58a6ff" },
-  { label: "Portfolio", href: "/workspace/portfolio", color: "#f0883e" },
 ];
 
 

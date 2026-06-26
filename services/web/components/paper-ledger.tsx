@@ -105,15 +105,14 @@ export function PaperBlotter({ orders }: { orders: PaperOrder[] }) {
 
 /** Symbol-fixed buy/sell market ticket — placed on the symbol detail right rail. */
 export function PaperTicket({ symbol }: { symbol: string }) {
-  const [side, setSide] = useState<"buy" | "sell">("buy");
   const [qty, setQty] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<null | "buy" | "sell">(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function place() {
+  async function place(side: "buy" | "sell") {
     const q = Number(qty);
     if (!(q > 0) || busy) return;
-    setBusy(true);
+    setBusy(side);
     setMsg(null);
     try {
       const r = await apiSend<{ status: string; fillPrice: number | null; rejectReason: string | null }>("/api/paper/orders", "POST", {
@@ -129,41 +128,26 @@ export function PaperTicket({ symbol }: { symbol: string }) {
       }
       await refreshPaper();
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
+  const ready = Number(qty) > 0 && !busy;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
-          <button onClick={() => setSide("buy")} style={sideBtn(side === "buy", GREEN)}>Buy</button>
-          <button onClick={() => setSide("sell")} style={sideBtn(side === "sell", RED)}>Sell</button>
-        </div>
-        <input
-          placeholder="Qty"
-          value={qty}
-          inputMode="numeric"
-          onChange={(e) => setQty(e.target.value.replace(/[^0-9.]/g, ""))}
-          onKeyDown={(e) => e.key === "Enter" && place()}
-          style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, padding: "7px 10px", fontSize: 13, ...num }}
-        />
-        <button
-          onClick={place}
-          disabled={busy || !(Number(qty) > 0)}
-          style={{
-            background: side === "buy" ? "#1f6feb" : "#b62324",
-            border: "none",
-            color: "#fff",
-            padding: "8px 16px",
-            fontSize: 13,
-            fontWeight: 700,
-            borderRadius: 6,
-            cursor: busy ? "default" : "pointer",
-            opacity: busy || !(Number(qty) > 0) ? 0.5 : 1,
-          }}
-        >
-          {busy ? "…" : side === "buy" ? "Buy" : "Sell"}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <input
+        placeholder="Quantity"
+        value={qty}
+        inputMode="numeric"
+        onChange={(e) => setQty(e.target.value.replace(/[^0-9.]/g, ""))}
+        style={{ width: "100%", background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, padding: "8px 10px", fontSize: 14, fontVariantNumeric: "tabular-nums" }}
+      />
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => place("buy")} disabled={!ready} style={actionBtn("#238636", ready)}>
+          {busy === "buy" ? "…" : "Buy"}
+        </button>
+        <button onClick={() => place("sell")} disabled={!ready} style={actionBtn("#da3633", ready)}>
+          {busy === "sell" ? "…" : "Sell"}
         </button>
       </div>
       <div style={{ fontSize: 11, color: msg ? (msg.ok ? GREEN : RED) : "var(--muted)" }}>
@@ -199,14 +183,17 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p style={{ color: "var(--muted)", fontSize: 13, border: "1px solid var(--border)", padding: 12, margin: 0 }}>{children}</p>;
 }
 
-function sideBtn(on: boolean, color: string): React.CSSProperties {
+function actionBtn(color: string, enabled: boolean): React.CSSProperties {
   return {
-    background: on ? color : "transparent",
+    flex: 1,
+    background: color,
     border: "none",
-    color: on ? "#fff" : "var(--muted)",
-    padding: "7px 16px",
-    fontSize: 13,
+    color: "#fff",
+    padding: "9px 0",
+    fontSize: 14,
     fontWeight: 700,
-    cursor: "pointer",
+    borderRadius: 6,
+    cursor: enabled ? "pointer" : "default",
+    opacity: enabled ? 1 : 0.5,
   };
 }

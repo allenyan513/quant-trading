@@ -10,10 +10,12 @@
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 
+// Strategy (the signal-driven sim) is intentionally OFF the UI for now — it's a
+// half-baked ledger; its backend (strategy.ts / portfolio_positions / /jobs/track /
+// /api/positions) keeps running. Re-add a polished Strategy view later.
 const LEDGERS = [
   { seg: "live", label: "Live · IBKR" },
   { seg: "paper", label: "Paper" },
-  { seg: "strategy", label: "Strategy" },
 ];
 
 export function PortfolioNav() {
