@@ -36,6 +36,7 @@ export function ActivityView({ ledger }: { ledger: Ledger }) {
 interface HoldingRow {
   symbol: string;
   label: string;
+  quantity: number; // signed: < 0 = short
   last: number | null;
   dayChangePct: number | null;
   avg: number | null;
@@ -68,6 +69,13 @@ function SortHeader({ k, label, align, sort, onSort }: { k: string; label: strin
   );
 }
 
+/** Position return % on cost basis — sign-correct for shorts (a price drop is a gain).
+ *  pct = unrealized / (avg · |qty|) · 100; null when avg/qty unknown or zero. */
+function returnPct(unrealized: number, avg: number | null, quantity: number): number | null {
+  if (avg == null || avg === 0 || quantity === 0) return null;
+  return (unrealized / (avg * Math.abs(quantity))) * 100;
+}
+
 interface LivePos {
   symbol: string;
   assetClass: string;
@@ -96,15 +104,17 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
           const q = quotes.get(p.symbol);
           const last = q?.price ?? null;
           const mark = last ?? p.avgCost;
+          const unrealized = (mark - p.avgCost) * p.quantity;
           return {
             symbol: p.symbol,
             label: p.symbol,
+            quantity: p.quantity,
             last,
             dayChangePct: q?.changePct ?? null,
             avg: p.avgCost,
             mktValue: mark * p.quantity,
-            unrealized: (mark - p.avgCost) * p.quantity,
-            unrealizedPct: p.avgCost !== 0 ? (mark / p.avgCost - 1) * 100 : null,
+            unrealized,
+            unrealizedPct: returnPct(unrealized, p.avgCost, p.quantity),
             selectable: true,
           };
         })
@@ -119,12 +129,13 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
             return {
               symbol: p.symbol,
               label: optionLabel(p),
+              quantity: p.quantity,
               last,
               dayChangePct: q?.changePct ?? null,
               avg,
               mktValue,
               unrealized,
-              unrealizedPct: avg != null && avg !== 0 && last != null ? (last / avg - 1) * 100 : null,
+              unrealizedPct: last != null ? returnPct(unrealized, avg, p.quantity) : null,
               selectable: true,
             };
           });
@@ -165,7 +176,12 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
               onClick={() => r.selectable && onSelect(r.symbol)}
               style={{ cursor: r.selectable ? "pointer" : "default", background: selected === r.symbol ? "var(--panel-2)" : undefined }}
             >
-              <td style={{ ...td, fontWeight: 600 }}>{r.label}</td>
+              <td style={{ ...td, fontWeight: 600 }}>
+                {r.label}
+                {r.quantity < 0 && (
+                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: RED, border: `1px solid ${RED}`, borderRadius: 3, padding: "0 4px", verticalAlign: "middle" }}>SHORT</span>
+                )}
+              </td>
               <td style={{ ...td, ...num }}>
                 <TickValue value={r.last} dayChangePct={r.dayChangePct} format={(v) => (v == null ? "—" : fmtMoney(v))} />
               </td>
