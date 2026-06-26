@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Holdings · Positions — the latest snapshot from data_holdings_positions
+ * Holdings · Positions — the latest snapshot from portfolio_holdings_positions
  * (longs → shorts → cash, by weight). Reads /api/holdings/positions, which returns
  * one snapshot ({ asOf, positions }), so this renders its own table rather than
  * the paginated LiveTable.

@@ -1,13 +1,13 @@
 name: Sync IBKR holdings
 
-# Pulls the live IBKR Flex statement into the data service's data_holdings_*
+# Pulls the live IBKR Flex statement into the portfolio service's portfolio_holdings_*
 # tables (daily NAV → base-100 index, executed trades, current positions) so the
-# /data/holdings dashboard tracks the real brokerage account. Triggers the data
-# service's JOB_TOKEN-guarded endpoint (same secrets as daily-refresh.yml).
+# Portfolio · Live dashboard tracks the real brokerage account. Triggers the
+# portfolio service's JOB_TOKEN-guarded endpoint.
 #
 # Required repo secrets:
-#   DATA_URL  — base URL of the deployed data service (no trailing slash)
-#   JOB_TOKEN         — shared secret; must match the data service's JOB_TOKEN env
+#   PORTFOLIO_URL  — base URL of the deployed portfolio service (no trailing slash)
+#   JOB_TOKEN      — shared secret; must match the portfolio service's JOB_TOKEN env
 
 on:
   schedule:
@@ -31,5 +31,5 @@ jobs:
           curl --fail-with-body --show-error --silent \
             --max-time 600 \
             --retry 2 --retry-delay 30 \
-            -X POST "${{ secrets.DATA_URL }}/jobs/sync-holdings" \
+            -X POST "${{ secrets.PORTFOLIO_URL }}/jobs/sync-holdings" \
             -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}"

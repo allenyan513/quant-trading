@@ -2,7 +2,7 @@
 
 /**
  * Holdings · Performance — NAV vs SPY (both rebased to 100 at inception) + the
- * full KPI row. Reads /api/holdings/nav (data_holdings_nav_history + warmed SPY
+ * full KPI row. Reads /api/holdings/nav (portfolio_holdings_nav_history + warmed SPY
  * closes). Chart via NavChartLazy (ssr:false). KPIs show "—" below their gate.
  */
 

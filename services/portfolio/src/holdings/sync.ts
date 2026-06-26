@@ -3,7 +3,7 @@
  * simplified for a single account (the maintainer's own) on Drizzle/Postgres.
  *
  * `/jobs/sync-holdings` fetches the live Flex statement, then upserts three things
- * into the data_holdings_* tables: a daily NAV row (TWR → base-100 nav_index),
+ * into the portfolio_holdings_* tables: a daily NAV row (TWR → base-100 nav_index),
  * executed trades (idempotent per broker trade id), and the current positions
  * snapshot (lot-aggregated, with a synthetic CASH row). It also warms the SPY
  * benchmark into data_daily_prices for the NAV-vs-SPY chart.

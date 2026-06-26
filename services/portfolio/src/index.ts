@@ -10,10 +10,13 @@
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { ok, fail, config, type TradingSignalDTO } from "@qt/shared";
+import type { Context, MiddlewareHandler } from "hono";
+import { ok, fail, config, isAuthorizedJob, IBKRFlexError, type TradingSignalDTO } from "@qt/shared";
 import { handleSignal } from "./portfolio.js";
 import { settlePositions } from "./track.js";
 import { createPaperOrder, resetPaperAccount, type OrderSide, type OrderSource } from "./paper.js";
+import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
+import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { route } from "./route.js";
 import { log } from "./log.js";
 
@@ -83,6 +86,76 @@ app.post(
     return resetPaperAccount(userId);
   }),
 );
+
+// ---- Live IBKR account (Flex sync) — owned by portfolio (the trading-accounts
+// domain owns its own external sync). Moved from the data service. ----
+
+// JOB_TOKEN guard for the holdings cron (mirrors data's jobAuth; open locally when
+// JOB_TOKEN is unset). Scoped to /jobs/sync-holdings so /jobs/track is unchanged.
+const jobAuth: MiddlewareHandler = async (c, next) => {
+  if (!isAuthorizedJob(c.req.header("authorization"))) {
+    return c.json(fail("unauthorized", "invalid or missing job token"), 401);
+  }
+  await next();
+};
+app.use("/jobs/sync-holdings", jobAuth);
+
+// Save/update the IBKR Flex credentials (token + query id) for the configured
+// account. web's "Connect IBKR" form forwards here so the dashboard stays read-only.
+app.post(
+  "/holdings/credentials",
+  route("holdings.credentials", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { accountId?: unknown; token?: unknown; queryId?: unknown; label?: unknown };
+    const accountId = typeof body.accountId === "string" ? body.accountId : "";
+    const token = typeof body.token === "string" ? body.token : "";
+    const queryId = typeof body.queryId === "string" ? body.queryId : "";
+    if (!accountId.trim() || !token.trim() || !queryId.trim()) {
+      return c.json(fail("bad_request", "accountId, token and queryId are required"), 400);
+    }
+    const res = await setHoldingsCredentials({ accountId, token, queryId, label: typeof body.label === "string" ? body.label : undefined });
+    log.info("holdings.credentials.set", { accountId: res.accountId });
+    return { accountId: res.accountId, connected: true };
+  }),
+);
+
+// Sync the live IBKR Flex statement into the portfolio_holdings_* tables (daily NAV,
+// trades, positions) + warm the SPY benchmark. Idempotent. Two entry points, same
+// body: `/jobs/sync-holdings` (cron, JOB_TOKEN) and `/holdings/sync` (the dashboard
+// "refresh" button + the auto-sync after connecting).
+async function runHoldingsSync(c: Context) {
+  try {
+    const body = (await c.req.json().catch(() => ({}) as Record<string, unknown>)) as Record<string, unknown>;
+    const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
+    if (!accountId) return c.json(fail("bad_request", "accountId is required"), 400);
+    const res = await syncHoldings(accountId);
+    log.info("holdings.sync.done", { ...res });
+    return c.json(ok(res));
+  } catch (err) {
+    // Map credential / Flex failures to precise codes; everything else generic.
+    const code =
+      err instanceof HoldingsNotConnectedError
+        ? "holdings_not_connected"
+        : err instanceof IBKRFlexError
+          ? `flex_${err.reason}`
+          : "sync_holdings_failed";
+    const status = err instanceof HoldingsNotConnectedError ? 400 : 500;
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("holdings.sync.failed", { code, error: msg });
+    return c.json(fail(code, msg), status);
+  }
+}
+
+// Cron (JOB_TOKEN): sync EVERY connected account. Per-account failure is skipped.
+app.post(
+  "/jobs/sync-holdings",
+  route("holdings.sync.all", async () => {
+    const res = await syncAllHoldings();
+    log.info("holdings.sync.all.done", { synced: res.synced, failed: res.failed });
+    return res;
+  }),
+);
+// Manual (web forward): sync the signed-in user's account (accountId in body).
+app.post("/holdings/sync", (c) => runHoldingsSync(c));
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });
