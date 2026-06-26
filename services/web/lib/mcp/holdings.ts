@@ -1,5 +1,5 @@
 /**
- * Holdings export for the MCP `get_holdings` tool — reads the data_holdings_*
+ * Holdings export for the MCP `get_holdings` tool — reads the portfolio_holdings_*
  * tables (the signed-in user's IBKR account) and returns a compact, LLM-friendly
  * JSON: current positions, recent trades, performance (NAV index + KPIs vs SPY).
  * Read-only. Moved from services/data so MCP lives on web; web reads the read-only

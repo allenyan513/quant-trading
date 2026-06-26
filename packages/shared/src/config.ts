@@ -53,10 +53,10 @@ export const config = {
   openfigiRateLimit: () => Number(optionalEnv("OPENFIGI_RATE_LIMIT", "20")),
 
   // ---- IBKR Flex brokerage sync (per-user) ----
-  // Flex token + query id live in data_holdings_accounts (set via web's "Connect
+  // Flex token + query id live in portfolio_holdings_accounts (set via web's "Connect
   // IBKR" form), keyed by the user's id (Better Auth user.id). The token is
   // encrypted at rest with AES-256-GCM (@qt/shared/crypto) using this 32-byte key
-  // (base64 or 64-hex). Required wherever the token is read/written (data service).
+  // (base64 or 64-hex). Required wherever the token is read/written (portfolio service).
   holdingsEncKey: () => requireEnv("HOLDINGS_ENC_KEY"),
 
   // ---- Discovery / universe selection (tuning constants, not deploy knobs) ----

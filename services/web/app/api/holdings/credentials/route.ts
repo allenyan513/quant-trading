@@ -1,5 +1,5 @@
 import { handle } from "@/lib/api";
-import { dataPost } from "@/lib/data-proxy";
+import { portfolioPost } from "@/lib/portfolio-proxy";
 import { getHoldingsStatus } from "@/lib/queries";
 import { requireUserOr401 } from "@/lib/session";
 
@@ -13,7 +13,7 @@ export async function GET() {
   return handle(() => getHoldingsStatus(uid));
 }
 
-/** Save/update this user's IBKR Flex credentials — data owns the write (and
+/** Save/update this user's IBKR Flex credentials — portfolio owns the write (and
  *  encrypts the token), so this forwards with the user's id as the account id. */
 export async function POST(req: Request) {
   const uid = await requireUserOr401();
@@ -23,6 +23,6 @@ export async function POST(req: Request) {
     const token = (body.token ?? "").trim();
     const queryId = (body.queryId ?? "").trim();
     if (!token || !queryId) throw new Error("token and queryId are required");
-    return dataPost("/holdings/credentials", { accountId: uid, token, queryId });
+    return portfolioPost("/holdings/credentials", { accountId: uid, token, queryId });
   });
 }

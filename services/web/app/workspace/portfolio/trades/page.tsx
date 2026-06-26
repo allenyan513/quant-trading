@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Holdings · Trades — executed fills from data_holdings_trades, newest first.
+ * Holdings · Trades — executed fills from portfolio_holdings_trades, newest first.
  * Reads /api/holdings/trades (returns a plain array) via the paginated LiveTable.
  */
 
