@@ -186,19 +186,22 @@ function OrderTicket() {
     if (!s || !(q > 0) || busy) return;
     setBusy(true);
     setMsg(null);
-    const r = await apiSend<{ status: string; fillPrice: number | null; rejectReason: string | null }>("/api/paper/orders", "POST", {
-      symbol: s,
-      side,
-      quantity: q,
-    });
-    if (!r.ok) setMsg({ ok: false, text: r.error ?? "Request failed" });
-    else if (r.data?.status === "rejected") setMsg({ ok: false, text: `Rejected — ${r.data.rejectReason}` });
-    else {
-      setMsg({ ok: true, text: `${side === "buy" ? "Bought" : "Sold"} ${q} ${s} @ ${fmtMoney(r.data?.fillPrice)}` });
-      setQty("");
+    try {
+      const r = await apiSend<{ status: string; fillPrice: number | null; rejectReason: string | null }>("/api/paper/orders", "POST", {
+        symbol: s,
+        side,
+        quantity: q,
+      });
+      if (!r.ok) setMsg({ ok: false, text: r.error ?? "Request failed" });
+      else if (r.data?.status === "rejected") setMsg({ ok: false, text: `Rejected — ${r.data.rejectReason}` });
+      else {
+        setMsg({ ok: true, text: `${side === "buy" ? "Bought" : "Sold"} ${q} ${s} @ ${fmtMoney(r.data?.fillPrice)}` });
+        setQty("");
+      }
+      await refreshPaper();
+    } finally {
+      setBusy(false);
     }
-    await refreshPaper();
-    setBusy(false);
   }
 
   const input: React.CSSProperties = { background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, padding: "7px 10px", fontSize: 13 };
@@ -254,9 +257,12 @@ function CloseButton({ symbol, quantity }: { symbol: string; quantity: number })
   async function close() {
     if (busy || !window.confirm(`Sell all ${quantity} ${symbol}?`)) return;
     setBusy(true);
-    await apiAction("/api/paper/orders", "POST", { symbol, side: "sell", quantity });
-    await refreshPaper();
-    setBusy(false);
+    try {
+      await apiAction("/api/paper/orders", "POST", { symbol, side: "sell", quantity });
+      await refreshPaper();
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <button
@@ -275,8 +281,11 @@ function ResetButton() {
   async function reset() {
     if (busy || !window.confirm("Reset the paper account? This wipes all positions and the blotter and restores starting cash.")) return;
     setBusy(true);
-    if (await apiAction("/api/paper/reset", "POST")) await refreshPaper();
-    setBusy(false);
+    try {
+      if (await apiAction("/api/paper/reset", "POST")) await refreshPaper();
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <button

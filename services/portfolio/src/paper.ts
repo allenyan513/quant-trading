@@ -62,12 +62,16 @@ export async function createPaperOrder(
 
   const result = await db().transaction(async (tx) => {
     // Lazy-create the account, then read current cash / cumulative realized.
+    // `.for("update")` row-locks the account so concurrent orders (MCP retries, a
+    // double-click) serialize on it instead of racing — without it, Read Committed
+    // lets two txns read the same `cash` and both fill (lost update / overbuy).
     const startingCash = config.paperStartingCash();
     await tx.insert(paperAccounts).values({ userId, cash: startingCash, startingCash }).onConflictDoNothing({ target: paperAccounts.userId });
     const [acct] = await tx
       .select({ cash: paperAccounts.cash, realizedPnl: paperAccounts.realizedPnl })
       .from(paperAccounts)
       .where(eq(paperAccounts.userId, userId))
+      .for("update")
       .limit(1);
     const cash0 = acct?.cash ?? startingCash;
     const realized0 = acct?.realizedPnl ?? 0;
@@ -76,6 +80,7 @@ export async function createPaperOrder(
       .select()
       .from(paperPositions)
       .where(and(eq(paperPositions.userId, userId), eq(paperPositions.symbol, symbol)))
+      .for("update")
       .limit(1);
     const held = pos?.quantity ?? 0;
     const avg = pos?.avgCost ?? 0;
@@ -105,9 +110,10 @@ export async function createPaperOrder(
       return row!.id;
     };
 
-    // Validation (no state change on reject).
+    // Validation (no state change on reject). Reject a missing OR non-positive quote
+    // (a bad 0/negative FMP price would otherwise let you "buy" for free).
     const rejectReason =
-      price == null
+      price == null || price <= 0
         ? "no_price"
         : !(quantity > 0)
           ? "bad_quantity"

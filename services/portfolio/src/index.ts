@@ -61,7 +61,7 @@ app.post(
 app.post(
   "/paper/orders",
   route("paper.order", async (c) => {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
     const userId = String(body.userId ?? "").trim();
     const symbol = String(body.symbol ?? "").trim();
     const side = String(body.side ?? "").trim().toLowerCase();
@@ -79,7 +79,7 @@ app.post(
 app.post(
   "/paper/reset",
   route("paper.reset", async (c) => {
-    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
     const userId = String(body.userId ?? "").trim();
     if (!userId) return c.json(fail("bad_request", "userId required"), 400);
     c.set("logContext", { userId });
@@ -105,7 +105,7 @@ app.use("/jobs/sync-holdings", jobAuth);
 app.post(
   "/holdings/credentials",
   route("holdings.credentials", async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { accountId?: unknown; token?: unknown; queryId?: unknown; label?: unknown };
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { accountId?: unknown; token?: unknown; queryId?: unknown; label?: unknown };
     const accountId = typeof body.accountId === "string" ? body.accountId : "";
     const token = typeof body.token === "string" ? body.token : "";
     const queryId = typeof body.queryId === "string" ? body.queryId : "";
@@ -124,7 +124,7 @@ app.post(
 // "refresh" button + the auto-sync after connecting).
 async function runHoldingsSync(c: Context) {
   try {
-    const body = (await c.req.json().catch(() => ({}) as Record<string, unknown>)) as Record<string, unknown>;
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
     const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
     if (!accountId) return c.json(fail("bad_request", "accountId is required"), 400);
     const res = await syncHoldings(accountId);
