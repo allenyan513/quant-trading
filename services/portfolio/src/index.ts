@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import { ok, fail, config, type TradingSignalDTO } from "@qt/shared";
 import { handleSignal } from "./portfolio.js";
 import { settlePositions } from "./track.js";
+import { createPaperOrder, resetPaperAccount, type OrderSide, type OrderSource } from "./paper.js";
 import { route } from "./route.js";
 import { log } from "./log.js";
 
@@ -46,6 +47,40 @@ app.post(
     const res = await settlePositions();
     log.info("track.done", { scanned: res.scanned, closed: res.closed });
     return res;
+  }),
+);
+
+// ---- Paper trading (per-user, order-driven) ----
+// web forwards order placement here (it's read-only on the DB); `userId` comes from
+// web's session / the MCP bearer token, never from raw client input. Internal-only,
+// same trust model as alpha->portfolio /signals.
+
+app.post(
+  "/paper/orders",
+  route("paper.order", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const symbol = String(body.symbol ?? "").trim();
+    const side = String(body.side ?? "").trim().toLowerCase();
+    const quantity = Number(body.quantity);
+    const source: OrderSource = String(body.source ?? "manual").trim().toLowerCase() === "mcp" ? "mcp" : "manual";
+    const idempotencyKey = body.idempotencyKey != null ? String(body.idempotencyKey) : null;
+    if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
+    if (side !== "buy" && side !== "sell") return c.json(fail("bad_request", "side must be buy or sell"), 400);
+    if (!Number.isFinite(quantity) || quantity <= 0) return c.json(fail("bad_request", "quantity must be > 0"), 400);
+    c.set("logContext", { userId, symbol, side, quantity });
+    return createPaperOrder(userId, symbol, side as OrderSide, quantity, source, idempotencyKey);
+  }),
+);
+
+app.post(
+  "/paper/reset",
+  route("paper.reset", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    if (!userId) return c.json(fail("bad_request", "userId required"), 400);
+    c.set("logContext", { userId });
+    return resetPaperAccount(userId);
   }),
 );
 
