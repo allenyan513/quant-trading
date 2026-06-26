@@ -794,8 +794,10 @@ export const positions = pgTable(
 // as `status='working'` and fill when the quote crosses the limit, at the crossing
 // quote (matched on page open — see paper.ts `matchWorkingOrders`). Each order can carry a recorded
 // thesis (rationale/target/stop/horizon — informational, never auto-executed).
-// Short selling, options, and partial fills are deferred (`asset_class` + a later
-// negative `quantity` leave room). Owned by the portfolio service; web reads only.
+// Net positions are SIGNED: a sell beyond a long (or from flat) opens a SHORT
+// (negative `quantity`), bounded by buying power (cash − short collateral; no margin/
+// borrow modeling). Options and partial fills are deferred (`asset_class` leaves room).
+// Owned by the portfolio service; web reads only.
 
 export const paperAccounts = pgTable("portfolio_paper_accounts", {
   userId: text("user_id").primaryKey().references(() => authUser.id, { onDelete: "cascade" }),
@@ -822,7 +824,7 @@ export const paperOrders = pgTable(
     // working = resting limit order (not yet filled); filled|rejected = terminal trade/attempt;
     // cancelled = user-cancelled or day_expired working order.
     status: text("status").notNull(), // working|filled|cancelled|rejected
-    rejectReason: text("reject_reason"), // no_price | bad_quantity | insufficient_funds | insufficient_shares | day_expired
+    rejectReason: text("reject_reason"), // no_price | bad_quantity | bad_limit_price | insufficient_buying_power | day_expired
     realizedPnl: doublePrecision("realized_pnl"), // reductions/sells only
     // Thesis (recorded entry rationale + plan; informational in v1, never auto-executed).
     thesis: text("thesis"), // free-text rationale

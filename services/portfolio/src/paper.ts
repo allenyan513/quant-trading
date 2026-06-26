@@ -1,7 +1,7 @@
 /**
  * Paper ledger — the per-user, order-driven paper-trading engine (portfolio owns these writes).
  *
- * LONG equity, cash-accounted. Two order types:
+ * Equity, cash-accounted, LONG or SHORT (signed net positions). Two order types:
  *  - MARKET: filled immediately at the current live quote.
  *  - LIMIT:  rests as `status='working'` and fills when the live quote crosses the
  *            limit (buy: quote ≤ limit; sell: quote ≥ limit), at the crossing quote
@@ -16,8 +16,9 @@
  * is never trusted. The validate-and-mutate core (`applyFill`) runs inside one tx that
  * row-locks the account so concurrent orders serialize instead of racing.
  *
- * Short selling, options, and partial fills are deferred (sells beyond the long are
- * rejected `insufficient_shares` in v1).
+ * A sell beyond a long (or from flat) opens a SHORT — bounded by buying power
+ * (cash − short collateral; no margin/borrow modeling). Options and partial fills
+ * are deferred.
  */
 import { and, eq } from "drizzle-orm";
 import { db, dbSchema, config, marketdata, mapLimit } from "@qt/shared";
@@ -71,9 +72,9 @@ export interface PaperOrderResult {
   quantity: number;
   limitPrice: number | null;
   fillPrice: number | null;
-  // no_price | bad_quantity | bad_limit_price | insufficient_funds | insufficient_shares | day_expired
+  // no_price | bad_quantity | bad_limit_price | insufficient_buying_power | day_expired
   rejectReason: string | null;
-  realizedPnl: number | null; // reductions/sells only
+  realizedPnl: number | null; // recognized on the closed portion (reduce/cover/flip)
   cash: number; // account cash after the order
   position: PositionState | null; // resulting net position for this symbol (null if flat)
 }
@@ -101,6 +102,44 @@ export function isDayExpired(tif: string, createdAt: Date, now: Date): boolean {
   return tif === "day" && etDay(createdAt) < etDay(now);
 }
 
+export interface FillMath {
+  signedDelta: number; // +qty for a buy, −qty for a sell
+  newQty: number; // resulting signed net position
+  newAvg: number; // resulting average cost (positive)
+  realized: number | null; // realized P&L on the closed portion, else null (pure open/add)
+  increasingShares: number; // shares that grow exposure (drive the buying-power notional)
+}
+
+/**
+ * Pure signed-position fill math (no DB / cash). `held` is the signed net position,
+ * `avg` its positive average cost. A buy adds +qty, a sell −qty; a sell beyond a long
+ * (or from flat) opens a short. Realized P&L is recognized on the closed shares; on a
+ * flip the prior side is fully closed and the remainder opens at `price`.
+ */
+export function fillMath(held: number, avg: number, side: OrderSide, quantity: number, price: number): FillMath {
+  const signedDelta = side === "buy" ? quantity : -quantity;
+  const newQty = held + signedDelta;
+  const absHeld = Math.abs(held);
+  const sameDirOrFlat = held === 0 || Math.sign(signedDelta) === Math.sign(held);
+  const increasingShares = sameDirOrFlat ? quantity : Math.max(0, quantity - absHeld);
+
+  let realized: number | null = null;
+  let newAvg: number;
+  if (sameDirOrFlat) {
+    // Open or add — weighted-average the absolute exposure (absHeld=0 → newAvg=price).
+    newAvg = (avg * absHeld + price * quantity) / (absHeld + quantity);
+  } else if (quantity <= absHeld + EPS) {
+    // Reduce/close the open side; basis unchanged on the remainder.
+    realized = Math.sign(held) * (price - avg) * quantity;
+    newAvg = avg;
+  } else {
+    // Flip: realize the whole prior position, open the remainder at the fill price.
+    realized = Math.sign(held) * (price - avg) * absHeld;
+    newAvg = price;
+  }
+  return { signedDelta, newQty, newAvg, realized, increasingShares };
+}
+
 const pickThesis = (i: ThesisInput) => ({
   thesis: i.thesis ?? null,
   targetPrice: i.targetPrice ?? null,
@@ -108,12 +147,29 @@ const pickThesis = (i: ThesisInput) => ({
   timeHorizon: i.timeHorizon ?? null,
 });
 
+/** Short collateral reserved against buying power = Σ |qty|·avgCost over the user's
+ *  open SHORT positions (cost basis). Read inside the tx (the account row-lock above
+ *  serializes a user's orders, so positions can't shift mid-order). */
+async function sumShortCollateral(tx: DbTx, userId: string): Promise<number> {
+  const rows = await tx.select({ quantity: paperPositions.quantity, avgCost: paperPositions.avgCost }).from(paperPositions).where(eq(paperPositions.userId, userId));
+  return rows.reduce((s, r) => (r.quantity < 0 ? s + Math.abs(r.quantity) * r.avgCost : s), 0);
+}
+
 /**
  * Validate + apply a fill at `price` against the user's account/position, INSIDE `tx`.
  * Row-locks the account (so concurrent orders serialize instead of racing on `cash`)
  * and the position. Does NOT write the order row — the caller persists it (an INSERT
- * for a market order, an UPDATE of the working row for a matched limit order). v1 is
- * long-only: a sell beyond the held long is rejected `insufficient_shares`.
+ * for a market order, an UPDATE of the working row for a matched limit order).
+ *
+ * SIGNED positions: `quantity` > 0 long, < 0 short; `avgCost` is the (positive) average
+ * entry of whichever side is open. A buy adds +qty, a sell −qty, so a sell beyond a long
+ * (or from flat) opens/extends a SHORT. Cash always moves by −Δ·price (buys debit, sells
+ * — including short opens — credit). Realized P&L is recognized on the closed portion.
+ *
+ * Buying power = cash − short collateral (no margin/borrow modeling — a deliberate v1
+ * sim simplification). Only the position-INCREASING notional consumes it; a reduce/close
+ * frees capital. Short-sale proceeds inflate cash but are reserved as collateral here, so
+ * they can't fund unbounded shorts.
  */
 async function applyFill(tx: DbTx, userId: string, symbol: string, side: OrderSide, quantity: number, price: number | null, now: Date): Promise<FillOutcome> {
   const startingCash = config.paperStartingCash();
@@ -136,48 +192,35 @@ async function applyFill(tx: DbTx, userId: string, symbol: string, side: OrderSi
   const held = pos?.quantity ?? 0;
   const avg = pos?.avgCost ?? 0;
 
-  // Reject a missing OR non-positive price (a bad 0/negative quote would let you "buy" for free).
-  const rejectReason =
-    price == null || price <= 0
-      ? "no_price"
-      : !(quantity > 0)
-        ? "bad_quantity"
-        : side === "buy" && quantity * price > cash0 + EPS
-          ? "insufficient_funds"
-          : side === "sell" && quantity > held + EPS
-            ? "insufficient_shares" // no short selling in v1
-            : null;
+  const reject = (reason: string): FillOutcome => ({ filled: false, rejectReason: reason, fillPrice: price, realizedPnl: null, cash: cash0, position: pos ? { symbol, quantity: held, avgCost: avg } : null });
 
-  if (rejectReason) {
-    return { filled: false, rejectReason, fillPrice: price, realizedPnl: null, cash: cash0, position: pos ? { symbol, quantity: held, avgCost: avg } : null };
+  // Reject a missing OR non-positive price (a bad 0/negative quote would let you trade for free).
+  if (price == null || price <= 0) return reject("no_price");
+  if (!(quantity > 0)) return reject("bad_quantity");
+  const p = price;
+
+  const { signedDelta, newQty, newAvg, realized, increasingShares } = fillMath(held, avg, side, quantity, p);
+
+  // Buying-power gate: only the increasing portion (full order if opening/adding; the
+  // remainder past the close on a flip; nothing on a pure reduce) consumes buying power.
+  const increasingNotional = increasingShares * p;
+  if (increasingNotional > EPS) {
+    const shortCollateral = await sumShortCollateral(tx, userId);
+    if (increasingNotional > cash0 - shortCollateral + EPS) return reject("insufficient_buying_power");
   }
 
-  const p = price as number; // non-null past the guard
-  if (side === "buy") {
-    const cost = quantity * p;
-    const newQty = held + quantity;
-    const newAvg = held > EPS ? (avg * held + cost) / newQty : p; // weighted average cost
+  // Persist the net position (delete when flat), cash (−Δ·price), and realized.
+  if (Math.abs(newQty) <= EPS) {
+    await tx.delete(paperPositions).where(and(eq(paperPositions.userId, userId), eq(paperPositions.symbol, symbol)));
+  } else {
     await tx
       .insert(paperPositions)
       .values({ userId, symbol, quantity: newQty, avgCost: newAvg, updatedAt: now })
       .onConflictDoUpdate({ target: [paperPositions.userId, paperPositions.symbol], set: { quantity: newQty, avgCost: newAvg, updatedAt: now } });
-    const cash1 = cash0 - cost;
-    await tx.update(paperAccounts).set({ cash: cash1, updatedAt: now }).where(eq(paperAccounts.userId, userId));
-    return { filled: true, rejectReason: null, fillPrice: p, realizedPnl: null, cash: cash1, position: { symbol, quantity: newQty, avgCost: newAvg } };
   }
-
-  // sell — close/reduce a long; cost basis (avg) unchanged on the remainder.
-  const proceeds = quantity * p;
-  const realized = (p - avg) * quantity;
-  const newQty = held - quantity;
-  if (newQty <= EPS) {
-    await tx.delete(paperPositions).where(and(eq(paperPositions.userId, userId), eq(paperPositions.symbol, symbol)));
-  } else {
-    await tx.update(paperPositions).set({ quantity: newQty, updatedAt: now }).where(and(eq(paperPositions.userId, userId), eq(paperPositions.symbol, symbol)));
-  }
-  const cash1 = cash0 + proceeds;
-  await tx.update(paperAccounts).set({ cash: cash1, realizedPnl: realized0 + realized, updatedAt: now }).where(eq(paperAccounts.userId, userId));
-  return { filled: true, rejectReason: null, fillPrice: p, realizedPnl: realized, cash: cash1, position: newQty > EPS ? { symbol, quantity: newQty, avgCost: avg } : null };
+  const cash1 = cash0 - signedDelta * p;
+  await tx.update(paperAccounts).set({ cash: cash1, realizedPnl: realized0 + (realized ?? 0), updatedAt: now }).where(eq(paperAccounts.userId, userId));
+  return { filled: true, rejectReason: null, fillPrice: p, realizedPnl: realized, cash: cash1, position: Math.abs(newQty) > EPS ? { symbol, quantity: newQty, avgCost: newAvg } : null };
 }
 
 /**
