@@ -2,7 +2,7 @@
 
 /**
  * Per-ledger sub-tab bar — the SAME core tab set for Live and Paper (Positions /
- * Activity / Performance / Morning brief / Settings); only the per-tab CONTENT differs
+ * Trades / Performance / Morning brief / Settings); only the per-tab CONTENT differs
  * by ledger. Paper additionally gets an "Orders" tab (resting limit orders) — Live has
  * no working orders. "Positions" is the ledger index route; the rest are sub-routes.
  * Sits below the ledger toggle + KPI strip (both in the ledger layout).
@@ -13,7 +13,7 @@ import { usePathname } from "next/navigation";
 
 const CORE_TABS: { seg: string; label: string }[] = [
   { seg: "", label: "Positions" },
-  { seg: "activity", label: "Activity" },
+  { seg: "trades", label: "Trades" },
   { seg: "performance", label: "Performance" },
   { seg: "morning-brief", label: "Morning brief" },
   { seg: "settings", label: "Settings" },

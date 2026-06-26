@@ -2,8 +2,8 @@
 
 /**
  * Left pane of the Portfolio workbench: a positions table (IBKR/watchlist styling)
- * with row selection that drives the right-rail symbol detail, plus an Activity tab
- * (the ledger's executed history). Same shape for every ledger; only the data source
+ * with row selection that drives the right-rail symbol detail, plus a Trades tab
+ * (the ledger's executed-fill history). Same shape for every ledger; only the data source
  * + columns differ (Live = IBKR mirror, Paper = order-driven sim).
  */
 
@@ -26,9 +26,9 @@ export function PositionsTable({ ledger, selected, onSelect }: { ledger: Ledger;
   return <HoldingsTable ledger={ledger} selected={selected} onSelect={onSelect} />;
 }
 
-/** The Activity tab content — the ledger's executed history. */
-export function ActivityView({ ledger }: { ledger: Ledger }) {
-  return <Activity ledger={ledger} />;
+/** The Trades tab content — the ledger's executed-fill history. */
+export function TradesView({ ledger }: { ledger: Ledger }) {
+  return <Trades ledger={ledger} />;
 }
 
 /** Live + Paper: current holdings, live-marked. */
@@ -163,12 +163,12 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
   );
 }
 
-function Activity({ ledger }: { ledger: Ledger }) {
-  if (ledger === "paper") return <PaperActivity />;
+function Trades({ ledger }: { ledger: Ledger }) {
+  if (ledger === "paper") return <PaperTrades />;
   return <LiveTable path="/api/holdings/trades" rowKey={(r: HoldingsTrade) => `${r.tradeDate}-${r.symbol}-${r.externalTradeId}`} columns={TRADE_COLS} emptyText="No trades." />;
 }
 
-function PaperActivity() {
+function PaperTrades() {
   const { data: acct } = useLive<PaperAccount>("/api/paper/account");
   if (!acct) return <Empty>Loading…</Empty>;
   return <PaperBlotter orders={acct.orders} />;
