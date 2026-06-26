@@ -1,7 +1,6 @@
-import { handle } from "@/lib/api";
 import { dataPost } from "@/lib/data-proxy";
 import { listWatchlistOverview } from "@/lib/queries";
-import { requireUserOr401 } from "@/lib/session";
+import { authedRoute, readBody } from "@/lib/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,20 +9,12 @@ export const dynamic = "force-dynamic";
 // the session user, with the valuation/position join), writes forward to data.
 
 /** The signed-in user's watchlist (joined with valuation / position). */
-export async function GET() {
-  const uid = await requireUserOr401();
-  if (typeof uid !== "string") return uid;
-  return handle(() => listWatchlistOverview(uid));
-}
+export const GET = authedRoute((uid) => listWatchlistOverview(uid));
 
 /** Add a symbol to the user's watchlist. Forwards to the data service (the owner). */
-export async function POST(req: Request) {
-  const uid = await requireUserOr401();
-  if (typeof uid !== "string") return uid;
-  return handle(async () => {
-    const body = (await req.json().catch(() => ({}))) as { symbol?: string; note?: string };
-    const symbol = (body.symbol ?? "").trim();
-    if (!symbol) throw new Error("symbol required");
-    return dataPost("/watchlist", { userId: uid, symbol, note: body.note });
-  });
-}
+export const POST = authedRoute(async (uid, req) => {
+  const { symbol, note } = await readBody<{ symbol?: string; note?: string }>(req);
+  const s = (symbol ?? "").trim();
+  if (!s) throw new Error("symbol required");
+  return dataPost("/watchlist", { userId: uid, symbol: s, note });
+});

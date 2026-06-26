@@ -1,19 +1,15 @@
-import { handle, intParam, param } from "@/lib/api";
+import { intParam, param } from "@/lib/api";
 import { listHoldingsTrades } from "@/lib/queries";
-import { requireUserOr401 } from "@/lib/session";
+import { authedRoute } from "@/lib/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
-  const uid = await requireUserOr401();
-  if (typeof uid !== "string") return uid;
-  return handle(() =>
-    listHoldingsTrades(uid, {
-      limit: intParam(req, "limit"),
-      offset: intParam(req, "offset"),
-      symbol: param(req, "symbol"),
-      since: param(req, "since"),
-    }),
-  );
-}
+export const GET = authedRoute((uid, req) =>
+  listHoldingsTrades(uid, {
+    limit: intParam(req, "limit"),
+    offset: intParam(req, "offset"),
+    symbol: param(req, "symbol"),
+    since: param(req, "since"),
+  }),
+);

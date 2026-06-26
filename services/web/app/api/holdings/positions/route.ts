@@ -1,12 +1,7 @@
-import { handle } from "@/lib/api";
 import { listHoldingsPositions } from "@/lib/queries";
-import { requireUserOr401 } from "@/lib/session";
+import { authedRoute } from "@/lib/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const uid = await requireUserOr401();
-  if (typeof uid !== "string") return uid;
-  return handle(() => listHoldingsPositions(uid));
-}
+export const GET = authedRoute((uid) => listHoldingsPositions(uid));

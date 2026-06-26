@@ -1,5 +1,5 @@
-import { handle } from "@/lib/api";
 import { dataGet } from "@/lib/data-proxy";
+import { publicRoute } from "@/lib/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,8 +18,8 @@ interface LiveQuote {
  * read-through caches each quote (TTL-gated) into data_quotes. Clients poll this
  * only during market hours. ?symbols= is comma-separated.
  */
-export async function GET(req: Request) {
+export const GET = publicRoute((req) => {
   const symbols = (new URL(req.url).searchParams.get("symbols") || "").trim();
-  if (!symbols) return handle(async () => ({ quotes: [] as LiveQuote[] }));
-  return handle(() => dataGet<{ quotes: LiveQuote[] }>(`/quotes?symbols=${encodeURIComponent(symbols)}`));
-}
+  if (!symbols) return { quotes: [] as LiveQuote[] };
+  return dataGet<{ quotes: LiveQuote[] }>(`/quotes?symbols=${encodeURIComponent(symbols)}`);
+});
