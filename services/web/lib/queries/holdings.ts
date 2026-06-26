@@ -96,7 +96,7 @@ export async function getHoldingsNav(userId: string) {
   };
 
   const last = navRows[navRows.length - 1]!;
-  return { asOf: last.date, navIndex: last.navIndex, endingNav: last.endingNav, points, kpis };
+  return { asOf: last.date, navIndex: last.navIndex, endingNav: last.endingNav, dayReturn: last.dailyReturn, points, kpis };
 }
 
 /** Current holdings — the latest as_of_date snapshot, sorted longs → shorts → cash by weight. */
