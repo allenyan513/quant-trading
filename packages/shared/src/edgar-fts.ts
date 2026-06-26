@@ -3,7 +3,7 @@
  * full text of every EDGAR filing since 2001. Unlike the other SEC modules this is a
  * LIVE passthrough: results aren't ingested into a table. Per the "data is the sole
  * external-data receiver" rule, only data calls searchFilings (exposed at
- * POST /edgar/search); web's MCP search_filings tool HTTP-forwards there. The pure
+ * POST /edgar/search); web's MCP search_sec_filings tool HTTP-forwards there. The pure
  * shapers (parseDisplayName / shapeHit / buildSearchUrl) are unit-tested; only
  * searchFilings does I/O (via the shared secGet throttle).
  */

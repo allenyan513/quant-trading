@@ -497,7 +497,7 @@ app.post("/jobs/sync-earnings", route("earnings.sync", syncEarnings));
 app.post("/earnings/sync", route("earnings.sync", syncEarnings));
 
 // ---- EDGAR full-text search (live passthrough; data is the sole external receiver,
-// so web's MCP search_filings tool forwards here rather than calling efts itself). ----
+// so web's MCP search_sec_filings tool forwards here rather than calling efts itself). ----
 app.post("/edgar/search", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);

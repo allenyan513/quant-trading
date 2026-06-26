@@ -18,7 +18,7 @@ export function registerPublicTools(server: McpServer): void {
   server.registerTool(
     "get_symbol_research",
     {
-      title: "Deep research data for a stock symbol",
+      title: "Get Symbol Research",
       description:
         "Fetch this quant-trading system's data for a stock ticker and return it as " +
         "structured JSON to summarize/analyze: reference valuation (fair value, DCF/" +
@@ -47,7 +47,7 @@ export function registerPublicTools(server: McpServer): void {
   server.registerTool(
     "list_13f_investors",
     {
-      title: "List tracked legendary investors (13F)",
+      title: "List 13F Investors",
       description:
         "List the famous 'superinvestor' fund managers this system tracks from SEC 13F filings " +
         "(Buffett, Burry, Ackman, Tepper, Tiger Global, …), each with a snapshot of their latest filed " +
@@ -71,7 +71,7 @@ export function registerPublicTools(server: McpServer): void {
   server.registerTool(
     "get_13f_investor",
     {
-      title: "One legendary investor's 13F holdings + buys/sells",
+      title: "Get 13F Investor",
       description:
         "Fetch one tracked investor's latest 13F as structured JSON: current holdings (ticker, issuer, " +
         "% of portfolio, shares, reported price, value) plus this quarter's activity vs the prior quarter — " +
@@ -103,9 +103,9 @@ export function registerPublicTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "search_filings",
+    "search_sec_filings",
     {
-      title: "Full-text search SEC EDGAR filings",
+      title: "Search SEC Filings",
       description:
         "Search the full text of every SEC EDGAR filing since 2001 by keyword or \"quoted phrase\". Returns the " +
         "matching filings — company, ticker, form type, filing date, 8-K item codes (when present), and a direct " +
