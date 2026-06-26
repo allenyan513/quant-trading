@@ -103,9 +103,9 @@ export function registerPublicTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "search_filings",
+    "search_sec_filings",
     {
-      title: "Search Filings",
+      title: "Search SEC Filings",
       description:
         "Search the full text of every SEC EDGAR filing since 2001 by keyword or \"quoted phrase\". Returns the " +
         "matching filings — company, ticker, form type, filing date, 8-K item codes (when present), and a direct " +

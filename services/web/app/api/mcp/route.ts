@@ -191,7 +191,7 @@ const mcpHandler = createMcpHandler(
       "Claude to reason over.\n\n" +
       "Tools fall into two groups:\n" +
       "• Public research (no account needed): get_symbol_research, list_13f_investors, " +
-      "get_13f_investor, search_filings.\n" +
+      "get_13f_investor, search_sec_filings.\n" +
       "• Private, per-user account (scoped to your signed-in user): get_holdings (real IBKR portfolio), " +
       "get_watchlist, get_paper_account, place_paper_order (simulated), submit_morning_brief.\n\n" +
       "Naming convention: get_* fetches one resource, list_* returns a collection, search_* runs a " +
