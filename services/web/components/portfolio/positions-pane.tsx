@@ -8,7 +8,7 @@
  * signal-driven sim (entry/status/realized).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useLive, LiveTable, type Column } from "@/components/live";
 import { useQuotes } from "@/components/quotes";
 import { usePaperAccount, PaperBlotter, type PaperAccount } from "@/components/paper-ledger";
@@ -22,28 +22,18 @@ const td: React.CSSProperties = { padding: "7px 12px", borderBottom: "1px solid 
 const th: React.CSSProperties = { ...td, color: "var(--muted)", fontSize: 12, textAlign: "left", fontWeight: 600 };
 const num: React.CSSProperties = { textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
-export function PositionsPane({ ledger, selected, onSelect }: { ledger: Ledger; selected: string | null; onSelect: (s: string) => void }) {
-  const [tab, setTab] = useState<"positions" | "activity">("positions");
-  return (
-    <div>
-      <nav style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", marginBottom: 12 }}>
-        {(["positions", "activity"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} style={tabStyle(tab === t)}>
-            {t === "positions" ? "Positions" : "Activity"}
-          </button>
-        ))}
-      </nav>
-      {tab === "positions" ? (
-        ledger === "strategy" ? (
-          <StrategyPositions selected={selected} onSelect={onSelect} status="open" />
-        ) : (
-          <HoldingsTable ledger={ledger} selected={selected} onSelect={onSelect} />
-        )
-      ) : (
-        <Activity ledger={ledger} />
-      )}
-    </div>
+/** The Positions tab content — a selectable holdings table (drives the right rail). */
+export function PositionsTable({ ledger, selected, onSelect }: { ledger: Ledger; selected: string | null; onSelect: (s: string) => void }) {
+  return ledger === "strategy" ? (
+    <StrategyPositions selected={selected} onSelect={onSelect} status="open" />
+  ) : (
+    <HoldingsTable ledger={ledger} selected={selected} onSelect={onSelect} />
   );
+}
+
+/** The Activity tab content — the ledger's executed history. */
+export function ActivityView({ ledger }: { ledger: Ledger }) {
+  return <Activity ledger={ledger} />;
 }
 
 /** Live + Paper: current holdings, live-marked. */
@@ -245,19 +235,6 @@ function optionLabel(p: LivePos): string {
   if (p.assetClass !== "OPT") return p.symbol;
   const t = p.optionType === "CALL" ? "C" : p.optionType === "PUT" ? "P" : "";
   return `${p.symbol} ${t}${fmtNum(p.strike, 0)} ${p.expiry}`;
-}
-
-function tabStyle(on: boolean): React.CSSProperties {
-  return {
-    padding: "6px 14px",
-    fontSize: 13,
-    fontWeight: 600,
-    color: on ? "#58a6ff" : "var(--muted)",
-    borderBottom: `2px solid ${on ? "#58a6ff" : "transparent"}`,
-    marginBottom: -1,
-    background: "transparent",
-    cursor: "pointer",
-  };
 }
 
 function Empty({ children }: { children: React.ReactNode }) {

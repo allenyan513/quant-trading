@@ -189,6 +189,7 @@ export default function WatchlistPage() {
 
       <LiveTable
         path="/api/watchlist"
+        storageKey="watchlist"
         rowKey={(r: WatchRow) => r.symbol}
         columns={shownColumns}
         rowFilter={activeList === "all" ? undefined : (r) => r.listId === activeList}
