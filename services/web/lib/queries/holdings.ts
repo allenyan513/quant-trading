@@ -1,6 +1,6 @@
 /**
  * Read queries: a user's live IBKR account mirror (status / NAV-vs-SPY /
- * positions / trades). Reads data_holdings_* scoped to the caller's `userId`
+ * positions / trades). Reads portfolio_holdings_* scoped to the caller's `userId`
  * (the tenant key = Better Auth user id, stored as account_id). All read-only,
  * Node runtime only. The Flex token is never read here (it's encrypted at rest;
  * the dashboard only needs "connected").

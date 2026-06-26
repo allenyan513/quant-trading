@@ -1,6 +1,6 @@
 /**
- * Holdings (IBKR Flex) credentials, stored in data_holdings_accounts, keyed by
- * the user's id (account_id = Better Auth user.id). data owns this table and is
+ * Holdings (IBKR Flex) credentials, stored in portfolio_holdings_accounts, keyed by
+ * the user's id (account_id = Better Auth user.id). portfolio owns this table and is
  * the only writer. The Flex token is encrypted at rest (AES-256-GCM, see
  * @qt/shared/crypto); web only ever reads a "connected" status, never the token.
  */

@@ -268,24 +268,24 @@ export const valuationSnapshots = pgTable("data_valuation_snapshots", {
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
 }, (t) => [index("idx_valsnap_symbol").on(t.symbol)]);
 
-// ---- Holdings — live IBKR account mirror (Flex sync, single account) ----
+// ---- Holdings — live IBKR account mirror (Flex sync) = the Live ledger ----
 //
-// The maintainer's REAL brokerage account, synced from IBKR Flex by data's
-// `/jobs/sync-holdings`. Distinct from `portfolio_positions` (the system's
-// SIMULATED signal-driven paper book) — these mirror what's actually held.
-// `account_id` is a constant label (config.holdingsAccountId(), default "me");
-// kept as a column so the schema generalizes if a second account is ever added.
-// Money stored raw (repo convention); `nav_index`/`daily_return` are derived for
-// the NAV-vs-SPY chart + performance metrics. SPY benchmark reuses
-// `data_daily_prices` (no separate benchmark table). Written only by data.
+// The user's REAL brokerage account, synced from IBKR Flex by the PORTFOLIO service's
+// `/jobs/sync-holdings` (moved from data, PR-A — portfolio owns the trading-accounts
+// domain incl. its own external sync). Distinct from `portfolio_positions` (the
+// Strategy signal-sim) and `portfolio_paper_*` (the Paper account) — these mirror
+// what's actually held. `account_id` = the user's id (per-user). Money stored raw;
+// `nav_index`/`daily_return` are derived for the NAV-vs-SPY chart + KPIs. SPY
+// benchmark reuses `data_daily_prices` (shared marketdata read-through, no separate
+// benchmark table). Written only by portfolio.
 
 // Holdings (IBKR) connection credentials, one row per account. Single-user today
 // (account_id = config.holdingsAccountId(), default "me"); the table shape
 // generalizes to multi-user (one row per user) with no migration. The Flex
 // token is stored PLAINTEXT by explicit choice — keep `DATABASE_URL` pointed at
 // a trusted role and don't expose this table to the web read role's queries
-// (web reads a masked status only). Written only by data (POST /holdings/credentials).
-export const holdingsAccounts = pgTable("data_holdings_accounts", {
+// (web reads a masked status only). Written only by portfolio (POST /holdings/credentials).
+export const holdingsAccounts = pgTable("portfolio_holdings_accounts", {
   accountId: text("account_id").primaryKey(),
   flexToken: text("flex_token").notNull(),
   flexQueryId: text("flex_query_id").notNull(),
@@ -296,7 +296,7 @@ export const holdingsAccounts = pgTable("data_holdings_accounts", {
 // Daily NAV: one row per (account, date). `daily_return` (TWR) compounds into a
 // base-100 `nav_index` for the chart; `ending_nav` keeps the raw $ for the KPI row.
 export const holdingsNavHistory = pgTable(
-  "data_holdings_nav_history",
+  "portfolio_holdings_nav_history",
   {
     accountId: text("account_id").notNull(),
     date: date("date").notNull(),
@@ -313,7 +313,7 @@ export const holdingsNavHistory = pgTable(
 // Executed fills: one row per (account, broker-native trade id). Trades are
 // immutable once executed, so re-pulling the same day is idempotent via the PK.
 export const holdingsTrades = pgTable(
-  "data_holdings_trades",
+  "portfolio_holdings_trades",
   {
     accountId: text("account_id").notNull(),
     externalTradeId: text("external_trade_id").notNull(),
@@ -342,7 +342,7 @@ export const holdingsTrades = pgTable(
 // option multiplier; `weight_pct` is computed by us (IBKR's percentOfNAV is
 // unreliable for options). A synthetic CASH row is upserted alongside.
 export const holdingsPositions = pgTable(
-  "data_holdings_positions",
+  "portfolio_holdings_positions",
   {
     accountId: text("account_id").notNull(),
     asOfDate: date("as_of_date").notNull(),

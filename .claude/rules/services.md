@@ -50,6 +50,6 @@ paths:
 - marketdata 读穿缓存（`data_daily_prices` / `data_income_statement` / `data_balance_sheet` / `data_cash_flow` / `data_financial_ratios` / `data_analyst_estimates` / `data_ratings` / `data_price_targets` / `data_company_profile` / `data_marketdata_fetches`）经 `@qt/shared/marketdata` 写入 ← 逻辑上归 **data**（data 的分诊 agent 主动预热；alpha 命中热缓存,miss 时同一读穿层回填——这是允许的共享 read-through,非乱写）。`data_company_profile` = 整条 FMP profile(getProfile 落库,喂 symbol Overview tab,#167)。
 - `data_valuation_snapshots` ← **data**（确定性 reference valuation 引擎住在 data，`src/valuation/`；写不可变快照。alpha 经 `POST /internal/valuation` 取回作为重定价输入，不写该表）。
 - `alpha_trading_signals` / `alpha_signal_audits` / `alpha_signal_deliveries` ← **alpha**（alpha 投递前必已写入 `alpha_trading_signals`；信号带 `snapshot_id` 指向 `data_valuation_snapshots`；portfolio **绝不 insert** 它）。
-- `portfolio_positions` ← **portfolio**。portfolio 拥有持仓生命周期，并把它**镜像**到 `alpha_trading_signals.status`（开→平/止损/止盈/到期）——这是唯一允许的"非 owner 写"，且只写 `status` 一列。
+- `portfolio_positions` / `portfolio_paper_*` / `portfolio_holdings_*` ← **portfolio**（交易账户领域三账本：信号盘 / per-user 纸面 / 真实 IBKR）。`portfolio_holdings_*` 由 portfolio 的 `src/holdings/` 从 IBKR Flex 同步（**自 data 迁来**，PR-A：portfolio 拥有自身领域专属外部同步）。signal 盘把生命周期**镜像**到 `alpha_trading_signals.status`（开→平/止损/止盈/到期）——这是唯一允许的"非 owner 写"，且只写 `status` 一列。
 - 例外（既有设计，非违规）：`data_events` / `data_notifications` 的**双状态**——生产者侧 `delivery_status`（data）与消费者侧 `status`（alpha 推进 `pending|processing|done|noise`）各管一列。
 - 新增跨服务可达的表/列时，先确定单一创建 owner；消费侧只读或只改约定好的状态列。

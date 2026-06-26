@@ -21,7 +21,6 @@ import { createList, renameList, deleteList, assignToList, reorderLists } from "
 import { submitMorningBrief } from "./morning-brief.js";
 import { warmAndPullNews, revalue, ensureFresh } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
-import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
 import { addFiler } from "./thirteenf/filers.js";
 import { syncOwnershipAll, syncOwnershipForFiler } from "./ownership/sync.js";
@@ -32,8 +31,6 @@ import { searchFilings } from "@qt/shared/edgar-fts";
 import { fetchMovers, fetchEarningsCalendar, fetchEconomicCalendar, fetchEarningsHistory } from "@qt/shared/markets";
 import { syncEarningsCalendar } from "./earnings/sync.js";
 import { route } from "./route.js";
-import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
-import { IBKRFlexError } from "@qt/shared";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -375,63 +372,9 @@ app.get(
   }),
 );
 
-// Save/update the IBKR Flex credentials (token + query id) for the configured
-// account. Written here (data owns data_holdings_accounts); the web "Connect
-// IBKR" form forwards to this endpoint so the dashboard stays read-only on DB.
-app.post(
-  "/holdings/credentials",
-  route("holdings.credentials", async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { accountId?: unknown; token?: unknown; queryId?: unknown; label?: unknown };
-    const accountId = typeof body.accountId === "string" ? body.accountId : "";
-    const token = typeof body.token === "string" ? body.token : "";
-    const queryId = typeof body.queryId === "string" ? body.queryId : "";
-    if (!accountId.trim() || !token.trim() || !queryId.trim()) {
-      return c.json(fail("bad_request", "accountId, token and queryId are required"), 400);
-    }
-    const res = await setHoldingsCredentials({ accountId, token, queryId, label: typeof body.label === "string" ? body.label : undefined });
-    log.info("holdings.credentials.set", { accountId: res.accountId });
-    return { accountId: res.accountId, connected: true };
-  }),
-);
-
-// Sync the live IBKR Flex statement into the data_holdings_* tables (daily NAV,
-// trades, positions) + warm the SPY benchmark. Idempotent. Two entry points,
-// same body: `/jobs/sync-holdings` (cron, JOB_TOKEN) and `/holdings/sync`
-// (the dashboard "refresh" button + the auto-sync after connecting).
-async function runHoldingsSync(c: Context) {
-  try {
-    const body = (await c.req.json().catch(() => ({}) as Record<string, unknown>)) as Record<string, unknown>;
-    const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
-    if (!accountId) return c.json(fail("bad_request", "accountId is required"), 400);
-    const res = await syncHoldings(accountId);
-    log.info("holdings.sync.done", { ...res });
-    return c.json(ok(res));
-  } catch (err) {
-    // Map credential / Flex failures to precise codes; everything else generic.
-    const code =
-      err instanceof HoldingsNotConnectedError
-        ? "holdings_not_connected"
-        : err instanceof IBKRFlexError
-          ? `flex_${err.reason}`
-          : "sync_holdings_failed";
-    const status = err instanceof HoldingsNotConnectedError ? 400 : 500;
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error("holdings.sync.failed", { code, error: msg });
-    return c.json(fail(code, msg), status);
-  }
-}
-
-// Cron (JOB_TOKEN): sync EVERY connected account. Per-account failure is skipped.
-app.post(
-  "/jobs/sync-holdings",
-  route("holdings.sync.all", async () => {
-    const res = await syncAllHoldings();
-    log.info("holdings.sync.all.done", { synced: res.synced, failed: res.failed });
-    return res;
-  }),
-);
-// Manual (web forward): sync the signed-in user's account (accountId in body).
-app.post("/holdings/sync", (c) => runHoldingsSync(c));
+// (Live IBKR holdings — credentials / sync / jobs-sync-holdings — moved to the
+// portfolio service: it owns the trading-accounts domain end to end, including its
+// own external sync. data stays the cross-cutting *market* data hub.)
 
 // ---- 13F — legendary investor quarterly holdings (SEC, free). data owns the
 // data_13f_* tables; web reads them. Display only (parse + store); see #99. ----

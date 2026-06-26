@@ -150,12 +150,14 @@ mkjob alpha-redeliver  "*/5 * * * *"     "$ALPHA_URL" /internal/redeliver
 mkjob portfolio-track  "*/30 9-16 * * 1-5" "$PORTFOLIO_URL" /jobs/track
 ```
 
-The `JOB_TOKEN`-guarded `/jobs/*` endpoints on the `data` service
-(`/jobs/sync-13f`, `/jobs/sync-earnings`, `/jobs/sync-holdings`) are driven by
-**GitHub Actions** instead (`.github/workflows/sync-{13f,earnings,holdings}.yml`),
-which POST them with a `Bearer $JOB_TOKEN` header. Set the `DATA_URL` and `JOB_TOKEN`
-repo secrets to match the deployed data service; no Cloud Scheduler job is needed for
-those.
+The `JOB_TOKEN`-guarded `/jobs/*` cron endpoints are driven by **GitHub Actions**
+(`.github/workflows/sync-{13f,earnings,holdings}.yml`), which POST them with a
+`Bearer $JOB_TOKEN` header. `sync-13f` + `sync-earnings` hit the **data** service
+(`$DATA_URL`); `sync-holdings` hits the **portfolio** service (`$PORTFOLIO_URL`) —
+Live/IBKR holdings moved there (PR-A), so the portfolio service must ALSO have
+`JOB_TOKEN` and `HOLDINGS_ENC_KEY` set in its env. Set the `DATA_URL`, `PORTFOLIO_URL`,
+and `JOB_TOKEN` repo secrets to match the deployed services; no Cloud Scheduler job is
+needed for those.
 
 ## 6. Verify
 
