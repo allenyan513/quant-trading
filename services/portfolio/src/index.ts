@@ -12,7 +12,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
 import { ok, fail, config, isAuthorizedJob, IBKRFlexError, type TradingSignalDTO } from "@qt/shared";
-import { handleSignal } from "./portfolio.js";
+import { handleSignal } from "./strategy.js";
 import { settlePositions } from "./track.js";
 import { createPaperOrder, resetPaperAccount, type OrderSide, type OrderSource } from "./paper.js";
 import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";

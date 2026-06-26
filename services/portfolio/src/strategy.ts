@@ -1,12 +1,14 @@
 /**
- * Signal handling for the portfolio book. Routes an incoming signal:
+ * Strategy ledger — the alpha-signal-driven auto-sim (`portfolio_positions`).
+ *
+ * Signal handling for the Strategy book. Routes an incoming signal:
  *  - symbol already held → re-decision (T10): a bearish (sell) view closes the
  *    long; otherwise hold (v1 long-only — no add/reduce yet).
  *  - not held → deterministic sizing → open (or reject).
  *
  * Portfolio owns this end to end (it alone reads/writes `positions`); alpha
  * stays a stateless opinion engine. Sizing/re-decision are pure functions in
- * @qt/shared; this module is the DB I/O around them.
+ * @qt/shared; this module is the DB I/O around them. Settlement lives in track.ts.
  */
 import { and, eq } from "drizzle-orm";
 import {

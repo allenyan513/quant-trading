@@ -1,4 +1,6 @@
 /**
+ * Strategy ledger — settlement (`/jobs/track`). Closes signal-driven positions.
+ *
  * Deterministic position settlement. For each open position, fetch the current
  * price and resolve its lifecycle against the originating signal's target/stop/
  * expiry (the pure `settleDecision` in @qt/shared): on a hit, close the position

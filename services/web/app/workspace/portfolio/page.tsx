@@ -15,5 +15,5 @@ export default async function HoldingsIndex() {
   const user = await getUser();
   if (!user) redirect("/sign-in");
   const status = await getHoldingsStatus(user.id);
-  redirect(status.connected ? "/workspace/portfolio/performance" : "/workspace/portfolio/settings");
+  redirect(status.connected ? "/workspace/portfolio/live/performance" : "/workspace/portfolio/live/settings");
 }

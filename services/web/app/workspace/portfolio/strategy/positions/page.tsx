@@ -66,8 +66,8 @@ const columns: Column<PositionRow>[] = [
 export default function PositionsPage() {
   return (
     <div>
-      <PageTitle subsystem="portfolio" sub="Deterministic sizing on open → close via stop-loss / take-profit / expiry">
-        Positions
+      <PageTitle subsystem="portfolio" sub="Strategy ledger — alpha signals sized in on open, closed on stop-loss / take-profit / expiry">
+        Strategy positions
       </PageTitle>
       <LiveTable
         path="/api/positions"

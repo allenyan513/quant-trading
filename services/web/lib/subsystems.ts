@@ -92,9 +92,9 @@ export const SUBSYSTEMS: Subsystem[] = [
     port: 8084,
     color: "#f0883e",
     blurb:
-      "Sole owner of the positions ledger: deterministic sizing to open positions, settling closes on stop-loss / take-profit / expiry. No LLM.",
-    tables: ["positions"],
-    pages: [{ href: "/workspace/paper/positions", label: "Positions" }],
+      "Owner of the trading-accounts domain — three ledgers: Strategy (signal-driven sim), Paper (per-user order-driven), Live (IBKR mirror). No LLM.",
+    tables: ["positions", "portfolio_paper_*", "portfolio_holdings_*"],
+    pages: [{ href: "/workspace/portfolio/strategy/positions", label: "Strategy" }],
   },
 ];
 

@@ -1,5 +1,5 @@
 /**
- * Per-user paper-trading engine — the portfolio service owns these writes.
+ * Paper ledger — the per-user, order-driven paper-trading engine (portfolio owns these writes).
  *
  * v1: MARKET orders, LONG equity, cash-accounted, filled at the current live quote.
  * A buy/sell updates a net position + cash atomically and records a blotter row for
