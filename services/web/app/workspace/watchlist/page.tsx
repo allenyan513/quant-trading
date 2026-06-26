@@ -8,6 +8,7 @@ import { useQuotes } from "@/components/quotes";
 import { apiAction } from "@/lib/api-client";
 import { refresh } from "./api";
 import { columns, ColumnsMenu, DEFAULT_VISIBLE, COLS_KEY, type WatchRow, type WL } from "./columns";
+import { DecisionPanel } from "@/components/symbol/decision-panel";
 
 /** Bottom control: a "+" that reveals an inline input to add a symbol (IBKR-style).
  *  When a group tab is active, the new symbol is dropped straight into it. */
@@ -70,6 +71,7 @@ export default function WatchlistPage() {
   const syms = useMemo(() => [...new Set((rows ?? []).map((r) => r.symbol))], [rows]);
   useQuotes(syms);
   const [activeList, setActiveList] = useState<string>("all");
+  const [selected, setSelected] = useState<string | null>(null);
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE));
   // Load saved column choice after mount (server + first client render use the
   // default → no hydration mismatch).
@@ -140,7 +142,8 @@ export default function WatchlistPage() {
   }
 
   return (
-    <div>
+    <div className="portfolio-workbench">
+      <div style={{ minWidth: 0, paddingRight: 14 }}>
       <div style={topRow}>
         <div style={tabsWrap}>
           <button
@@ -194,10 +197,20 @@ export default function WatchlistPage() {
         columns={shownColumns}
         rowFilter={activeList === "all" ? undefined : (r) => r.listId === activeList}
         getRowDragData={(r) => r.symbol}
+        onRowClick={(r) => setSelected(r.symbol)}
+        selectedKey={selected ?? undefined}
         onRowDoubleClick={(r) => router.push(`/workspace/data/symbol/${r.symbol}/chart`)}
         emptyText={activeList === "all" ? "Watchlist is empty — add one below." : "No symbols in this list yet — drag a row here or set its List."}
       />
       <BottomAdd activeList={activeList} />
+      </div>
+      <aside className="portfolio-rail">
+        {selected ? (
+          <DecisionPanel symbol={selected} />
+        ) : (
+          <div style={{ padding: 16, color: "var(--muted)", fontSize: 13, borderLeft: "1px solid var(--border)" }}>Select a symbol to see its detail.</div>
+        )}
+      </aside>
     </div>
   );
 }

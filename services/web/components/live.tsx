@@ -55,11 +55,15 @@ interface LiveTableProps<Row> {
    *  key, so it survives navigating away and back (a view preference, kept client-side —
    *  same approach as the watchlist column-visibility choice). */
   storageKey?: string;
+  /** Single-click a row → select it (e.g. to drive a side detail rail). */
+  onRowClick?: (row: Row) => void;
+  /** rowKey of the currently-selected row, highlighted. */
+  selectedKey?: string;
 }
 
 type Sort = { key: string; dir: "asc" | "desc" };
 
-export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData, storageKey }: LiveTableProps<Row>) {
+export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData, storageKey, onRowClick, selectedKey }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -199,9 +203,19 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
                           }
                         : undefined
                     }
-                    onClick={expand ? () => setOpen(isOpen ? null : k) : undefined}
+                    onClick={
+                      expand || onRowClick
+                        ? () => {
+                            if (expand) setOpen(isOpen ? null : k);
+                            onRowClick?.(row);
+                          }
+                        : undefined
+                    }
                     onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row) : undefined}
-                    style={{ cursor: expand || onRowDoubleClick ? "pointer" : "default", background: isOpen ? "var(--panel-2)" : undefined }}
+                    style={{
+                      cursor: expand || onRowDoubleClick || onRowClick ? "pointer" : "default",
+                      background: isOpen || selectedKey === k ? "var(--panel-2)" : undefined,
+                    }}
                   >
                     {expand && <td style={{ ...tdStyle, color: "var(--muted)" }}>{isOpen ? "▾" : "▸"}</td>}
                     {columns.map((c) => (
