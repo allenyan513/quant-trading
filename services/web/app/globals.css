@@ -103,7 +103,7 @@ table {
    (transient), distinct from the steady day-change text color. Driven by <TickValue>. */
 @keyframes tickUp {
   from {
-    background: rgba(63, 185, 80, 0.38);
+    background: color-mix(in srgb, var(--up) 38%, transparent);
   }
   to {
     background: transparent;
@@ -111,7 +111,7 @@ table {
 }
 @keyframes tickDown {
   from {
-    background: rgba(248, 81, 73, 0.38);
+    background: color-mix(in srgb, var(--down) 38%, transparent);
   }
   to {
     background: transparent;

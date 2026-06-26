@@ -15,8 +15,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const UP = "#3fb950";
-const DOWN = "#f85149";
+// Day-change text colors — the shared semantic up/down tokens (see globals.css :root).
+const UP = "var(--up)";
+const DOWN = "var(--down)";
 
 export function TickValue({
   value,
