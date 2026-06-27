@@ -13,13 +13,19 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { ok, fail, config } from "@qt/shared";
+import { ok, config } from "@qt/shared";
 import { oAuthDiscoveryMetadata, oAuthProtectedResourceMetadata } from "better-auth/plugins";
-import { route } from "./route.js";
 import { log } from "./log.js";
-import { getOverview, getCompanyProfile } from "./queries/index.js";
 import { auth } from "./auth.js";
 import { mcpRequestHandler } from "./mcp/server.js";
+import { registerSymbolRoutes } from "./routes/symbol.js";
+import { registerPipelineRoutes } from "./routes/pipeline.js";
+import { registerDiscoverRoutes } from "./routes/discover.js";
+import { registerMarketsRoutes } from "./routes/markets.js";
+import { registerWatchlistRoutes } from "./routes/watchlist.js";
+import { registerHoldingsRoutes } from "./routes/holdings.js";
+import { registerPaperRoutes } from "./routes/paper.js";
+import { registerMemoRoutes } from "./routes/memos.js";
 
 const app = new Hono();
 
@@ -53,26 +59,18 @@ app.get("/.well-known/oauth-protected-resource", (c) => protectedResource(c.req.
 // client runs the OAuth dance against the AS above and retries with a bearer.
 app.all("/mcp", (c) => mcpRequestHandler(c.req.raw));
 
-// ---- Read routes (PR1) ----
-// Service liveness (compose/Cloud Run healthcheck). Distinct from the dashboard's
-// cross-pipeline overview below.
+// ---- Business routes (the dashboard's data surface, ported from web's /api/*) ----
+// Service liveness (compose/Cloud Run healthcheck). Distinct from the pipeline /overview.
 app.get("/health", (c) => c.json(ok({ service: "gateway", status: "up" })));
 
-// Cross-pipeline overview funnel (system-wide, public).
-app.get(
-  "/overview",
-  route("overview", (c) => getOverview(Number(c.req.query("windowHours")) || 24)),
-);
-
-// Per-symbol company profile (public market data).
-app.get(
-  "/data/symbol/:symbol/profile",
-  route("data.symbol.profile", async (c) => {
-    const symbol = c.req.param("symbol")?.trim();
-    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
-    return getCompanyProfile(symbol.toUpperCase());
-  }),
-);
+registerSymbolRoutes(app); // public symbol + market-data reads, ensure/warm forwards
+registerPipelineRoutes(app); // public system/pipeline reads (overview, events, logs, …)
+registerDiscoverRoutes(app); // candidates / scanner / news
+registerMarketsRoutes(app); // earnings + economic + movers
+registerWatchlistRoutes(app); // per-user watchlist + groups (authed)
+registerHoldingsRoutes(app); // per-user IBKR holdings (authed)
+registerPaperRoutes(app); // per-user paper account (authed)
+registerMemoRoutes(app); // per-user memos + morning-brief archive (authed)
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });
