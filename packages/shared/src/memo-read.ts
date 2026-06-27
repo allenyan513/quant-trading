@@ -80,7 +80,13 @@ export async function listMemos(db: MemoDb, userId: string, opts: ListMemosOpts 
   let idsForSymbol: string[] | null = null;
   if (opts.symbol) {
     const sym = opts.symbol.toUpperCase();
-    const linked = await db.select({ memoId: memoSymbols.memoId }).from(memoSymbols).where(eq(memoSymbols.symbol, sym));
+    // Scope the id-fetch to THIS user via an inner join (don't pull every user's links for
+    // the symbol): smaller IN-list + the user filter lives on both queries (defense-in-depth).
+    const linked = await db
+      .select({ memoId: memoSymbols.memoId })
+      .from(memoSymbols)
+      .innerJoin(memos, eq(memoSymbols.memoId, memos.id))
+      .where(and(eq(memos.userId, userId), eq(memoSymbols.symbol, sym)));
     idsForSymbol = linked.map((r) => r.memoId);
     if (idsForSymbol.length === 0) return [];
   }

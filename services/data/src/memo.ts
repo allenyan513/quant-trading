@@ -8,10 +8,13 @@
  *
  * Reads live in `@qt/shared/memo-read` (shared with web). This module owns the writes.
  */
-import { and, desc, eq } from "drizzle-orm";
-import { db, dbSchema, codeVersion, marketdata } from "@qt/shared";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { db, dbSchema, codeVersion, marketdata, mapLimit } from "@qt/shared";
 import { getLatestValuation } from "@qt/shared/research";
 import { listMemos, getMemo, type MemoRow } from "@qt/shared/memo-read";
+import { log } from "./log.js";
+
+const PIT_CONCURRENCY = 6; // bound per-symbol external fetches (quote/valuation) when a memo links many
 
 const { memos, memoSymbols, paperPositions, holdingsPositions } = dbSchema;
 
@@ -93,10 +96,17 @@ async function readPosition(userId: string, symbol: string): Promise<PositionSna
  *  the user's position. All best-effort — a missing source leaves that field null, never
  *  blocks the memo. */
 async function capturePit(userId: string, symbol: string): Promise<PitSnapshot> {
+  const warn = (step: string) => (err: unknown) => {
+    log.warn(`memo.pit.${step}`, { symbol, error: err instanceof Error ? err.message : String(err) });
+    return null;
+  };
   const [quote, valuation, position] = await Promise.all([
-    marketdata.getLiveQuote(symbol).catch(() => null),
-    getLatestValuation(db(), symbol).catch(() => null),
-    readPosition(userId, symbol).catch(() => ({ paper: null, live: null })),
+    marketdata.getLiveQuote(symbol).catch(warn("quote")),
+    getLatestValuation(db(), symbol).catch(warn("valuation")),
+    readPosition(userId, symbol).catch((err) => {
+      log.warn("memo.pit.position", { symbol, error: err instanceof Error ? err.message : String(err) });
+      return { paper: null, live: null };
+    }),
   ]);
   return {
     symbol,
@@ -115,7 +125,9 @@ async function capturePit(userId: string, symbol: string): Promise<PitSnapshot> 
 /** Insert memo_symbols rows for `symbols`, each with a freshly captured PIT snapshot. */
 async function attachSymbols(memoId: string, userId: string, symbols: string[]): Promise<PitSnapshot[]> {
   if (symbols.length === 0) return [];
-  const snaps = await Promise.all(symbols.map((s) => capturePit(userId, s)));
+  // Bounded concurrency for the per-symbol external fetches (capturePit isolates its own
+  // failures, so a flaky symbol degrades to nulls rather than aborting the batch).
+  const snaps = await mapLimit(symbols, PIT_CONCURRENCY, (s) => capturePit(userId, s));
   await db()
     .insert(memoSymbols)
     .values(snaps.map((s) => ({ memoId, symbol: s.symbol, priceAtWrite: s.priceAtWrite, priceTs: s.priceTs, valuationSnapshotId: s.valuationSnapshotId, context: s.context })))
@@ -208,8 +220,8 @@ export async function updateMemo(input: UpdateMemoInput): Promise<MemoRow> {
   await db().update(memos).set(set).where(and(eq(memos.id, id), eq(memos.userId, userId)));
 
   const remove = normalizeSymbols(input.removeSymbols);
-  for (const s of remove) {
-    await db().delete(memoSymbols).where(and(eq(memoSymbols.memoId, id), eq(memoSymbols.symbol, s)));
+  if (remove.length) {
+    await db().delete(memoSymbols).where(and(eq(memoSymbols.memoId, id), inArray(memoSymbols.symbol, remove)));
   }
   const add = normalizeSymbols(input.addSymbols);
   if (add.length) await attachSymbols(id, userId, add);
