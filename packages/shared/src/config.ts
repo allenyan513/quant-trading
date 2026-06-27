@@ -91,6 +91,10 @@ export const config = {
   portfolioCapital: () => Number(optionalEnv("PORTFOLIO_CAPITAL", "100000")),
   /** Starting cash for a new per-user paper-trading account (USD). */
   paperStartingCash: () => Number(optionalEnv("PAPER_STARTING_CASH", "100000")),
+  /** Max age (ms) of a quote's EXCHANGE timestamp before the paper engine treats it as
+   *  stale (market not actively trading) and QUEUES a market order instead of filling at a
+   *  stale price. Default 15 min — longer than any RTH gap, short enough to catch close. */
+  paperQuoteMaxStaleMs: () => Number(optionalEnv("PAPER_QUOTE_MAX_STALE_MS", "900000")),
   /** Base weight per conviction tier (fraction of capital). */
   sizeByConviction: () => ({
     low: Number(optionalEnv("SIZE_LOW", "0.01")),

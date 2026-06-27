@@ -1,0 +1,1 @@
+ALTER TABLE "data_quotes" ADD COLUMN "quote_ts" timestamp with time zone;

@@ -160,7 +160,9 @@ const mcpHandler = createMcpHandler(
         title: "Place Paper Order",
         description:
           "Place an order in the signed-in user's SIMULATED paper account. orderType 'market' (default) " +
-          "fills immediately at the current live quote and returns the fill; 'limit' rests as a WORKING " +
+          "fills immediately at the current live quote and returns the fill — BUT when the market is closed " +
+          "(the quote is stale) it instead rests as a WORKING order and fills at the next open, so a market " +
+          "order placed after hours comes back status 'working', not 'filled'. 'limit' rests as a WORKING " +
           "order and fills when the quote crosses your limit (buy: quote ≤ limit; sell: quote ≥ limit), at " +
           "the crossing market price — never worse than your limit — use a limit order for a watch/entry " +
           "at a target price (status comes back 'working'). " +

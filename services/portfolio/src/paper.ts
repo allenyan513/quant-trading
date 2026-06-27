@@ -2,7 +2,10 @@
  * Paper ledger — the per-user, order-driven paper-trading engine (portfolio owns these writes).
  *
  * Equity, cash-accounted, LONG or SHORT (signed net positions). Two order types:
- *  - MARKET: filled immediately at the current live quote.
+ *  - MARKET: fills immediately at the current live quote — UNLESS that quote's exchange
+ *            timestamp is stale (market not actively trading), in which case the order is
+ *            QUEUED as `status='working'` (no fill at a stale price) and fills at the next
+ *            fresh quote, i.e. the next open (mirrors a broker's market-on-open).
  *  - LIMIT:  rests as `status='working'` and fills when the live quote crosses the
  *            limit (buy: quote ≤ limit; sell: quote ≥ limit), at the crossing quote
  *            (which honors the limit as a bound and gives price improvement). Working orders
@@ -95,6 +98,17 @@ export const etDay = (d: Date): string => ET_DAY.format(d);
 /** Does a resting limit order fill at `price`? Buy fills at/below limit, sell at/above. */
 export function limitCrosses(side: OrderSide, price: number, limit: number): boolean {
   return side === "buy" ? price <= limit : price >= limit;
+}
+
+/**
+ * Is a quote too old to fill a MARKET order against? True when the exchange last-trade time
+ * (`quoteTs`) is older than `maxStaleMs` — i.e. the market isn't actively trading (closed /
+ * weekend / holiday / pre-open), so filling would lock in a stale, unobtainable price.
+ * `quoteTs == null` (FMP omitted it) is treated as live (fail-open): we never gate on a
+ * signal we don't have. This needs no trading calendar — a closed market freezes `quoteTs`.
+ */
+export function isQuoteStale(quoteTs: Date | null, now: Date, maxStaleMs: number): boolean {
+  return quoteTs != null && now.getTime() - quoteTs.getTime() > maxStaleMs;
 }
 
 /** A `tif='day'` order is expired once `now` is on a later ET calendar day than it was placed. */
@@ -266,6 +280,14 @@ export async function createPaperOrder(input: PlacePaperOrderInput): Promise<Pap
   const price = quote?.price ?? null;
   const now = new Date();
 
+  // Market not actively trading (stale exchange quote): QUEUE as a working market order
+  // rather than fill at a stale, unobtainable price — it fills at the next fresh quote
+  // (next open) via matchWorkingOrders. Only divert a well-formed order we have a price for;
+  // a bad quantity / missing price still falls through to applyFill and rejects there.
+  if (quantity > 0 && price != null && price > 0 && quote && isQuoteStale(quote.quoteTs, now, config.paperQuoteMaxStaleMs())) {
+    return await queueMarketOrder({ userId, symbol, side, quantity, tif, idempotencyKey, source: input.source, thesis });
+  }
+
   const result = await db().transaction(async (tx) => {
     const o = await applyFill(tx, userId, symbol, side, quantity, price, now);
     const [row] = await tx
@@ -338,11 +360,55 @@ async function placeLimitOrder(args: {
   };
 }
 
+/** Record a MARKET order as `working` because the live quote is stale (market not trading).
+ *  No cash/position change — `matchWorkingOrders` fills it at the next fresh quote (open).
+ *  Carries no limit price; it's distinguished from a limit order by `orderType='market'`. */
+async function queueMarketOrder(args: {
+  userId: string;
+  symbol: string;
+  side: OrderSide;
+  quantity: number;
+  tif: Tif;
+  idempotencyKey: string | null;
+  source: OrderSource;
+  thesis: ReturnType<typeof pickThesis>;
+}): Promise<PaperOrderResult> {
+  const { userId, symbol, side, quantity, tif, idempotencyKey, source, thesis } = args;
+  const [row] = await db()
+    .insert(paperOrders)
+    .values({ userId, symbol, side, orderType: "market", quantity, limitPrice: null, tif, status: "working", ...thesis, source, idempotencyKey })
+    .returning({ id: paperOrders.id });
+
+  // A queued order leaves the account untouched — surface the current cash/position.
+  const [acct] = await db().select({ cash: paperAccounts.cash }).from(paperAccounts).where(eq(paperAccounts.userId, userId)).limit(1);
+  const [pos] = await db()
+    .select()
+    .from(paperPositions)
+    .where(and(eq(paperPositions.userId, userId), eq(paperPositions.symbol, symbol)))
+    .limit(1);
+  log.info("paper.order", { userId, symbol, side, order_type: "market", quantity, status: "working", reason: "stale_quote", source });
+  return {
+    orderId: row!.id,
+    status: "working",
+    symbol,
+    side,
+    orderType: "market",
+    quantity,
+    limitPrice: null,
+    fillPrice: null,
+    rejectReason: null,
+    realizedPnl: null,
+    cash: acct?.cash ?? config.paperStartingCash(),
+    position: pos ? { symbol: pos.symbol, quantity: pos.quantity, avgCost: pos.avgCost } : null,
+  };
+}
+
 /**
- * Match the user's resting limit orders against the current live quote. For each
- * working order: expire it if `tif='day'` and it was placed on an earlier ET day;
- * else fill it (at its limit price) when the quote crosses. Per-symbol fetches run
- * with bounded concurrency and are isolated — one flaky quote never aborts the batch.
+ * Match the user's resting working orders against the current live quote. For each
+ * working order: expire it if `tif='day'` and it was placed on an earlier ET day; else
+ * fill it — a LIMIT order when the quote crosses (at the crossing quote), a queued MARKET
+ * order once the quote is fresh again (at the live quote). Per-symbol fetches run with
+ * bounded concurrency and are isolated — one flaky quote never aborts the batch.
  */
 export async function matchWorkingOrders(userId: string): Promise<{ scanned: number; filled: number; expired: number }> {
   const working = await db()
@@ -368,22 +434,27 @@ export async function matchWorkingOrders(userId: string): Promise<{ scanned: num
         return;
       }
 
-      const limit = o.limitPrice;
-      if (limit == null || limit <= 0) return; // defensive — should not happen for a working limit order
       const quote = await marketdata.getLiveQuote(o.symbol);
       const price = quote?.price ?? null;
       if (price == null || price <= 0) return; // no price → leave working
 
-      if (!limitCrosses(o.side as OrderSide, price, limit)) return;
+      if (o.orderType === "market") {
+        // Queued market order: fill once the quote is live again (the open). Still stale → wait.
+        if (isQuoteStale(quote!.quoteTs, now, config.paperQuoteMaxStaleMs())) return;
+      } else {
+        const limit = o.limitPrice;
+        if (limit == null || limit <= 0) return; // defensive — should not happen for a working limit order
+        if (!limitCrosses(o.side as OrderSide, price, limit)) return;
+      }
 
       await db().transaction(async (tx) => {
         // Re-check status under the row to avoid a double-fill if two matchers race.
         const [cur] = await tx.select({ status: paperOrders.status }).from(paperOrders).where(eq(paperOrders.id, o.id)).for("update").limit(1);
         if (cur?.status !== "working") return;
-        // Fill at the crossing QUOTE, not the limit: a buy only crosses when quote ≤ limit
-        // and a sell when quote ≥ limit, so the fill always honors the limit as a bound and
-        // gives price improvement (never pay above / sell below the limit). Filling at the
-        // limit would overpay a marketable buy / undersell a marketable sell.
+        // Fill at the live QUOTE. For a limit order that's the crossing quote (buy crosses only
+        // when quote ≤ limit, sell when quote ≥ limit), so the fill honors the limit as a bound
+        // and gives price improvement — filling AT the limit would overpay a marketable buy /
+        // undersell a marketable sell. For a queued market order it's simply the now-fresh quote.
         const out = await applyFill(tx, userId, o.symbol, o.side as OrderSide, o.quantity, price, now);
         await tx
           .update(paperOrders)

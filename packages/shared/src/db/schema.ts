@@ -250,6 +250,11 @@ export const quotes = pgTable("data_quotes", {
   price: doublePrecision("price").notNull(),
   changePct: doublePrecision("change_pct"), // % vs previous close (FMP changePercentage)
   prevClose: doublePrecision("prev_close"),
+  // Exchange last-trade/update time (FMP `timestamp`), NOT our fetch time. Frozen at the
+  // last RTH close when the market is closed → lets callers tell a live quote from a stale
+  // one (e.g. paper queues market orders instead of filling at a stale price). Nullable:
+  // FMP may omit it; null is treated as live (fail-open).
+  quoteTs: timestamp("quote_ts", { withTimezone: true }),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
 });
 
