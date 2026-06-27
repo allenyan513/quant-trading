@@ -10,6 +10,7 @@
 
 import useSWR from "swr";
 import { isUsMarketOpen } from "@qt/shared/market-hours";
+import { apiUrl, FETCH_OPTS } from "@/lib/api-base";
 
 export interface LiveQuote {
   symbol: string;
@@ -20,7 +21,7 @@ export interface LiveQuote {
 }
 
 const fetcher = async (url: string): Promise<{ quotes: LiveQuote[] }> => {
-  const r = await fetch(url);
+  const r = await fetch(apiUrl(url), FETCH_OPTS);
   const j = (await r.json()) as { ok?: boolean; data?: { quotes: LiveQuote[] }; error?: string };
   if (!j.ok || !j.data) throw new Error(j.error ?? "quote fetch failed");
   return j.data;

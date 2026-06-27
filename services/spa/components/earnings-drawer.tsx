@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { formatLargeNumber, fmtPct } from "@/lib/format";
 import { apiSend } from "@/lib/api-client";
+import { apiUrl, FETCH_OPTS } from "@/lib/api-base";
 import type { EarningsCalEntry } from "@qt/shared/earnings-read";
 import type { EarningsHistRow } from "@qt/shared/markets";
 
@@ -18,7 +19,7 @@ const RED = "#f85149";
 
 async function getJson<T>(url: string): Promise<T | null> {
   try {
-    const res = await fetch(url);
+    const res = await fetch(apiUrl(url), FETCH_OPTS);
     const j = await res.json();
     return j?.ok ? (j.data as T) : null;
   } catch {
