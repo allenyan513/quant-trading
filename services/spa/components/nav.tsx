@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "@/components/link";
 import { usePathname } from "@/lib/next-navigation";
-import { Star, Compass, Briefcase, Settings as SettingsIcon, LogOut, PlugZap, type LucideIcon } from "lucide-react";
+import { Star, Compass, Briefcase, FileText, Settings as SettingsIcon, LogOut, PlugZap, type LucideIcon } from "lucide-react";
 import { NAV_SECTIONS } from "@/lib/subsystems";
 import { signOut, useSession } from "@/lib/auth-client";
 
@@ -14,6 +14,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/workspace/watchlist": Star,
   "/workspace/discover": Compass,
   "/workspace/portfolio": Briefcase,
+  "/workspace/memo": FileText,
 };
 
 /**
@@ -29,6 +30,7 @@ export function Nav() {
 
   return (
     <nav
+      className="desktop-rail"
       style={{
         width: SIDEBAR_WIDTH,
         flexShrink: 0,
@@ -154,3 +156,131 @@ const menuRow: React.CSSProperties = {
   fontSize: 13,
   color: "var(--text)",
 };
+
+const MOBILE_BAR_HEIGHT = 56;
+
+/**
+ * Mobile bottom tab bar — the phone replacement for the vertical icon rail. Fixed to the
+ * bottom (native-app feel, thumb-reachable), shown only below the CSS breakpoint (the rail
+ * hides, this shows — see `.mobile-tabbar` / `.desktop-rail` in globals.css). Reuses the
+ * same NAV_SECTIONS + ICONS source so there's one nav truth; Settings opens the same menu
+ * (signed-in email · IBKR connection · sign out), here popping up *above* the bar.
+ */
+export function MobileTabBar() {
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const email = session?.user?.email ?? "";
+
+  return (
+    <>
+      <nav
+        className="mobile-tabbar"
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: MOBILE_BAR_HEIGHT,
+          display: "flex",
+          alignItems: "stretch",
+          background: "var(--panel)",
+          borderTop: "1px solid var(--border)",
+          zIndex: 30,
+        }}
+      >
+        {NAV_SECTIONS.map((e) => {
+          const active = pathname === e.href || pathname.startsWith(`${e.href}/`);
+          return <MobileTab key={e.href} href={e.href} label={e.label} Icon={ICONS[e.href] ?? Star} active={active} />;
+        })}
+        <MobileTab label="Settings" Icon={SettingsIcon} active={menuOpen} onClick={() => setMenuOpen((o) => !o)} />
+      </nav>
+
+      {menuOpen && (
+        <>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Close menu"
+            style={{ position: "fixed", inset: 0, zIndex: 40, background: "transparent", border: "none", cursor: "default" }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              right: 8,
+              left: 8,
+              bottom: MOBILE_BAR_HEIGHT + 8,
+              zIndex: 41,
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+              padding: 6,
+            }}
+          >
+            <div style={{ padding: "8px 10px", fontSize: 12, color: "var(--muted)", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
+              Signed in as
+              <div style={{ color: "var(--text)", marginTop: 2, wordBreak: "break-all" }}>{email || "—"}</div>
+            </div>
+            <Link href="/workspace/portfolio/live/settings" onClick={() => setMenuOpen(false)} style={menuRow}>
+              <PlugZap size={16} strokeWidth={1.75} /> IBKR connection
+            </Link>
+            <button
+              onClick={async () => {
+                await signOut();
+                window.location.href = "/";
+              }}
+              style={{ ...menuRow, width: "100%", background: "transparent", border: "none", cursor: "pointer" }}
+            >
+              <LogOut size={16} strokeWidth={1.75} /> Sign out
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function MobileTab({
+  href,
+  label,
+  Icon,
+  active,
+  onClick,
+}: {
+  href?: string;
+  label: string;
+  Icon: LucideIcon;
+  active: boolean;
+  onClick?: () => void;
+}) {
+  const style: React.CSSProperties = {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    padding: "6px 2px",
+    color: active ? "var(--accent)" : "var(--muted)",
+    textAlign: "center",
+  };
+  const inner = (
+    <>
+      <Icon size={20} strokeWidth={1.75} />
+      <span style={{ fontSize: 10, fontWeight: active ? 600 : 500, lineHeight: 1.1 }}>{label}</span>
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} style={style}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} style={{ ...style, border: "none", background: "transparent", cursor: "pointer" }}>
+      {inner}
+    </button>
+  );
+}

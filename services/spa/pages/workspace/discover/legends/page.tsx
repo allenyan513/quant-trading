@@ -41,7 +41,8 @@ export default function LegendsPage() {
       {rows.length === 0 ? (
         <p style={{ color: "var(--muted)" }}>No filers yet.</p>
       ) : (
-        <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+        <div className="x-scroll" style={{ border: "1px solid var(--border)", borderRadius: 8 }}>
+          <div style={{ minWidth: 656 }}>
           <div style={{ display: "grid", gridTemplateColumns: GRID, borderBottom: "1px solid var(--border)" }}>
             <div style={head}>Manager</div>
             <div style={head}>Quarter</div>
@@ -66,6 +67,7 @@ export default function LegendsPage() {
               <div style={{ ...cell, justifyContent: "flex-end", fontVariantNumeric: "tabular-nums" }}>{f.latestQuarter ? fmtMoney(f.totalValue) : "—"}</div>
             </Link>
           ))}
+          </div>
         </div>
       )}
     </div>

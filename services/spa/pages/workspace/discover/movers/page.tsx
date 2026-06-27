@@ -24,10 +24,10 @@ function MoverList({ rows }: { rows: MoverRow[] }) {
           style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "6px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}
         >
           <span style={{ color: "var(--muted)", width: 18, flexShrink: 0 }}>{i + 1}</span>
-          <span style={{ minWidth: 58, fontWeight: 600, flexShrink: 0 }}>{r.symbol}</span>
+          <span style={{ minWidth: 52, fontWeight: 600, flexShrink: 0 }}>{r.symbol}</span>
           <span style={{ flex: 1, minWidth: 0, color: "var(--muted)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-          <span style={{ minWidth: 64, textAlign: "right" }}>{r.price == null ? "—" : fmtMoney(r.price)}</span>
-          <span style={{ minWidth: 72, textAlign: "right", fontWeight: 600, color: r.changePct == null ? "var(--muted)" : r.changePct >= 0 ? GREEN : RED }}>{pct(r.changePct)}</span>
+          <span style={{ minWidth: 56, textAlign: "right", flexShrink: 0 }}>{r.price == null ? "—" : fmtMoney(r.price)}</span>
+          <span style={{ minWidth: 60, textAlign: "right", flexShrink: 0, fontWeight: 600, color: r.changePct == null ? "var(--muted)" : r.changePct >= 0 ? GREEN : RED }}>{pct(r.changePct)}</span>
         </div>
       ))}
     </div>
