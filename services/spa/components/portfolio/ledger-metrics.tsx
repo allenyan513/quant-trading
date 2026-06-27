@@ -23,9 +23,16 @@ interface AccountSummary {
   dayPnl: number | null;
   dayPnlPct: number | null; // a percent, e.g. -2.94
   unrealized: number | null;
+  unrealizedPct: number | null; // unrealized / cost basis, a percent
   realized: number | null; // null = N/A → "—"
   netLiquidity: number | null;
   buyingPower: number | null;
+}
+
+/** Aggregate unrealized return on cost basis (Σ avg·|qty|), as a percent. Sign-correct
+ *  for shorts since `unrealized` already is. null when there's no invested cost. */
+function unrealizedReturnPct(unrealized: number, costBasis: number): number | null {
+  return costBasis > 0 ? (unrealized / costBasis) * 100 : null;
 }
 
 function Strip({ s }: { s: AccountSummary }) {
@@ -33,6 +40,7 @@ function Strip({ s }: { s: AccountSummary }) {
     { label: "Daily P&L", value: fmtMoney(s.dayPnl), color: pnl(s.dayPnl) },
     { label: "Daily P&L %", value: s.dayPnlPct == null ? "—" : `${s.dayPnlPct >= 0 ? "+" : ""}${s.dayPnlPct.toFixed(2)}%`, color: pnl(s.dayPnlPct) },
     { label: "Unrealized P&L", value: fmtMoney(s.unrealized), color: pnl(s.unrealized) },
+    { label: "Unrealized P&L %", value: s.unrealizedPct == null ? "—" : `${s.unrealizedPct >= 0 ? "+" : ""}${s.unrealizedPct.toFixed(2)}%`, color: pnl(s.unrealizedPct) },
     { label: "Realized P&L", value: s.realized == null ? "—" : fmtMoney(s.realized), color: pnl(s.realized) },
     { label: "Net liquidity", value: fmtMoney(s.netLiquidity) },
     { label: "Buying power", value: fmtMoney(s.buyingPower) },
@@ -67,10 +75,12 @@ function PaperMetrics() {
   // engine's gate: short-sale proceeds sit in cash but are locked AND require equal
   // collateral, so each $1 shorted costs $1 of buying power.
   const shortCollateral = positions.reduce((acc, p) => (p.quantity < 0 ? acc + Math.abs(p.quantity) * p.avgCost : acc), 0);
+  const costBasis = positions.reduce((acc, p) => acc + p.avgCost * Math.abs(p.quantity), 0);
   const s: AccountSummary = {
     dayPnl,
     dayPnlPct: dayPnl != null && prior && prior !== 0 ? (dayPnl / prior) * 100 : null,
     unrealized: positions.length ? unrealized : null,
+    unrealizedPct: positions.length ? unrealizedReturnPct(unrealized, costBasis) : null,
     realized: acct?.realizedPnl ?? 0,
     netLiquidity: equity,
     buyingPower: cash - 2 * shortCollateral,
@@ -96,12 +106,14 @@ function LiveMetrics() {
   const cash = all.filter((p) => p.assetClass === "CASH").reduce((acc, p) => acc + (p.positionValue ?? 0), 0);
   const holds = all.filter((p) => p.assetClass !== "CASH");
   const unrealized = holds.reduce((acc, p) => acc + ((p.markPrice ?? 0) - (p.avgPrice ?? 0)) * p.quantity, 0);
+  const costBasis = holds.reduce((acc, p) => acc + (p.avgPrice ?? 0) * Math.abs(p.quantity), 0);
   const netLiq = nav?.endingNav ?? null;
   const dr = nav?.dayReturn ?? null; // fraction
   const s: AccountSummary = {
     dayPnl: dr != null && netLiq != null ? netLiq - netLiq / (1 + dr) : null,
     dayPnlPct: dr != null ? dr * 100 : null,
     unrealized: holds.length ? unrealized : null,
+    unrealizedPct: holds.length ? unrealizedReturnPct(unrealized, costBasis) : null,
     realized: null, // real-account running realized needs trade-lot matching — deferred
     netLiquidity: netLiq,
     buyingPower: all.length ? cash : null,
