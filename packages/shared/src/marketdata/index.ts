@@ -335,6 +335,10 @@ export interface LiveQuote {
   price: number;
   changePct: number | null;
   prevClose: number | null;
+  /** Exchange last-trade/update time (FMP `timestamp`), NOT our fetch time. Frozen at
+   *  the last close when the market is closed → a staleness signal for callers (e.g. paper
+   *  queues market orders rather than filling at a stale price). Null if FMP omits it. */
+  quoteTs: Date | null;
   fetchedAt: Date;
 }
 
@@ -348,9 +352,9 @@ export async function getLiveQuote(symbol: string): Promise<LiveQuote | null> {
   const { quotes } = schema;
   const [cached] = await db().select().from(quotes).where(eq(quotes.symbol, sym)).limit(1);
   if (cached && Date.now() - cached.fetchedAt.getTime() <= QUOTE_TTL_MS) {
-    return { symbol: sym, price: cached.price, changePct: cached.changePct, prevClose: cached.prevClose, fetchedAt: cached.fetchedAt };
+    return { symbol: sym, price: cached.price, changePct: cached.changePct, prevClose: cached.prevClose, quoteTs: cached.quoteTs, fetchedAt: cached.fetchedAt };
   }
-  const r = await fmpGet<Array<{ price?: number | null; changePercentage?: number | null; previousClose?: number | null }>>(
+  const r = await fmpGet<Array<{ price?: number | null; changePercentage?: number | null; previousClose?: number | null; timestamp?: number | null }>>(
     "quote",
     { symbol: sym },
     { softFail402: true },
@@ -358,14 +362,17 @@ export async function getLiveQuote(symbol: string): Promise<LiveQuote | null> {
   const q = r?.[0];
   if (q?.price == null) {
     return cached
-      ? { symbol: sym, price: cached.price, changePct: cached.changePct, prevClose: cached.prevClose, fetchedAt: cached.fetchedAt }
+      ? { symbol: sym, price: cached.price, changePct: cached.changePct, prevClose: cached.prevClose, quoteTs: cached.quoteTs, fetchedAt: cached.fetchedAt }
       : null;
   }
+  // FMP `timestamp` is unix epoch SECONDS of the exchange's last update; absent/invalid → null.
+  const quoteTs = typeof q.timestamp === "number" && Number.isFinite(q.timestamp) ? new Date(q.timestamp * 1000) : null;
   const row = {
     symbol: sym,
     price: q.price,
     changePct: q.changePercentage ?? null,
     prevClose: q.previousClose ?? null,
+    quoteTs,
     fetchedAt: new Date(),
   };
   await db()
@@ -373,7 +380,7 @@ export async function getLiveQuote(symbol: string): Promise<LiveQuote | null> {
     .values(row)
     .onConflictDoUpdate({
       target: quotes.symbol,
-      set: { price: row.price, changePct: row.changePct, prevClose: row.prevClose, fetchedAt: row.fetchedAt },
+      set: { price: row.price, changePct: row.changePct, prevClose: row.prevClose, quoteTs: row.quoteTs, fetchedAt: row.fetchedAt },
     });
   return row;
 }

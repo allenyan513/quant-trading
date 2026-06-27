@@ -97,7 +97,7 @@ app.post(
   }),
 );
 
-// Cancel a resting (working) limit order.
+// Cancel a resting (working) order — a limit order or a queued market order.
 app.post(
   "/paper/orders/cancel",
   route("paper.cancel", async (c) => {
@@ -110,8 +110,9 @@ app.post(
   }),
 );
 
-// Match the user's resting limit orders against the live quote (triggered on page
-// open / account read — no background cron). Idempotent: fills only crossing orders.
+// Match the user's resting working orders against the live quote (triggered on page
+// open / account read — no background cron). Idempotent: fills crossing limit orders +
+// queued market orders once the quote is fresh again.
 app.post(
   "/paper/match",
   route("paper.match", async (c) => {

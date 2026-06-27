@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { limitCrosses, isDayExpired, fillMath } from "./paper.js";
+import { limitCrosses, isDayExpired, isQuoteStale, fillMath } from "./paper.js";
 
 describe("limitCrosses", () => {
   it("a buy limit fills at or below the limit", () => {
@@ -29,6 +29,24 @@ describe("isDayExpired", () => {
   });
   it("gtc orders never expire by day", () => {
     expect(isDayExpired("gtc", placed, new Date("2027-01-01T17:00:00Z"))).toBe(false);
+  });
+});
+
+describe("isQuoteStale (market-closed gate)", () => {
+  const now = new Date("2026-06-26T20:00:00Z");
+  const FIFTEEN_MIN = 15 * 60 * 1000;
+
+  it("a quote within the window is live (fills immediately)", () => {
+    expect(isQuoteStale(new Date(now.getTime() - 5_000), now, FIFTEEN_MIN)).toBe(false);
+    expect(isQuoteStale(new Date(now.getTime() - FIFTEEN_MIN), now, FIFTEEN_MIN)).toBe(false); // exactly at the edge
+  });
+  it("a quote older than the window is stale (queues to next open)", () => {
+    expect(isQuoteStale(new Date(now.getTime() - FIFTEEN_MIN - 1), now, FIFTEEN_MIN)).toBe(true);
+    // Frozen at Friday's close, checked over the weekend → very stale.
+    expect(isQuoteStale(new Date("2026-06-26T20:00:00Z"), new Date("2026-06-28T15:00:00Z"), FIFTEEN_MIN)).toBe(true);
+  });
+  it("a missing exchange timestamp is treated as live (fail-open)", () => {
+    expect(isQuoteStale(null, now, FIFTEEN_MIN)).toBe(false);
   });
 });
 

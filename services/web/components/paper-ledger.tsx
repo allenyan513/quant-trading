@@ -158,7 +158,7 @@ export function PaperOrders() {
             <th style={th}>Symbol</th>
             <th style={th}>Side</th>
             <th style={{ ...th, ...num }}>Qty</th>
-            <th style={{ ...th, ...num }}>Limit</th>
+            <th style={{ ...th, ...num }}>Type</th>
             <th style={th}>TIF</th>
             <th style={th}>Thesis</th>
             <th style={th}></th>
@@ -171,7 +171,7 @@ export function PaperOrders() {
               <td style={{ ...td, fontWeight: 600 }}>{o.symbol}</td>
               <td style={{ ...td, color: o.side === "buy" ? GREEN : RED, textTransform: "uppercase" }}>{o.side}</td>
               <td style={{ ...td, ...num }}>{o.quantity}</td>
-              <td style={{ ...td, ...num }}>{fmtMoney(o.limitPrice)}</td>
+              <td style={{ ...td, ...num }}>{o.orderType === "limit" ? `Limit @ ${fmtMoney(o.limitPrice)}` : "Market · at open"}</td>
               <td style={{ ...td, textTransform: "uppercase" }}>{o.tif}</td>
               <td style={{ ...td, color: "var(--muted)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis" }} title={thesisTooltip(o)}>
                 {o.thesis ?? (o.targetPrice != null || o.stopPrice != null ? thesisTooltip(o) : "—")}
@@ -239,7 +239,13 @@ export function PaperTicket({ symbol }: { symbol: string }) {
       if (!r.ok) setMsg({ ok: false, text: r.error ?? "Request failed" });
       else if (r.data?.status === "rejected") setMsg({ ok: false, text: `Rejected — ${r.data.rejectReason}` });
       else if (r.data?.status === "working") {
-        setMsg({ ok: true, text: `Working — limit ${side} ${q} ${symbol} @ ${fmtMoney(r.data.limitPrice)}` });
+        setMsg({
+          ok: true,
+          text:
+            orderType === "limit"
+              ? `Working — limit ${side} ${q} ${symbol} @ ${fmtMoney(r.data.limitPrice)}`
+              : `Queued — market closed · ${side} ${q} ${symbol} fills at next open`,
+        });
         setQty("");
       } else {
         setMsg({ ok: true, text: `${side === "buy" ? "Bought" : "Sold"} ${q} ${symbol} @ ${fmtMoney(r.data?.fillPrice)}` });
@@ -282,7 +288,7 @@ export function PaperTicket({ symbol }: { symbol: string }) {
         <button onClick={() => place("sell")} disabled={!ready} style={actionBtn("#da3633", ready)}>{busy === "sell" ? "…" : "Sell"}</button>
       </div>
       <div style={{ fontSize: 11, color: msg ? (msg.ok ? GREEN : RED) : "var(--muted)" }}>
-        {msg ? msg.text : orderType === "limit" ? "Limit order · fills when the quote crosses · paper (simulated)" : "Market order · fills at the live quote · paper (simulated)"}
+        {msg ? msg.text : orderType === "limit" ? "Limit order · fills when the quote crosses · paper (simulated)" : "Market order · fills at the live quote, or queues to next open if the market is closed · paper (simulated)"}
       </div>
     </div>
   );

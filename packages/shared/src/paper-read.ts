@@ -7,9 +7,10 @@
  * no positions) so the UI shows it before the first trade. These tables are owned
  * by the portfolio service; this module only reads them.
  *
- * Orders are split by lifecycle: `workingOrders` are resting limit orders (not yet
- * filled — the cancellable "Orders" view), and `orders` is the terminal blotter
- * (filled / rejected / cancelled — the "Activity" history).
+ * Orders are split by lifecycle: `workingOrders` are resting orders not yet filled —
+ * limit orders, plus market orders queued while the market is closed (the cancellable
+ * "Orders" view); `orders` is the terminal blotter (filled / rejected / cancelled —
+ * the "Activity" history).
  */
 import { and, desc, eq, ne } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
@@ -49,7 +50,7 @@ export interface PaperAccount {
   startingCash: number;
   realizedPnl: number;
   positions: PaperPositionRow[];
-  workingOrders: PaperOrderRow[]; // resting limit orders (cancellable)
+  workingOrders: PaperOrderRow[]; // resting limit + queued-market orders (cancellable)
   orders: PaperOrderRow[]; // terminal blotter (filled / rejected / cancelled)
 }
 
