@@ -14,7 +14,8 @@ export function fmtPct(v: number | null | undefined, digits = 1): string {
 
 export function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  // Always 2 decimals so money columns line up on the decimal point (1000.1 → 1000.10).
+  return `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** Large USD figure in billions, IBKR-style — always the same unit so the column
