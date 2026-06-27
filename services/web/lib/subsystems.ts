@@ -40,7 +40,7 @@ export const SUBSYSTEMS: Subsystem[] = [
   {
     name: "data",
     label: "Data",
-    port: 8081,
+    port: 8082,
     color: "#58a6ff",
     blurb:
       "Sole receiver of external data: periodically pulls the watchlist, aggregates notifications, and runs the screener scanner. No LLM.",
@@ -76,7 +76,7 @@ export const SUBSYSTEMS: Subsystem[] = [
   {
     name: "alpha",
     label: "Alpha",
-    port: 8082,
+    port: 8083,
     color: "#a371f7",
     blurb:
       "The only real LLM agent in the system: reprices notifications into trading signals (reading data's precomputed reference valuation snapshot as one input).",

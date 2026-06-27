@@ -27,7 +27,7 @@ export const config = {
   betterAuthSecret: () => requireEnv("BETTER_AUTH_SECRET"),
   /** Public base URL of the Authorization Server = the gateway origin (e.g.
    *  https://api.sweetvaluelab.com); the MCP resource is `${this}/mcp`. */
-  betterAuthUrl: () => optionalEnv("BETTER_AUTH_URL", "http://localhost:8083"),
+  betterAuthUrl: () => optionalEnv("BETTER_AUTH_URL", "http://localhost:8081"),
   /** The SPA origin (apex) that hosts the human login + OAuth consent pages, and the
    *  CORS-allowed origin for the SPA's credentialed `/auth/*` calls. */
   webOrigin: () => optionalEnv("WEB_ORIGIN", "http://localhost:3001"),
