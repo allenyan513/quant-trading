@@ -198,7 +198,12 @@ export function MobileTabBar() {
 
       {menuOpen && (
         <>
-          <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <button
+            type="button"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Close menu"
+            style={{ position: "fixed", inset: 0, zIndex: 40, background: "transparent", border: "none", cursor: "default" }}
+          />
           <div
             style={{
               position: "fixed",
@@ -274,7 +279,7 @@ function MobileTab({
     );
   }
   return (
-    <button onClick={onClick} style={{ ...style, border: "none", background: "transparent", cursor: "pointer" }}>
+    <button type="button" onClick={onClick} style={{ ...style, border: "none", background: "transparent", cursor: "pointer" }}>
       {inner}
     </button>
   );
