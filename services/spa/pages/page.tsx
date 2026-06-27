@@ -38,10 +38,10 @@ export default function HomePage() {
         }}
       >
         <h1 style={{ fontSize: "clamp(36px, 7vw, 64px)", fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, margin: 0, maxWidth: 760 }}>
-          Facts your Claude can trust.
+          Turn Claude into your investment agent.
         </h1>
-        <p style={{ fontSize: "clamp(16px, 2.4vw, 21px)", color: "var(--muted)", lineHeight: 1.5, margin: 0, maxWidth: 540 }}>
-          Point-in-time-correct US-equity facts, served to your own Claude over MCP.
+        <p style={{ fontSize: "clamp(16px, 2.4vw, 21px)", color: "var(--muted)", lineHeight: 1.5, margin: 0, maxWidth: 560 }}>
+          Research, paper-trade, and review your portfolio — just by chatting.
         </p>
 
         {/* Two CTAs */}
