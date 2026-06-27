@@ -21,11 +21,25 @@ const REFRESH_MS = 5000;
  *  poll), so polling them every 5s is wasted load. */
 export const SLOW_REFRESH_MS = 30_000;
 
-/** SWR hook with the dashboard's envelope unwrapping. Polls every 5s by default;
- *  pass `refreshMs` to slow heavy/rarely-changing endpoints (SWR pauses polling
- *  automatically while the tab is hidden). */
+/** Snapshot endpoints whose data moves at most a few times a day — account /
+ *  holdings / watchlist / per-symbol research. Live price ticking never comes from
+ *  these (that's useQuotes), so they poll on the slow cadence NO MATTER which page
+ *  or side-panel mounts them. This is the key to "poll only what you're looking at":
+ *  navigating away unmounts a page's hooks (SWR stops their timers), and an
+ *  ancillary panel that lingers — e.g. the watchlist rail or decision panel on a
+ *  symbol page — won't sit there hammering a snapshot endpoint every 5s.
+ *  Genuinely live lists (events, signals, news, logs, system overview) keep the 5s
+ *  default; an explicit `refreshMs` always wins over both. */
+const SLOW_PREFIXES = ["/api/watchlist", "/api/holdings", "/api/paper/", "/api/data/symbol"];
+function defaultInterval(url: string): number {
+  return SLOW_PREFIXES.some((p) => url.startsWith(p)) ? SLOW_REFRESH_MS : REFRESH_MS;
+}
+
+/** SWR hook with the dashboard's envelope unwrapping. Interval defaults by endpoint
+ *  nature (snapshot → 30s, live lists → 5s; see SLOW_PREFIXES); pass `refreshMs` to
+ *  override. SWR also pauses polling automatically while the browser tab is hidden. */
 export function useLive<T = unknown>(url: string, opts?: { refreshMs?: number }) {
-  return useSWR<T>(url, fetcher, { refreshInterval: opts?.refreshMs ?? REFRESH_MS, keepPreviousData: true });
+  return useSWR<T>(url, fetcher, { refreshInterval: opts?.refreshMs ?? defaultInterval(url), keepPreviousData: true });
 }
 
 export interface Column<Row> {

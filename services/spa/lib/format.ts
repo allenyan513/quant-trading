@@ -17,6 +17,13 @@ export function fmtMoney(v: number | null | undefined): string {
   return `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
+/** Large USD figure in billions, IBKR-style — always the same unit so the column
+ *  stays scannable: 4663269130000 → "4,663.27B", 1.5e9 → "1.5B". nullish → dash. */
+export function fmtBillions(v: number | null | undefined): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  return `${(v / 1e9).toLocaleString("en-US", { maximumFractionDigits: 2 })}B`;
+}
+
 function toDate(ts: string | Date | null | undefined): Date | null {
   if (!ts) return null;
   const d = typeof ts === "string" ? new Date(ts) : ts;

@@ -11,7 +11,7 @@ import { Columns3 } from "lucide-react";
 import { SymbolLink } from "@/components/symbol-link";
 import { useLive, type Column } from "@/components/live";
 import { Badge, TimeText } from "@/components/ui";
-import { fmtMoney, fmtNum, fmtPct, formatLargeNumber } from "@/lib/format";
+import { fmtMoney, fmtNum, fmtPct, fmtBillions } from "@/lib/format";
 import { TickValue } from "@/components/tick-cell";
 import { apiAction } from "@/lib/api-client";
 import { refresh } from "./api";
@@ -144,7 +144,7 @@ export const columns: Column<WatchRow>[] = [
   { key: "sector", header: "Sector", sort: (r) => r.sector, render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.sector ?? "—"}</span> },
   { key: "industry", header: "Industry", sort: (r) => r.industry, render: (r) => <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.industry ?? "—"}</span> },
   { key: "archetype", header: "Type", sort: (r) => r.archetype, render: (r) => (r.archetype ? <Badge>{r.archetype}</Badge> : dash), width: 110 },
-  { key: "marketCap", header: "Mkt cap", sort: (r) => r.marketCap, render: (r) => (r.marketCap == null ? dash : formatLargeNumber(r.marketCap, { prefix: "" })), width: 90 },
+  { key: "marketCap", header: "Mkt cap", sort: (r) => r.marketCap, render: (r) => (r.marketCap == null ? dash : fmtBillions(r.marketCap)), width: 90 },
   // Price without a `$` prefix — the column header already says Price (fmtNum = fmtMoney sans `$`).
   { key: "price", header: "Price", sort: (r) => r.price, render: (r) => <TickValue value={r.price} dayChangePct={r.changePct} format={fmtNum} />, width: 90 },
   { key: "changePct", header: "Change %", sort: (r) => r.changePct, render: (r) => pctCell(r.changePct), width: 90 },
