@@ -10,7 +10,7 @@
  * deferred).
  */
 
-import { useLive } from "@/components/live";
+import { useLive, SLOW_REFRESH_MS } from "@/components/live";
 import { usePaperAccount } from "@/components/paper-ledger";
 import { fmtMoney } from "@/lib/format";
 import type { Ledger } from "@/components/portfolio/ledgers";
@@ -90,8 +90,8 @@ interface Nav {
   dayReturn: number | null;
 }
 function LiveMetrics() {
-  const { data: nav } = useLive<Nav>("/api/holdings/nav");
-  const { data: pos } = useLive<{ positions: LivePos[] }>("/api/holdings/positions");
+  const { data: nav } = useLive<Nav>("/api/holdings/nav", { refreshMs: SLOW_REFRESH_MS });
+  const { data: pos } = useLive<{ positions: LivePos[] }>("/api/holdings/positions", { refreshMs: SLOW_REFRESH_MS });
   const all = pos?.positions ?? [];
   const cash = all.filter((p) => p.assetClass === "CASH").reduce((acc, p) => acc + (p.positionValue ?? 0), 0);
   const holds = all.filter((p) => p.assetClass !== "CASH");

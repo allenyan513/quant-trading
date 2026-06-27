@@ -16,6 +16,7 @@ import {
   valuationSnapshots,
   positions,
   universe,
+  companyProfile,
 } from "../db.js";
 
 /**
@@ -43,7 +44,7 @@ export async function listWatchlistOverview(userId: string) {
     .where(inArray(dailyPrices.symbol, syms))
     .as("recent");
 
-  const [vals, pos, uni, recent, ytdRows, hi52Rows, y1Rows, ratiosRows, targetRows, ratingRows] = await Promise.all([
+  const [vals, pos, uni, profiles, recent, ytdRows, hi52Rows, y1Rows, ratiosRows, targetRows, ratingRows] = await Promise.all([
     // Latest snapshot per symbol (DISTINCT ON keyed by symbol, newest first).
     db()
       .selectDistinctOn([valuationSnapshots.symbol], {
@@ -72,6 +73,12 @@ export async function listWatchlistOverview(userId: string) {
       })
       .from(universe)
       .where(inArray(universe.symbol, syms)),
+    // Full FMP company profile (carries market cap) per symbol, populated on
+    // symbol-page open / cache warming. May be absent for some symbols → null cap.
+    db()
+      .select({ symbol: companyProfile.symbol, data: companyProfile.data })
+      .from(companyProfile)
+      .where(inArray(companyProfile.symbol, syms)),
     db().select({ symbol: recentSub.symbol, close: recentSub.close, rn: recentSub.rn }).from(recentSub).where(sql`${recentSub.rn} <= 2`),
     db()
       .selectDistinctOn([dailyPrices.symbol], { symbol: dailyPrices.symbol, close: dailyPrices.close })
@@ -113,6 +120,7 @@ export async function listWatchlistOverview(userId: string) {
   const vBy = new Map(vals.map((v) => [v.symbol, v]));
   const pBy = new Map(pos.map((p) => [p.symbol, p]));
   const uBy = new Map(uni.map((u) => [u.symbol, u]));
+  const profBy = new Map(profiles.map((p) => [p.symbol, p.data as Record<string, unknown>]));
   const hi52By = new Map(hi52Rows.map((r) => [r.symbol, r.hi]));
   const y1By = new Map<string, number>();
   for (const r of y1Rows) if (r.close != null) y1By.set(r.symbol, r.close);
@@ -151,6 +159,7 @@ export async function listWatchlistOverview(userId: string) {
       const p = pBy.get(w.symbol);
       const u = uBy.get(w.symbol);
       const ratios = ratiosBy.get(w.symbol);
+      const prof = profBy.get(w.symbol);
       const tgt = targetBy.get(w.symbol);
       const rating = ratingBy.get(w.symbol);
       const last = lastBy.get(w.symbol) ?? null;
@@ -175,6 +184,8 @@ export async function listWatchlistOverview(userId: string) {
         industry: u?.industry ?? null,
         archetype: u?.archetype ?? null,
         beta: u?.beta ?? null,
+        // FMP's stable profile stores market cap as `marketCap` (legacy API: `mktCap`).
+        marketCap: num(prof?.marketCap) ?? num(prof?.mktCap),
         changePct: q?.changePct ?? (cur != null && prev != null && prev !== 0 ? ((cur - prev) / prev) * 100 : null),
         ytdPct: cur != null && ytdBase != null && ytdBase !== 0 ? ((cur - ytdBase) / ytdBase) * 100 : null,
         ret1y: cur != null && y1 != null && y1 !== 0 ? ((cur - y1) / y1) * 100 : null,

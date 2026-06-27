@@ -61,15 +61,34 @@ function BottomAdd({ activeList }: { activeList: string }) {
   );
 }
 
+// The overview is a heavy multi-join of valuation / fundamentals / analyst data
+// that changes ~daily, so it polls slowly; live price freshness comes from the
+// lightweight market-hours quote poll, overlaid client-side (see `overlay` below).
+// Groups (tabs) change only on explicit user action (which calls refresh()).
+const OVERVIEW_REFRESH_MS = 30_000;
+const LISTS_REFRESH_MS = 60_000;
+
 export default function WatchlistPage() {
   const router = useRouter();
-  const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
+  const { data: lists } = useLive<WL[]>("/api/watchlist/lists", { refreshMs: LISTS_REFRESH_MS });
   // Reads the same SWR cache LiveTable fills (deduped) just to know which symbols
-  // are shown, then ticks their live quotes during market hours — the data refresh
-  // lands in data_quotes and the overview overlay surfaces it on the next poll.
-  const { data: rows } = useLive<WatchRow[]>("/api/watchlist");
+  // are shown, then ticks their live quotes during market hours.
+  const { data: rows } = useLive<WatchRow[]>("/api/watchlist", { refreshMs: OVERVIEW_REFRESH_MS });
   const syms = useMemo(() => [...new Set((rows ?? []).map((r) => r.symbol))], [rows]);
-  useQuotes(syms);
+  const quotes = useQuotes(syms);
+  // Overlay the live quote onto each row so price + day change tick at the quote
+  // cadence (15s, market-hours-gated) without re-polling the heavy overview. Off
+  // hours the map is empty → rows keep their daily-close price untouched.
+  const overlay = useMemo(
+    () => (rs: WatchRow[]) =>
+      quotes.size === 0
+        ? rs
+        : rs.map((r) => {
+            const q = quotes.get(r.symbol);
+            return q ? { ...r, price: q.price, changePct: q.changePct ?? r.changePct } : r;
+          }),
+    [quotes],
+  );
   const [activeList, setActiveList] = useState<string>("all");
   const [selected, setSelected] = useState<string | null>(null);
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE));
@@ -193,6 +212,8 @@ export default function WatchlistPage() {
       <LiveTable
         path="/api/watchlist"
         storageKey="watchlist"
+        refreshMs={OVERVIEW_REFRESH_MS}
+        overlay={overlay}
         rowKey={(r: WatchRow) => r.symbol}
         columns={shownColumns}
         rowFilter={activeList === "all" ? undefined : (r) => r.listId === activeList}

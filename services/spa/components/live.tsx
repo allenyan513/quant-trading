@@ -16,10 +16,16 @@ async function fetcher(url: string) {
 }
 
 const REFRESH_MS = 5000;
+/** Slower cadence for heavy / rarely-changing snapshots (account, holdings, NAV):
+ *  these don't carry the live price tick (that comes from the market-hours quote
+ *  poll), so polling them every 5s is wasted load. */
+export const SLOW_REFRESH_MS = 30_000;
 
-/** SWR hook with 5s polling and the dashboard's envelope unwrapping. */
-export function useLive<T = unknown>(url: string) {
-  return useSWR<T>(url, fetcher, { refreshInterval: REFRESH_MS, keepPreviousData: true });
+/** SWR hook with the dashboard's envelope unwrapping. Polls every 5s by default;
+ *  pass `refreshMs` to slow heavy/rarely-changing endpoints (SWR pauses polling
+ *  automatically while the tab is hidden). */
+export function useLive<T = unknown>(url: string, opts?: { refreshMs?: number }) {
+  return useSWR<T>(url, fetcher, { refreshInterval: opts?.refreshMs ?? REFRESH_MS, keepPreviousData: true });
 }
 
 export interface Column<Row> {
@@ -60,6 +66,12 @@ interface LiveTableProps<Row> {
   onRowClick?: (row: Row) => void;
   /** rowKey of the currently-selected row, highlighted. */
   selectedKey?: string;
+  /** Override the SWR poll interval (ms) for a heavy/rarely-changing endpoint. */
+  refreshMs?: number;
+  /** Client-side transform applied to the fetched rows before filter/sort/render
+   *  — e.g. overlay live quotes so price ticks at the quote cadence without
+   *  re-polling a heavy endpoint. */
+  overlay?: (rows: Row[]) => Row[];
 }
 
 export type SortState = { key: string; dir: "asc" | "desc" } | null;
@@ -114,7 +126,7 @@ function sortByAccessor<Row>(rows: Row[], accessor: (row: Row) => SortVal, dir: 
   });
 }
 
-export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData, storageKey, onRowClick, selectedKey }: LiveTableProps<Row>) {
+export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, emptyText, pageSize, onRowDoubleClick, rowFilter, getRowDragData, storageKey, onRowClick, selectedKey, refreshMs, overlay }: LiveTableProps<Row>) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -135,8 +147,9 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
   }
   const url = qs.toString() ? `${path}?${qs}` : path;
 
-  const { data, error, isLoading } = useLive<Row[]>(url);
-  const fetched = data ?? [];
+  const { data, error, isLoading } = useLive<Row[]>(url, refreshMs ? { refreshMs } : undefined);
+  const base = data ?? [];
+  const fetched = overlay ? overlay(base) : base;
   const filtered = rowFilter ? fetched.filter(rowFilter) : fetched;
   const { sorted: ordered, sort, cycle } = useSort(filtered, (key) => columns.find((c) => c.key === key)?.sort, storageKey);
   const hasMore = pageSize ? ordered.length > pageSize : false;
@@ -172,7 +185,7 @@ export function LiveTable<Row>({ path, columns, filters = [], rowKey, expand, em
             ),
           )}
           <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted)" }}>
-            {isLoading ? "loading…" : `${rows.length} rows · live 5s`}
+            {isLoading ? "loading…" : `${rows.length} rows · live ${Math.round((refreshMs ?? REFRESH_MS) / 1000)}s`}
           </span>
         </div>
       )}
