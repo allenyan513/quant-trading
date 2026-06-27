@@ -43,17 +43,18 @@ export function money(v: number | null | undefined, style: MoneyStyle = "cell", 
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
   const p = MONEY_POLICY[style];
   const dp = opts?.decimals ?? p.decimals;
-  const sign = p.currency ? "$" : "";
-  if (p.billions) return `${sign}${(v / 1e9).toLocaleString("en-US", { maximumFractionDigits: dp })}B`;
+  // Sign goes BEFORE the currency symbol — "-$1,234.50", never "$-1,234.50".
+  const prefix = (v < 0 ? "-" : "") + (p.currency ? "$" : "");
+  const a = Math.abs(v);
+  if (p.billions) return `${prefix}${(a / 1e9).toLocaleString("en-US", { maximumFractionDigits: dp })}B`;
   if (p.abbrev) {
-    const a = Math.abs(v);
-    if (a >= 1e12) return `${sign}${(v / 1e12).toFixed(dp)}T`;
-    if (a >= 1e9) return `${sign}${(v / 1e9).toFixed(dp)}B`;
-    if (a >= 1e6) return `${sign}${(v / 1e6).toFixed(dp)}M`;
-    return `${sign}${v.toLocaleString("en-US", { maximumFractionDigits: dp })}`;
+    if (a >= 1e12) return `${prefix}${(a / 1e12).toFixed(dp)}T`;
+    if (a >= 1e9) return `${prefix}${(a / 1e9).toFixed(dp)}B`;
+    if (a >= 1e6) return `${prefix}${(a / 1e6).toFixed(dp)}M`;
+    return `${prefix}${a.toLocaleString("en-US", { maximumFractionDigits: dp })}`;
   }
   // Full number, fixed decimals so columns line up on the decimal point.
-  return `${sign}${v.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
+  return `${prefix}${a.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
 }
 
 /** Table / KPI money — bare, 2 decimals (IBKR-style). Alias for `money(v, "cell")`. */

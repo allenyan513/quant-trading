@@ -272,7 +272,8 @@ export default function NewsPage() {
 
 /** Triage verdict cell: priority badge + materiality, or the screen-out reason
  * / "untriaged". Rationale shows on hover. */
-/** Compact USD for market cap, e.g. 4.2e8 -> "$420M", 1.2e9 -> "$1.2B". */
+/** Compact market cap, bare (IBKR-style — News is a summary surface, no `$`):
+ *  4.2e8 -> "420M", 1.2e9 -> "1.2B". */
 function fmtUsd(n: number): string {
   if (!Number.isFinite(n)) return "?";
   return money(n, "compact");
