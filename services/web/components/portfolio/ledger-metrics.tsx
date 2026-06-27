@@ -63,13 +63,17 @@ function PaperMetrics() {
     if (q && q.prevClose != null) dayPnl = (dayPnl ?? 0) + (q.price - q.prevClose) * p.quantity;
   }
   const prior = dayPnl != null ? equity - dayPnl : null;
+  // Buying power = cash − 2·short collateral (cost basis of open shorts), matching the
+  // engine's gate: short-sale proceeds sit in cash but are locked AND require equal
+  // collateral, so each $1 shorted costs $1 of buying power.
+  const shortCollateral = positions.reduce((acc, p) => (p.quantity < 0 ? acc + Math.abs(p.quantity) * p.avgCost : acc), 0);
   const s: AccountSummary = {
     dayPnl,
     dayPnlPct: dayPnl != null && prior && prior !== 0 ? (dayPnl / prior) * 100 : null,
     unrealized: positions.length ? unrealized : null,
     realized: acct?.realizedPnl ?? 0,
     netLiquidity: equity,
-    buyingPower: cash,
+    buyingPower: cash - 2 * shortCollateral,
   };
   return <Strip s={s} />;
 }

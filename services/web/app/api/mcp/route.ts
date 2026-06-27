@@ -132,8 +132,8 @@ const mcpHandler = createMcpHandler(
       {
         title: "Get Paper Account",
         description:
-          "Fetch the signed-in user's SIMULATED paper-trading account as structured JSON: cash (= buying " +
-          "power), cumulative realized P&L, net positions (symbol, quantity, average cost), the resting " +
+          "Fetch the signed-in user's SIMULATED paper-trading account as structured JSON: cash, cumulative " +
+          "realized P&L, net positions (symbol, signed quantity — negative = short — average cost), the resting " +
           "WORKING limit orders (workingOrders — not yet filled, cancellable via cancel_paper_order), and " +
           "the recent terminal order blotter (filled / rejected / cancelled). Private + per-user. Use to " +
           "check the account before deciding a trade, or to review fills after place_paper_order. This is " +
@@ -164,15 +164,17 @@ const mcpHandler = createMcpHandler(
           "order and fills when the quote crosses your limit (buy: quote ≤ limit; sell: quote ≥ limit), at " +
           "the crossing market price — never worse than your limit — use a limit order for a watch/entry " +
           "at a target price (status comes back 'working'). " +
-          "Buys debit cash (rejected if insufficient funds); sells reduce/close a long (rejected if it " +
-          "would go short — no short selling yet). Long equity only. Optionally attach a thesis (rationale " +
+          "A buy adds a long (or covers a short); a sell reduces/closes a long, and a sell beyond the long " +
+          "(or from flat) opens a SHORT. Bounded by buying power (cash minus twice the short collateral); an " +
+          "order that exceeds it is rejected 'insufficient_buying_power'. Equity only (no options/margin). " +
+          "Optionally attach a thesis (rationale " +
           "+ targetPrice / stopPrice / timeHorizon) — recorded with the order, informational only, never " +
           "auto-executed. SIMULATED — never touches a real brokerage. Returns the fill (or working/" +
           "rejected status), resulting position, and remaining cash. Pass a unique idempotencyKey so a " +
           "retry never fills twice.",
         inputSchema: {
           symbol: z.string().describe("Ticker, e.g. MU or AAPL."),
-          side: z.enum(["buy", "sell"]).describe("buy to open/add a long; sell to reduce/close it."),
+          side: z.enum(["buy", "sell"]).describe("buy adds a long / covers a short; sell reduces a long or opens/extends a short."),
           quantity: z.number().positive().describe("Number of shares (must be > 0)."),
           orderType: z.enum(["market", "limit"]).optional().describe("market (default) fills now; limit rests until the quote crosses."),
           limitPrice: z.number().positive().optional().describe("Required for a limit order — the price to fill at."),

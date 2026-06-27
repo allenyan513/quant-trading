@@ -2,8 +2,8 @@
 
 /**
  * Left pane of the Portfolio workbench: a positions table (IBKR/watchlist styling)
- * with row selection that drives the right-rail symbol detail, plus an Activity tab
- * (the ledger's executed history). Same shape for every ledger; only the data source
+ * with row selection that drives the right-rail symbol detail, plus a Trades tab
+ * (the ledger's executed-fill history). Same shape for every ledger; only the data source
  * + columns differ (Live = IBKR mirror, Paper = order-driven sim).
  */
 
@@ -27,15 +27,16 @@ export function PositionsTable({ ledger, selected, onSelect }: { ledger: Ledger;
   return <HoldingsTable ledger={ledger} selected={selected} onSelect={onSelect} />;
 }
 
-/** The Activity tab content — the ledger's executed history. */
-export function ActivityView({ ledger }: { ledger: Ledger }) {
-  return <Activity ledger={ledger} />;
+/** The Trades tab content — the ledger's executed-fill history. */
+export function TradesView({ ledger }: { ledger: Ledger }) {
+  return <Trades ledger={ledger} />;
 }
 
 /** Live + Paper: current holdings, live-marked. */
 interface HoldingRow {
   symbol: string;
   label: string;
+  quantity: number; // signed: < 0 = short
   last: number | null;
   dayChangePct: number | null;
   avg: number | null;
@@ -68,6 +69,13 @@ function SortHeader({ k, label, align, sort, onSort }: { k: string; label: strin
   );
 }
 
+/** Position return % on cost basis — sign-correct for shorts (a price drop is a gain).
+ *  pct = unrealized / (avg · |qty|) · 100; null when avg/qty unknown or zero. */
+function returnPct(unrealized: number, avg: number | null, quantity: number): number | null {
+  if (avg == null || avg === 0 || quantity === 0) return null;
+  return (unrealized / (avg * Math.abs(quantity))) * 100;
+}
+
 interface LivePos {
   symbol: string;
   assetClass: string;
@@ -96,15 +104,17 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
           const q = quotes.get(p.symbol);
           const last = q?.price ?? null;
           const mark = last ?? p.avgCost;
+          const unrealized = (mark - p.avgCost) * p.quantity;
           return {
             symbol: p.symbol,
             label: p.symbol,
+            quantity: p.quantity,
             last,
             dayChangePct: q?.changePct ?? null,
             avg: p.avgCost,
             mktValue: mark * p.quantity,
-            unrealized: (mark - p.avgCost) * p.quantity,
-            unrealizedPct: p.avgCost !== 0 ? (mark / p.avgCost - 1) * 100 : null,
+            unrealized,
+            unrealizedPct: returnPct(unrealized, p.avgCost, p.quantity),
             selectable: true,
           };
         })
@@ -119,12 +129,13 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
             return {
               symbol: p.symbol,
               label: optionLabel(p),
+              quantity: p.quantity,
               last,
               dayChangePct: q?.changePct ?? null,
               avg,
               mktValue,
               unrealized,
-              unrealizedPct: avg != null && avg !== 0 && last != null ? (last / avg - 1) * 100 : null,
+              unrealizedPct: last != null ? returnPct(unrealized, avg, p.quantity) : null,
               selectable: true,
             };
           });
@@ -165,7 +176,12 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
               onClick={() => r.selectable && onSelect(r.symbol)}
               style={{ cursor: r.selectable ? "pointer" : "default", background: selected === r.symbol ? "var(--panel-2)" : undefined }}
             >
-              <td style={{ ...td, fontWeight: 600 }}>{r.label}</td>
+              <td style={{ ...td, fontWeight: 600 }}>
+                {r.label}
+                {r.quantity < 0 && (
+                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: RED, border: `1px solid ${RED}`, borderRadius: 3, padding: "0 4px", verticalAlign: "middle" }}>SHORT</span>
+                )}
+              </td>
               <td style={{ ...td, ...num }}>
                 <TickValue value={r.last} dayChangePct={r.dayChangePct} format={(v) => (v == null ? "—" : fmtMoney(v))} />
               </td>
@@ -181,12 +197,12 @@ function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selecte
   );
 }
 
-function Activity({ ledger }: { ledger: Ledger }) {
-  if (ledger === "paper") return <PaperActivity />;
+function Trades({ ledger }: { ledger: Ledger }) {
+  if (ledger === "paper") return <PaperTrades />;
   return <LiveTable path="/api/holdings/trades" rowKey={(r: HoldingsTrade) => `${r.tradeDate}-${r.symbol}-${r.externalTradeId}`} columns={TRADE_COLS} emptyText="No trades." />;
 }
 
-function PaperActivity() {
+function PaperTrades() {
   const { data: acct } = useLive<PaperAccount>("/api/paper/account");
   if (!acct) return <Empty>Loading…</Empty>;
   return <PaperBlotter orders={acct.orders} />;
