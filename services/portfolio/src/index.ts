@@ -14,7 +14,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { ok, fail, config, isAuthorizedJob, IBKRFlexError, type TradingSignalDTO } from "@qt/shared";
 import { handleSignal } from "./strategy.js";
 import { settlePositions } from "./track.js";
-import { createPaperOrder, resetPaperAccount, type OrderSide, type OrderSource } from "./paper.js";
+import { createPaperOrder, matchWorkingOrders, cancelPaperOrder, resetPaperAccount, type OrderSide, type OrderType, type OrderSource, type Tif } from "./paper.js";
 import { syncHoldings, syncAllHoldings } from "./holdings/sync.js";
 import { setHoldingsCredentials, HoldingsNotConnectedError } from "./holdings/credentials.js";
 import { route } from "./route.js";
@@ -66,13 +66,60 @@ app.post(
     const symbol = String(body.symbol ?? "").trim();
     const side = String(body.side ?? "").trim().toLowerCase();
     const quantity = Number(body.quantity);
+    const orderType = String(body.orderType ?? "market").trim().toLowerCase();
+    const tif = String(body.tif ?? "gtc").trim().toLowerCase();
+    const limitPrice = body.limitPrice != null ? Number(body.limitPrice) : null;
     const source: OrderSource = String(body.source ?? "manual").trim().toLowerCase() === "mcp" ? "mcp" : "manual";
     const idempotencyKey = body.idempotencyKey != null ? String(body.idempotencyKey) : null;
     if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
     if (side !== "buy" && side !== "sell") return c.json(fail("bad_request", "side must be buy or sell"), 400);
     if (!Number.isFinite(quantity) || quantity <= 0) return c.json(fail("bad_request", "quantity must be > 0"), 400);
-    c.set("logContext", { userId, symbol, side, quantity });
-    return createPaperOrder(userId, symbol, side as OrderSide, quantity, source, idempotencyKey);
+    if (orderType !== "market" && orderType !== "limit") return c.json(fail("bad_request", "orderType must be market or limit"), 400);
+    if (tif !== "day" && tif !== "gtc") return c.json(fail("bad_request", "tif must be day or gtc"), 400);
+    if (orderType === "limit" && (limitPrice == null || !Number.isFinite(limitPrice) || limitPrice <= 0))
+      return c.json(fail("bad_request", "limit order requires a positive limitPrice"), 400);
+    c.set("logContext", { userId, symbol, side, quantity, order_type: orderType });
+    return createPaperOrder({
+      userId,
+      symbol,
+      side: side as OrderSide,
+      quantity,
+      source,
+      orderType: orderType as OrderType,
+      limitPrice,
+      tif: tif as Tif,
+      idempotencyKey,
+      thesis: body.thesis != null ? String(body.thesis) : null,
+      targetPrice: body.targetPrice != null ? Number(body.targetPrice) : null,
+      stopPrice: body.stopPrice != null ? Number(body.stopPrice) : null,
+      timeHorizon: body.timeHorizon != null ? String(body.timeHorizon) : null,
+    });
+  }),
+);
+
+// Cancel a resting (working) limit order.
+app.post(
+  "/paper/orders/cancel",
+  route("paper.cancel", async (c) => {
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
+    const userId = String(body.userId ?? "").trim();
+    const orderId = String(body.orderId ?? "").trim();
+    if (!userId || !orderId) return c.json(fail("bad_request", "userId and orderId required"), 400);
+    c.set("logContext", { userId, order_id: orderId });
+    return cancelPaperOrder(userId, orderId);
+  }),
+);
+
+// Match the user's resting limit orders against the live quote (triggered on page
+// open / account read — no background cron). Idempotent: fills only crossing orders.
+app.post(
+  "/paper/match",
+  route("paper.match", async (c) => {
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
+    const userId = String(body.userId ?? "").trim();
+    if (!userId) return c.json(fail("bad_request", "userId required"), 400);
+    c.set("logContext", { userId });
+    return matchWorkingOrders(userId);
   }),
 );
 
