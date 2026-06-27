@@ -14,8 +14,10 @@ export function fmtPct(v: number | null | undefined, digits = 1): string {
 
 export function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  // Always 2 decimals so money columns line up on the decimal point (1000.1 → 1000.10).
-  return `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // IBKR-style bare number (no `$` — the app is single-currency USD), always 2 decimals
+  // so money columns line up on the decimal point (1000.1 → 1000.10). The valuation
+  // detail page keeps `$` via formatCurrency; everything else (tables / KPIs) uses this.
+  return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /** Large USD figure in billions, IBKR-style — always the same unit so the column
@@ -127,12 +129,13 @@ export function fmtFull(ts: string | Date | null | undefined): string {
 // The valuation detail page + its component closure depend on these exact names.
 // ============================================================
 
-/** Format a number with T/B/M abbreviations (e.g., $1.2T, $1.2B, $1.2M). */
+/** Format a number with T/B/M abbreviations (e.g., 1.2T, 1.2B, 1.2M). Bare by default
+ *  (no `$`) for tables/summaries; pass `{ prefix: "$" }` on the valuation detail page. */
 export function formatLargeNumber(
   n: number,
   opts?: { prefix?: string; decimals?: number; includeK?: boolean },
 ): string {
-  const { prefix = "$", decimals = 1, includeK = false } = opts ?? {};
+  const { prefix = "", decimals = 1, includeK = false } = opts ?? {};
   if (Math.abs(n) >= 1e12) return `${prefix}${(n / 1e12).toFixed(decimals)}T`;
   if (Math.abs(n) >= 1e9) return `${prefix}${(n / 1e9).toFixed(decimals)}B`;
   if (Math.abs(n) >= 1e6) return `${prefix}${(n / 1e6).toFixed(decimals)}M`;

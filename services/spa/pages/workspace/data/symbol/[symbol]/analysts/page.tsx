@@ -85,11 +85,11 @@ function Estimates({ rows }: { rows: EstRow[] }) {
                 <tr key={r.fiscalDate}>
                   <td style={{ ...td, textAlign: "left" }}>{r.fiscalDate.slice(0, 4)}</td>
                   <td style={{ ...td, ...mono }}>{n(d, "revenueAvg") == null ? "—" : formatLargeNumber(n(d, "revenueAvg")!)}</td>
-                  <td style={{ ...td, ...mono }}>{eps == null ? "—" : `$${eps.toFixed(2)}`}</td>
+                  <td style={{ ...td, ...mono }}>{eps == null ? "—" : eps.toFixed(2)}</td>
                   <td style={{ ...td, ...mono, color: "var(--muted)" }}>
                     {n(d, "revenueLow") == null ? "—" : `${formatLargeNumber(n(d, "revenueLow")!)}–${formatLargeNumber(n(d, "revenueHigh") ?? n(d, "revenueLow")!)}`}
                   </td>
-                  <td style={{ ...td, ...mono, color: "var(--muted)" }}>{epsL == null ? "—" : `$${epsL.toFixed(2)}–$${(epsH ?? epsL).toFixed(2)}`}</td>
+                  <td style={{ ...td, ...mono, color: "var(--muted)" }}>{epsL == null ? "—" : `${epsL.toFixed(2)}–${(epsH ?? epsL).toFixed(2)}`}</td>
                   <td style={{ ...td, ...mono, color: "var(--muted)" }}>{an == null ? "—" : fmtNum(an, 0)}</td>
                 </tr>
               );

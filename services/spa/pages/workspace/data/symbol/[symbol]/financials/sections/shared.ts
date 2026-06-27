@@ -117,7 +117,7 @@ export const CASHFLOW_LINES: Line[] = [
 
 export function fmtLine(kind: LineKind, v: number | null): string {
   if (v == null) return "—";
-  if (kind === "pershare") return `$${v.toFixed(2)}`;
+  if (kind === "pershare") return v.toFixed(2);
   if (kind === "count") return formatLargeNumber(v, { prefix: "", decimals: 2 });
   return formatLargeNumber(v);
 }

@@ -271,13 +271,13 @@ export default function NewsPage() {
 
 /** Triage verdict cell: priority badge + materiality, or the screen-out reason
  * / "untriaged". Rationale shows on hover. */
-/** Compact USD for market cap, e.g. 4.2e8 -> "$420M", 1.2e9 -> "$1.2B". */
+/** Compact market cap, e.g. 4.2e8 -> "420M", 1.2e9 -> "1.2B" (bare, IBKR-style). */
 function fmtUsd(n: number): string {
   if (!Number.isFinite(n)) return "?";
-  if (n >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${Math.round(n / 1e6)}M`;
-  return `$${Math.round(n)}`;
+  if (n >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${Math.round(n / 1e6)}M`;
+  return `${Math.round(n)}`;
 }
 
 interface TriageLabel {

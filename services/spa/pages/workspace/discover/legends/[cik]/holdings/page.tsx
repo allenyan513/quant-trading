@@ -93,7 +93,7 @@ export default function LegendHoldingsTab() {
                   <td style={tdR}>{(h.pctPortfolio * 100).toFixed(2)}%</td>
                   <td style={{ ...td, color: act.color, whiteSpace: "nowrap" }}>{act.text}</td>
                   <td style={tdR}>{h.shares > 0 ? Math.round(h.shares).toLocaleString() : "—"}</td>
-                  <td style={tdR}>{h.reportedPrice != null ? `$${h.reportedPrice.toFixed(2)}` : "—"}</td>
+                  <td style={tdR}>{h.reportedPrice != null ? h.reportedPrice.toFixed(2) : "—"}</td>
                   <td style={tdR}>{h.value > 0 ? fmtMoney(h.value) : "—"}</td>
                 </tr>
               );

@@ -27,7 +27,7 @@ export function EPVSection({ summary }: Props) {
           <>
             Using the Earnings Power Value framework with a WACC of{" "}
             {formatRatio(d.wacc)} and normalized earnings of{" "}
-            {formatLargeNumber(d.normalized_earnings)}, the company has a
+            {formatLargeNumber(d.normalized_earnings, { prefix: "$" })}, the company has a
             fair value of {formatCurrency(model.fair_value)} per share.
             The EPV range is {formatCurrency(model.low_estimate)} –{" "}
             {formatCurrency(model.high_estimate)} based on WACC sensitivity
