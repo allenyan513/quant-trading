@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useMemo } from "react";
-import { useLive, LiveTable, useSort, SLOW_REFRESH_MS, type Column, type SortState } from "@/components/live";
+import { useLive, LiveTable, useSort, type Column, type SortState } from "@/components/live";
 import { useQuotes } from "@/components/quotes";
 import { TickValue } from "@/components/tick-cell";
 import { usePaperAccount, PaperBlotter, type PaperAccount } from "@/components/paper-ledger";
@@ -90,7 +90,7 @@ interface LivePos {
 
 function HoldingsTable({ ledger, selected, onSelect }: { ledger: Ledger; selected: string | null; onSelect: (s: string) => void }) {
   const paper = usePaperAccount();
-  const { data: live } = useLive<{ positions: LivePos[] }>("/api/holdings/positions", { refreshMs: SLOW_REFRESH_MS });
+  const { data: live } = useLive<{ positions: LivePos[] }>("/api/holdings/positions");
 
   const symbols = useMemo(() => {
     if (ledger === "paper") return paper.positions.map((p) => p.symbol);
@@ -203,7 +203,7 @@ function Trades({ ledger }: { ledger: Ledger }) {
 }
 
 function PaperTrades() {
-  const { data: acct } = useLive<PaperAccount>("/api/paper/account", { refreshMs: SLOW_REFRESH_MS });
+  const { data: acct } = useLive<PaperAccount>("/api/paper/account");
   if (!acct) return <Empty>Loading…</Empty>;
   return <PaperBlotter orders={acct.orders} />;
 }

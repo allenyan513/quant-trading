@@ -58,7 +58,7 @@ export interface WL {
 
 /** Per-row group assignment dropdown (— = ungrouped / All). */
 function AssignCell({ symbol, listId }: { symbol: string; listId: string | null }) {
-  const { data: lists } = useLive<WL[]>("/api/watchlist/lists", { refreshMs: 60_000 });
+  const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
   const [busy, setBusy] = useState(false);
   async function assign(value: string) {
     setBusy(true);

@@ -14,7 +14,7 @@
 
 import { useMemo, useState } from "react";
 import { mutate } from "swr";
-import { useLive, SLOW_REFRESH_MS } from "@/components/live";
+import { useLive } from "@/components/live";
 import { useQuotes } from "@/components/quotes";
 import { apiSend, apiAction } from "@/lib/api-client";
 import { fmtMoney } from "@/lib/format";
@@ -66,7 +66,7 @@ export async function refreshPaper() {
 
 /** Reads the paper account + live marks; returns derived equity metrics. */
 export function usePaperAccount() {
-  const { data: acct, error } = useLive<PaperAccount>("/api/paper/account", { refreshMs: SLOW_REFRESH_MS });
+  const { data: acct, error } = useLive<PaperAccount>("/api/paper/account");
   const positions = acct?.positions ?? [];
   const symbols = useMemo(() => positions.map((p) => p.symbol), [positions]);
   const quotes = useQuotes(symbols);
@@ -133,7 +133,7 @@ export function PaperBlotter({ orders }: { orders: PaperOrder[] }) {
 
 /** Working (resting) limit orders — cancellable. Reads the paper account directly. */
 export function PaperOrders() {
-  const { data: acct } = useLive<PaperAccount>("/api/paper/account", { refreshMs: SLOW_REFRESH_MS });
+  const { data: acct } = useLive<PaperAccount>("/api/paper/account");
   const [busy, setBusy] = useState<string | null>(null);
   if (!acct) return <Empty>Loading…</Empty>;
   const orders = acct.workingOrders ?? [];
