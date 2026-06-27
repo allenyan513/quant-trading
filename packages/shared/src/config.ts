@@ -17,6 +17,11 @@ export const config = {
   port: Number(optionalEnv("PORT", "8080")),
   databaseUrl: () => requireEnv("DATABASE_URL"),
 
+  /** CORS allow-list for the API gateway (comma-separated origins). Default "*"
+   *  is fine while the gateway serves only public, credential-less reads; PR4
+   *  (cross-origin SPA with cookies) pins it to the SPA origin via env. */
+  gatewayCorsOrigins: () => optionalEnv("GATEWAY_CORS_ORIGINS", "*"),
+
   anthropicApiKey: () => requireEnv("ANTHROPIC_API_KEY"),
   // Models are code constants, not per-deploy knobs: a model is coupled to the
   // prompt contract + the look-ahead cutoff, so changing one is a code change

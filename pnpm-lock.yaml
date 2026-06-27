@@ -99,6 +99,31 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@types/node@25.9.2)(vite@8.0.14(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4))
 
+  services/gateway:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.7
+        version: 1.19.14(hono@4.12.23)
+      '@neondatabase/serverless':
+        specifier: ^0.10.4
+        version: 0.10.4
+      '@qt/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@neondatabase/serverless@0.10.4)(@types/pg@8.20.0)(kysely@0.29.2)(pg@8.21.0)
+      hono:
+        specifier: ^4.6.13
+        version: 4.12.23
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+    devDependencies:
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.9.2)(vite@8.0.14(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4))
+
   services/portfolio:
     dependencies:
       '@hono/node-server':
