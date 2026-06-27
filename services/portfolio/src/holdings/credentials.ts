@@ -2,7 +2,7 @@
  * Holdings (IBKR Flex) credentials, stored in portfolio_holdings_accounts, keyed by
  * the user's id (account_id = Better Auth user.id). portfolio owns this table and is
  * the only writer. The Flex token is encrypted at rest (AES-256-GCM, see
- * @qt/shared/crypto); web only ever reads a "connected" status, never the token.
+ * @qt/shared/crypto); the gateway only ever reads a "connected" status, never the token.
  */
 import { eq } from "drizzle-orm";
 import { db, dbSchema, encryptSecret, decryptSecret, type FlexConfig } from "@qt/shared";

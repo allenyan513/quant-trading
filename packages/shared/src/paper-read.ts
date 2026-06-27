@@ -1,5 +1,5 @@
 /**
- * Per-user paper-trading account read — shared by the web dashboard route and the
+ * Per-user paper-trading account read — shared by the SPA dashboard route and the
  * MCP `get_paper_account` tool so both serve an identical shape from one source.
  * Driver-agnostic (injected PgDatabase, like `research.ts`). Read-only.
  *

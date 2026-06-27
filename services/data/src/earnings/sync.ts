@@ -4,7 +4,7 @@
  * sector) — only for symbols whose cached profile is missing or >7d old, to bound FMP
  * calls — and upsert into `data_earnings_calendar`. Mutable: estimates firm up and
  * actuals/market cap refresh, so it's an upsert (not an immutable PIT row). data owns
- * the write; web reads the table directly (T12).
+ * the write; the gateway reads the table directly (T12).
  */
 import { db, dbSchema, marketdata } from "@qt/shared";
 import { fetchEarningsCalendar } from "@qt/shared/markets";

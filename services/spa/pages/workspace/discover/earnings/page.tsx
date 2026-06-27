@@ -5,7 +5,7 @@
  * companies reporting that day ranked by market cap (logo + EPS + beat/miss),
  * with your watchlist/holdings highlighted. Click a company for the detail drawer
  * (estimate vs actual, past beat/miss streak, the original SEC 8-K, add-to-watchlist).
- * Reads the enriched data_earnings_calendar (data owns the write; web reads directly).
+ * Reads the enriched data_earnings_calendar (data owns the write; the gateway reads directly).
  */
 import { useMemo, useState } from "react";
 import { useLive } from "@/components/live";

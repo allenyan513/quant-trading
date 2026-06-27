@@ -1,5 +1,5 @@
 // Canonical model display names — single source of truth shared by the engine
-// (services/data) and the dashboard (services/web). Components may use a subset;
+// (services/data) and the dashboard (services/spa). Components may use a subset;
 // import and pick what you need.
 
 export const MODEL_NAMES: Record<string, string> = {

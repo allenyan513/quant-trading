@@ -9,7 +9,7 @@ import { SymbolLink } from "@/components/symbol-link";
 import { fmtFull } from "@/lib/format";
 import { apiSend, apiAction } from "@/lib/api-client";
 
-/** Dismiss button. Calls the web route (which forwards to the data service), then
+/** Dismiss button. Calls the gateway route (which forwards to the data service), then
  *  revalidates the candidates table. Promote-into-watchlist is SEVERED — the
  *  watchlist is per-user now, so candidates are a read-only discovery view (see the
  *  follow-up issue). Only Dismiss (noise removal) remains. */

@@ -1,7 +1,7 @@
 "use client";
 
 /** Client action bar for a memo detail page: pin/unpin, close/reopen, delete. Each
- *  forwards to the data service via web's write routes, then refreshes / navigates. */
+ *  forwards to the data service via the gateway's write routes, then refreshes / navigates. */
 import { useRouter } from "@/lib/next-navigation";
 import { useState } from "react";
 import { apiAction } from "@/lib/api-client";

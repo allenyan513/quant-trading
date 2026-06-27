@@ -1,6 +1,6 @@
 /**
  * Per-user watchlist groups (data_watchlist_lists) + symbol→list assignment.
- * data owns the tables (T12); web forwards create/rename/delete/assign here with
+ * data owns the tables (T12); the gateway forwards create/rename/delete/assign here with
  * the session user's id. Pure user CRUD, no pipeline role.
  */
 import { and, asc, eq } from "drizzle-orm";

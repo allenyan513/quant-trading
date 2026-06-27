@@ -2,7 +2,7 @@
 // DCF Narrative Generator
 // Produces human-readable explanations of DCF valuation results.
 // Single source of truth shared by the engine (services/data) and the
-// dashboard (services/web).
+// dashboard (services/spa).
 // ============================================================
 
 import type { ValuationResult } from "./valuation-types.js";

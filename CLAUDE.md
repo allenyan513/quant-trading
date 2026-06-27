@@ -1,12 +1,13 @@
 # Quant Trading System
 
-事件驱动的分布式量化交易系统。三个独立 HTTP 服务：
+事件驱动的分布式量化交易系统。三个内部 HTTP 服务跑事件管道，一个对外 **API 网关** + 一个纯前端 **SPA**：
 
 ```
-新闻源 → data (初筛+分诊+缓存预热) → (event) → alpha (重定价) → (signal) → portfolio (sizing + 开/平仓结算)
+新闻源 → data (初筛+分诊+缓存预热) → (event) → alpha (重定价) → (signal) → portfolio (sizing + 开/平仓结算)   ← 内部事件管道
+浏览器 SPA · 移动端 · 用户的 Claude(MCP)  →  gateway (认证 + MCP + 只读 DB + 写转发)  →  data / portfolio
 ```
 
-栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic SDK（Messages API，非 Agent SDK）。pnpm workspaces 单仓库。
+栈：TypeScript + Hono + Neon(Postgres) + Drizzle + Anthropic SDK（Messages API，非 Agent SDK）；前端 Vite + React + React Router（`services/spa`，部署 Cloudflare Pages）；认证/网关 Better Auth + MCP（`services/gateway`，部署 Cloud Run）。pnpm workspaces 单仓库。
 
 **编码硬约束在 `.claude/rules/`**（按目录自动加载，见文末）；schema 真源是 `packages/shared/src/db/schema.ts`。设计讨论 / 路线图 / 任务状态一律用 **GitHub issues**（不再维护 `docs/` —— 它易和代码脱节）。服务边界与数据流见下方拓扑图 + 仓库结构。
 
@@ -14,33 +15,37 @@
 
 ```bash
 pnpm install
-cp .env.example .env          # 填 DATABASE_URL / ANTHROPIC_API_KEY / FMP_API_KEY
+cp .env.example .env          # 填 DATABASE_URL / ANTHROPIC_API_KEY / FMP_API_KEY / BETTER_AUTH_SECRET
+                              # SPA 另读 services/spa/.env.local 的 VITE_API_URL（指向 gateway）
 
 pnpm db:generate              # 改了 schema 后生成迁移 SQL
 pnpm db:migrate               # 应用迁移
 
-pnpm dev                      # 一键起全部服务（本地 tsx 热重载）
+pnpm dev                      # 一键起全部服务（data/alpha/portfolio/gateway/spa，本地热重载）
+pnpm dev:gateway              # 单起 → :8081
 pnpm dev:data                 # 单起 → :8082
 pnpm dev:alpha                # 单起 → :8083
 pnpm dev:portfolio            # 单起 → :8084
+pnpm dev:spa                  # 单起 → :3001（Vite）
 
 pnpm typecheck                # 全仓 tsc --noEmit；提交前必跑
 pnpm test                     # 全仓 vitest（纯函数单测，不碰 FMP/DB）；CI 也跑
 pnpm build                    # 全仓 tsc 构建
 
-pnpm up                       # docker-compose 全栈（host 8081(gateway)/8082(data)/8083(alpha)/8084(portfolio)）
+pnpm up                       # docker-compose 后端全栈（host 8081 gateway / 8082 data / 8083 alpha / 8084 portfolio；SPA 不进 compose，走 CF Pages）
 pnpm down
 ```
 
-本地 dev 端口固定为 gateway 8081 / data 8082 / alpha 8083 / portfolio 8084（脚本里用 `PORT=` 指定）。`.env` 里的 `ALPHA_URL` / `PORTFOLIO_URL` / `DATA_URL` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。
+本地 dev 端口固定为 gateway 8081 / data 8082 / alpha 8083 / portfolio 8084 / spa 3001（脚本里用 `PORT=`/`--port` 指定）。`.env` 里的 `ALPHA_URL` / `PORTFOLIO_URL` / `DATA_URL` / `BETTER_AUTH_URL` / `WEB_ORIGIN` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。SPA 经 `VITE_API_URL` 打 gateway（同站子域，cookie 会话）。
 
 ## 仓库结构
 
 - `packages/shared` —— 领域类型 / envelope / config / db(schema+client) / fmp 客户端 / http 工具。被各服务作为 `@qt/shared` workspace 依赖引用。
-- `services/data` —— 跨领域**市场**数据唯一接收者(FMP/SEC——多功能共用、重限流;领域服务可拥有自身领域专属外部同步,如 portfolio 的 IBKR Flex)，**news 驱动**(issue #59)：`/news/pull` 拉市场新闻入 staging 并**后台自动对新增行跑 triage**；triage 每条先 profile 初筛（市值≥$1B 等，不过 → 标 `low`，不进 LLM）→ 过筛者**确定性预热**该 symbol 的 marketdata 缓存（读穿）→ Haiku agent 定级 high/med/low → 人工在仪表板审核 → `/news/notify` 投 alpha。`/news/triage` 端点保留作重试 sweep。含**一处轻量 LLM**（仅 news 定级）；其余确定性。也含**确定性 reference valuation 引擎**(`src/valuation/`，无 LLM，从 marketdata 算 fair value → `data_valuation_snapshots`；`/internal/valuation`)、**公司简介** `data_company_profile`(getProfile 落库整条 FMP profile,喂 symbol 详情页 Overview tab,#167)、**per-user 自选** `data_watchlist`(每用户私有;data 拥有写,web forward add/remove;含 IBKR 式分组 `data_watchlist_lists` + `list_id`,tabs/拖拽,#164)、**选股发现 scanner**(`/scan/*` → `data_candidates`,只读发现队列)、**13F 传奇投资人季度持仓**(issue #99，`src/thirteenf/`，从 SEC EDGAR 自解析 13F-HR → `data_13f_holdings` 不可变季度快照；`/jobs/sync-13f`；CUSIP→ticker 走自维护表 `data_13f_cusip_map`)。也含 **symbol-centric SEC 研究三件套**(都 per-symbol 直连 SEC，喂 symbol 详情页 tab + MCP `get_symbol_research`)：**13D/13G 举牌/大股东**(`src/ownership/` → `data_ownership_filings`，roster 驱动；#105/PR#129)、**8-K 重大事件**(`src/eightk/` → `data_8k_filings`，item code 取自 submissions、无需解析正文；`/jobs/pull-8k`；#103/PR#131；接 alpha 重定价的 8-K→event 见 #130)、**Form 4 内部人交易**(`src/form4/` → `data_form4`，解析 ownershipDocument XML 拿回 transaction code/10b5-1，**直连 SEC、FMP 内部人已退役**(`data_insider` 删表，内部人唯一源)；`/jobs/pull-form4`；#104/PR#133、#132)。
+- `services/data` —— 跨领域**市场**数据唯一接收者(FMP/SEC——多功能共用、重限流;领域服务可拥有自身领域专属外部同步,如 portfolio 的 IBKR Flex)，**news 驱动**(issue #59)：`/news/pull` 拉市场新闻入 staging 并**后台自动对新增行跑 triage**；triage 每条先 profile 初筛（市值≥$1B 等，不过 → 标 `low`，不进 LLM）→ 过筛者**确定性预热**该 symbol 的 marketdata 缓存（读穿）→ Haiku agent 定级 high/med/low → 人工在仪表板审核 → `/news/notify` 投 alpha。`/news/triage` 端点保留作重试 sweep。含**一处轻量 LLM**（仅 news 定级）；其余确定性。也含**确定性 reference valuation 引擎**(`src/valuation/`，无 LLM，从 marketdata 算 fair value → `data_valuation_snapshots`；`/internal/valuation`)、**公司简介** `data_company_profile`(getProfile 落库整条 FMP profile,喂 symbol 详情页 Overview tab,#167)、**per-user 自选** `data_watchlist`(每用户私有;data 拥有写,gateway forward add/remove;含 IBKR 式分组 `data_watchlist_lists` + `list_id`,tabs/拖拽,#164)、**选股发现 scanner**(`/scan/*` → `data_candidates`,只读发现队列)、**13F 传奇投资人季度持仓**(issue #99，`src/thirteenf/`，从 SEC EDGAR 自解析 13F-HR → `data_13f_holdings` 不可变季度快照；`/jobs/sync-13f`；CUSIP→ticker 走自维护表 `data_13f_cusip_map`)。也含 **symbol-centric SEC 研究三件套**(都 per-symbol 直连 SEC，喂 symbol 详情页 tab + MCP `get_symbol_research`)：**13D/13G 举牌/大股东**(`src/ownership/` → `data_ownership_filings`，roster 驱动；#105/PR#129)、**8-K 重大事件**(`src/eightk/` → `data_8k_filings`，item code 取自 submissions、无需解析正文；`/jobs/pull-8k`；#103/PR#131；接 alpha 重定价的 8-K→event 见 #130)、**Form 4 内部人交易**(`src/form4/` → `data_form4`，解析 ownershipDocument XML 拿回 transaction code/10b5-1，**直连 SEC、FMP 内部人已退役**(`data_insider` 删表，内部人唯一源)；`/jobs/pull-form4`；#104/PR#133、#132)。
 - `services/alpha` —— **唯一的定价/决策 LLM agent**：事件 → 重定价 → 交易信号（读 data 预热的缓存；参考估值经 `POST {DATA_URL}/internal/valuation` 取）。
-- `services/portfolio` —— **交易账户领域的 owner**，无 LLM，含三个账本：① **Strategy**(信号盘)`portfolio_positions` —— 接收 alpha 信号 → 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓;② **Paper**(per-user 纸面)`portfolio_paper_*` —— 页面/MCP 下市价单、按 live quote 成交、现金会计(#174);③ **Live**(真实 IBKR)`portfolio_holdings_*` —— 从 IBKR Flex 同步真账户(`src/holdings/`,`/holdings/sync`+`/jobs/sync-holdings`,**自 data 迁来**:portfolio 拥有自身领域专属外部同步)。`services/web` 仪表盘只读这三套数据。
-- `services/web` —— Next.js 只读仪表盘 + **唯一对外公开入口**。也托管 **OAuth 门禁的 MCP 端点**(`app/api/mcp/route.ts` → `/api/mcp`，streamable HTTP，`mcp-handler` + `withMcpAuth`)给用户自己的 Claude(Desktop/claude.ai)连。web 经 Better Auth `mcp()` 插件充当 **OAuth 2.1 AS**(`/.well-known/*` 发现 + DCR + PKCE，#P2)。工具:公开 `get_symbol_research` / `list_13f_investors` / `get_13f_investor`(SEC/公开源)+ **私有 `get_holdings` / `get_watchlist`**(按 **token 的 user** 取，绝不信客户端入参——租户隔离红线)。**MCP 工具直读只读 DB**(复用 `@qt/shared/research`、`@qt/shared/thirteenf-read` + web 的 holdings/watchlist 读，与仪表盘同源,不回调 data)。data/alpha/portfolio 为**内部服务**。
+- `services/portfolio` —— **交易账户领域的 owner**，无 LLM，含三个账本：① **Strategy**(信号盘)`portfolio_positions` —— 接收 alpha 信号 → 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓;② **Paper**(per-user 纸面)`portfolio_paper_*` —— 页面/MCP 下市价单、按 live quote 成交、现金会计(#174);③ **Live**(真实 IBKR)`portfolio_holdings_*` —— 从 IBKR Flex 同步真账户(`src/holdings/`,`/holdings/sync`+`/jobs/sync-holdings`,**自 data 迁来**:portfolio 拥有自身领域专属外部同步)。`services/spa` 仪表盘经 gateway 只读这三套数据。
+- `services/gateway` —— **Hono API 网关 + 唯一对外公开入口**(部署 Cloud Run,域 `api.*`)。三块:① **Better Auth**(`/auth/*`,basePath `/auth`;email/password + Google;`bearer` 插件供移动端;**OAuth 2.1 AS** —— `mcp()` 插件 + `/.well-known/*` 发现 + DCR/PKCE,login/consent 页在 SPA)。② **OAuth 门禁的 MCP 端点**(`/mcp`,`mcp-handler` + `withMcpAuth`,streamable HTTP)给用户自己的 Claude(Desktop/claude.ai)连;工具:公开 `get_symbol_research` / `list_13f_investors` / `get_13f_investor` / `search_sec_filings`(SEC/公开源)+ **私有 `get_holdings` / `get_watchlist` / `get_paper_account` / paper 下单 / memo / morning brief**(user 取自 **token 的 `extra.userId`**,绝不信客户端入参——租户隔离红线)。③ **全部业务路由**(原 web 的 `/api/*`):直读**只读 DB**(`src/db.ts` neon-http + `src/queries/*`,复用 `@qt/shared/research`、`@qt/shared/thirteenf-read` 等)+ 写操作 **forward 到 data/portfolio**(`src/{data,portfolio}-proxy.ts`)。MCP 全只读 + 写转发,不回调 data。data/alpha/portfolio 为**内部服务**。
+- `services/spa` —— **Vite + React + React Router 纯前端 SPA**(部署 Cloudflare Pages,域 apex)。只调 gateway(`VITE_API_URL`,**cookie 会话**,同站子域),**无任何服务端逻辑**(原 Next 的 `/api/*` + auth + MCP 全迁 gateway)。数据走 `useLive`/SWR 轮询;写经 `lib/api-client`;鉴权 `@/lib/auth-client`(Better Auth react,指 gateway)。
 
 ## 全局铁律（细则见 `.claude/rules/`）
 
@@ -71,11 +76,11 @@ pnpm down
 编辑对应区域时 Claude 会自动载入：
 
 - `.claude/rules/typescript.md` —— TS/ESM 编码规范（`**/*.ts`）
-- `.claude/rules/services.md` —— Hono 服务 / 端点 / outbox 投递约定（`services/**`）
-- `.claude/rules/web.md` —— Next.js 只读仪表盘：读穿 `/api/*`、写 forward、图表/tab 模式（`services/web/**`）
-- `.claude/rules/alpha-agent.md` —— Agent SDK、工具集、emit_signal 护栏（`services/alpha/**`）
+- `.claude/rules/services.md` —— Hono 服务 / 端点 / outbox 投递约定（`services/**`，含 gateway）
+- `.claude/rules/spa.md` —— Vite + React Router SPA：`apiUrl`/cookie 会话、`useLive`/`LiveTable`、嵌套路由、图表懒加载（`services/spa/**`）
+- `.claude/rules/alpha-agent.md` —— LLM agent(plain Messages API,非 Agent SDK)、工具集、emit_signal 护栏（`services/alpha/**`）
 - `.claude/rules/database.md` —— Drizzle schema / 迁移流程 / PIT / upsert 细则（`packages/shared/src/db/**` 等）
 
 ## 当前阶段
 
-闭环已打通：data news 摄入 → 初筛+分诊+缓存预热 → alpha 重定价出信号 → portfolio sizing 开仓 + `/jobs/track` 结算平仓；`services/web` 只读仪表盘 + 人工分诊审核。进行中的工作与路线图见 **GitHub issues**（v2 总览 #48，架构讨论 #44，news 驱动 #59）。
+闭环已打通：data news 摄入 → 初筛+分诊+缓存预热 → alpha 重定价出信号 → portfolio sizing 开仓 + `/jobs/track` 结算平仓；对外由 `services/gateway`(认证 + MCP + 业务路由)+ `services/spa`(只读仪表盘 + 人工分诊审核)承接 —— 旧的 `services/web`(Next 单体)已拆分退役。进行中的工作与路线图见 **GitHub issues**（v2 总览 #48，架构讨论 #44，news 驱动 #59）。

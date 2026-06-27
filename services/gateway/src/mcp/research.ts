@@ -4,8 +4,8 @@
  * dashboard shows — then COMPACTS each section for an LLM consumer (drop the heavy
  * internals: per-model assumptions, valuation pillars, 400-bar history, raw news
  * bodies). Each section is best-effort: a failure is reported in `errors`, not
- * fatal. Moved from services/data so the MCP endpoint lives on web (the sole public
- * ingress); web reads the read-only DB just like every dashboard page.
+ * fatal. Moved from services/data so the MCP endpoint lives on the gateway (the sole public
+ * ingress); the gateway reads the read-only DB just like every SPA page.
  */
 import { db } from "../db.js";
 import { log } from "../log.js";

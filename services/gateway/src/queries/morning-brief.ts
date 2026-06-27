@@ -1,7 +1,7 @@
 /**
  * Read queries for the morning-brief archive — the signed-in user's own briefs.
  * Read-only, Node runtime only. Writes arrive via the OAuth MCP submit_morning_brief
- * tool → data (which owns data_morning_briefs); web never writes this table.
+ * tool → data (which owns data_morning_briefs); the gateway never writes this table.
  */
 import { and, desc, eq } from "drizzle-orm";
 import { db, morningBriefs } from "../db.js";

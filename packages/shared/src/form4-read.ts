@@ -1,9 +1,9 @@
 /**
  * Insider read queries — the symbol-centric insider-transaction view, shared by the
- * web dashboard (Ownership tab) and the MCP get_symbol_research ownership section.
+ * SPA dashboard (Ownership tab) and the MCP get_symbol_research ownership section.
  * Source is SEC Form 4 (`data_form4`, rich: transaction code + 10b5-1 + derivative);
  * the legacy FMP cache was retired (#132), so `source` is "sec" or "none". The
- * Drizzle db is injected (web = neon-http, data = pg Pool). All read-only.
+ * Drizzle db is injected (gateway = neon-http, data = pg Pool). All read-only.
  */
 import { desc, eq } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";

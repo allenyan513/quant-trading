@@ -3,7 +3,7 @@
 /**
  * Holdings · Settings — connect IBKR (set/update the Flex token + query id) and
  * trigger a sync. Submits to /api/holdings/credentials (forwarded to the portfolio
- * service, owner of portfolio_holdings_accounts; web stays read-only on the DB).
+ * service, owner of portfolio_holdings_accounts; the gateway stays read-only on the DB).
  * Saving auto-runs one sync; the "Refresh now" button re-syncs anytime. The current
  * token is never shown — only a masked tail from the status endpoint.
  */

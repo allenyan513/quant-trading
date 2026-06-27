@@ -1,9 +1,9 @@
 /**
- * Client-side (browser) helper for hitting web's own `/api/*` routes and unwrapping
- * the { ok, data, error } envelope. The browser-side counterpart to lib/data-proxy.ts
- * (which is the SERVER-side route → data-service forwarder, reachable only in route
- * handlers). Centralizes the fetch + envelope-check that was copy-pasted across ~13
- * client write sites, several of which swallowed failures silently.
+ * Client-side (browser) helper for hitting the gateway's `/api/*` routes (via `apiUrl`,
+ * which rewrites to the rootless api-subdomain paths) and unwrapping the
+ * { ok, data, error } envelope. The gateway forwards writes to the internal services
+ * (data / portfolio). Centralizes the fetch + envelope-check that was copy-pasted across
+ * ~13 client write sites, several of which swallowed failures silently.
  *
  * - `apiSend` returns the unwrapped envelope so callers can read `.data` or surface
  *   `.error` their own way (inline message, etc.).

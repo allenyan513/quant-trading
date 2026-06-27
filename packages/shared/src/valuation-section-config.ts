@@ -1,5 +1,5 @@
 // Section registry for the unified valuation page. Single source of truth shared
-// by the engine (services/data) and the dashboard (services/web). Drives both page
+// by the engine (services/data) and the dashboard (services/spa). Drives both page
 // rendering (which sections to show) and the TOC sidebar.
 // Adding a new tier (e.g., "pre_revenue") = add entries to the type union + tiers arrays.
 

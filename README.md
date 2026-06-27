@@ -1,7 +1,8 @@
 # Quant Trading System
 
 An event-driven, distributed quant-trading system built around three internal HTTP
-services plus a public read-only web app.
+services (data → alpha → portfolio), a public API gateway (auth + MCP + business routes,
+forwarding writes to the internal services), and a pure frontend SPA.
 
 ```
 news → data (screen + triage + cache warm) → (event) → alpha (reprice) → (signal) → portfolio (sizing + open/close)
@@ -31,11 +32,13 @@ status are tracked in **GitHub issues** — not in `docs/`.
 - **`services/portfolio`** — sole owner of the `portfolio_positions` ledger, no LLM:
   records signals → deterministic sizing to open → `/jobs/track` settles closes on
   stop-loss / take-profit / expiry.
-- **`services/web`** — Next.js read-only dashboard and the **only public entry point**.
-  Also hosts an **OAuth-gated MCP endpoint** (`/api/mcp`) so users can connect their own
-  Claude. Public tools expose research / 13F data; private `get_holdings` /
-  `get_watchlist` are scoped to the token's user (tenant isolation). data / alpha /
-  portfolio stay internal.
+- **`services/gateway`** — Hono API gateway and the **only public entry point** (Cloud Run,
+  `api.` subdomain): Better Auth (OAuth 2.1 AS), an **OAuth-gated MCP endpoint** (`/mcp`) for
+  users' own Claude, and all business routes (read-only DB reads + writes forwarded to data /
+  portfolio). Public MCP tools expose research / 13F; private `get_holdings` / `get_watchlist` /
+  paper / memo are scoped to the token's user (tenant isolation). data / alpha / portfolio stay internal.
+- **`services/spa`** — Vite + React + React Router single-page app (Cloudflare Pages, apex
+  domain). Talks only to the gateway (cookie session, same-site subdomains); no server logic.
 
 ## Local development
 
@@ -46,10 +49,11 @@ cp .env.example .env          # DATABASE_URL, ANTHROPIC_API_KEY, FMP_API_KEY, �
 pnpm db:generate && pnpm db:migrate
 
 pnpm dev                      # all services with hot reload
+pnpm dev:gateway              # gateway    → :8081
 pnpm dev:data                 # data       → :8082
 pnpm dev:alpha                # alpha      → :8083
 pnpm dev:portfolio            # portfolio  → :8084
-pnpm dev:web                  # web        → :3001
+pnpm dev:spa                  # spa (Vite) → :3001
 
 pnpm typecheck                # tsc --noEmit across the repo; run before committing
 pnpm test                     # vitest (pure-function units; no FMP/DB)
@@ -61,5 +65,5 @@ pnpm up / pnpm down           # full stack via Docker Compose
 
 The loop is closed: data ingests news → screens, triages, and warms caches → alpha
 reprices into signals → portfolio sizes and opens positions, then `/jobs/track` settles
-closes; the web dashboard provides read-only monitoring and manual triage review.
+closes; the SPA dashboard (served by the gateway) provides read-only monitoring and manual triage review.
 Work in progress and the roadmap live in **GitHub issues**.

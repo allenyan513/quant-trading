@@ -1,12 +1,12 @@
 /**
- * Per-user memo reads — shared by the web dashboard and the OAuth MCP `get_memos`
+ * Per-user memo reads — shared by the SPA dashboard and the OAuth MCP `get_memos`
  * tool so both serve an identical shape from one source. Driver-agnostic (injected
  * `PgDatabase`, like `paper-read.ts` / `research.ts`). Read-only.
  *
  * A memo is a free-form Markdown document (owned by the data service) linkable to
  * 0..N symbols; each link carries a point-in-time snapshot (price / valuation /
  * position) captured when the symbol was attached. List queries omit the markdown
- * body unless `includeBody` (web archive doesn't need it; MCP recall does). All
+ * body unless `includeBody` (the dashboard archive doesn't need it; MCP recall does). All
  * queries are scoped by `userId` — tenant isolation.
  */
 import { and, desc, eq, inArray, sql } from "drizzle-orm";

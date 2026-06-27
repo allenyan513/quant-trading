@@ -23,7 +23,7 @@ live context (today's fast-changing world, from web search). Keep them separate 
 search adds context and narrative, it never overrides an MCP number.
 
 > **Connection:** this skill talks to the quant-trading MCP (the connector the user
-> added to their Claude via OAuth — `/api/mcp`). It exposes `get_holdings`,
+> added to their Claude via OAuth — `/mcp`). It exposes `get_holdings`,
 > `get_watchlist`, `get_symbol_research`, and `submit_morning_brief`. If those tools
 > aren't available, tell the user to add the connector from the dashboard home
 > ("连接你的 Claude") and stop.
