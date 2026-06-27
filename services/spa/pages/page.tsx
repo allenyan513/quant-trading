@@ -1,18 +1,18 @@
-"use client";
-
 import Link from "@/components/link";
 import { ConnectClaude } from "@/components/connect-claude";
-import { useSession } from "@/lib/auth-client";
 
 /**
  * Public marketing homepage — served at `/` (the first thing any visitor sees).
  * SweetValueLab: title + subtitle + a media slot (future demo video/gif) + the
  * core MCP-connect block + 3 features. Fully public, open sign-up — no invite gate.
  * Dark, IBKR-clean. Copy is refinable.
+ *
+ * PURE STATIC — no session check, no API calls. Two fixed CTAs (Sign in / Workspace)
+ * instead of a `useSession()`-driven swap, so anonymous + bot traffic on the landing
+ * page never touches the gateway (the whole point of the SPA/gateway split). A
+ * logged-out user clicking Workspace is bounced back here by the /workspace auth gate.
  */
 export default function HomePage() {
-  const { data: session } = useSession();
-  const user = session?.user;
   return (
     <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
@@ -20,18 +20,17 @@ export default function HomePage() {
         <div style={{ flex: 1, fontWeight: 800, letterSpacing: 0.3, fontSize: 16 }}>
           <span style={{ color: "var(--accent)" }}>Sweet</span>ValueLab
         </div>
-        {user ? (
+        <div style={{ display: "flex", gap: 10 }}>
+          <Link href="/sign-in" style={{ fontSize: 13, color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px" }}>
+            Sign in
+          </Link>
           <Link
             href="/workspace"
             style={{ fontSize: 13, fontWeight: 600, color: "#06223f", background: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 8, padding: "6px 14px" }}
           >
-            Open workspace
+            Workspace
           </Link>
-        ) : (
-          <Link href="/sign-in" style={{ fontSize: 13, color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px" }}>
-            Sign in
-          </Link>
-        )}
+        </div>
       </header>
 
       {/* Hero: title + subtitle */}
