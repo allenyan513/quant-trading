@@ -124,6 +124,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { label: "Portfolio", href: "/workspace/portfolio", color: "#f0883e" },
   { label: "Watchlist", href: "/workspace/watchlist", color: "#3fb950" },
   { label: "Discover", href: "/workspace/discover", color: "#58a6ff" },
+  { label: "Memo", href: "/workspace/memo", color: "#d29922" },
 ];
 
 

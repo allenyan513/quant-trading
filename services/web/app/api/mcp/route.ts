@@ -29,6 +29,7 @@ import { listWatchlistOverview } from "@/lib/queries";
 import { dataPost } from "@/lib/data-proxy";
 import { portfolioPost } from "@/lib/portfolio-proxy";
 import { getPaperAccount } from "@qt/shared/paper-read";
+import { listMemos } from "@qt/shared/memo-read";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -226,6 +227,100 @@ const mcpHandler = createMcpHandler(
         }
       },
     );
+
+    server.registerTool(
+      "submit_memo",
+      {
+        title: "Submit Memo",
+        description:
+          "Save an investment memo for the signed-in user — a free-form Markdown document (a thesis, " +
+          "trade review, weekly/daily note, research write-up, or reflection) optionally linked to one or " +
+          "more tickers. This is where durable REASONING lives (vs the raw trade blotter). For each linked " +
+          "symbol the server captures a point-in-time snapshot — price now, the reference valuation, and " +
+          "the user's position — so the memo can be graded against reality later; the response returns what " +
+          "was anchored. Call this after writing an analysis worth keeping (e.g. a long/short thesis on a " +
+          "name). Private + per-user. Pass a unique idempotencyKey so a retry never duplicates.",
+        inputSchema: {
+          type: z
+            .enum(["thesis", "review", "weekly", "research", "reflection", "note", "morning_call"])
+            .optional()
+            .describe("Memo kind (default 'note'). Use 'thesis' for a long/short case, 'review' for a trade post-mortem."),
+          title: z.string().describe("Short memo title / subject."),
+          markdown: z.string().describe("The memo body, in Markdown."),
+          symbols: z.array(z.string()).optional().describe("Tickers this memo is about, e.g. ['NVDA']. Each gets a PIT snapshot."),
+          direction: z.enum(["long", "short", "neutral"]).optional().describe("Directional view, for a thesis."),
+          status: z.enum(["active", "closed", "archived"]).optional().describe("Lifecycle (default 'active'); set 'closed' when the thesis has played out."),
+          idempotencyKey: z.string().optional().describe("Optional unique key to dedup retries of the SAME memo."),
+        },
+      },
+      async ({ type, title, markdown, symbols, direction, status, idempotencyKey }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        try {
+          const res = await dataPost("/memos/submit", { userId, type, title, markdown, symbols, direction, status, idempotencyKey });
+          return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: "text", text: `Failed to save memo: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+        }
+      },
+    );
+
+    server.registerTool(
+      "update_memo",
+      {
+        title: "Update Memo",
+        description:
+          "Edit one of the signed-in user's existing memos (by id, from get_memos): change its title / body / " +
+          "direction / status / pinned flag, or attach/detach symbols. Use this to keep a long-running thesis " +
+          "memo current, or to mark it 'closed' on exit. NOTE: existing symbols keep their ORIGINAL " +
+          "point-in-time snapshot (that's the point of a memo) — only newly added symbols snapshot at " +
+          "add-time. Private + per-user.",
+        inputSchema: {
+          id: z.string().describe("The memo's id (from get_memos)."),
+          title: z.string().optional().describe("New title."),
+          markdown: z.string().optional().describe("New body (Markdown), replacing the old one."),
+          status: z.enum(["active", "closed", "archived"]).optional().describe("New lifecycle status."),
+          direction: z.enum(["long", "short", "neutral"]).optional().describe("New directional view."),
+          pinned: z.boolean().optional().describe("Pin/unpin as an evergreen memo."),
+          addSymbols: z.array(z.string()).optional().describe("Tickers to attach now (each gets a fresh PIT snapshot)."),
+          removeSymbols: z.array(z.string()).optional().describe("Tickers to detach."),
+        },
+      },
+      async ({ id, title, markdown, status, direction, pinned, addSymbols, removeSymbols }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        try {
+          const res = await dataPost("/memos/update", { userId, id, title, markdown, status, direction, pinned, addSymbols, removeSymbols });
+          return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: "text", text: `Failed to update memo: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+        }
+      },
+    );
+
+    server.registerTool(
+      "get_memos",
+      {
+        title: "Get Memos",
+        description:
+          "Fetch the signed-in user's saved memos as structured JSON (full Markdown body + each linked " +
+          "symbol's point-in-time snapshot), newest first. Filter by symbol, type, or status. Call this " +
+          "BEFORE reasoning about a name to recall what the user already thinks about it — past theses, " +
+          "reviews, and the price/valuation/position captured when each was written. Private + per-user.",
+        inputSchema: {
+          symbol: z.string().optional().describe("Only memos linked to this ticker (e.g. 'NVDA')."),
+          type: z.enum(["thesis", "review", "weekly", "research", "reflection", "note", "morning_call"]).optional().describe("Only memos of this kind."),
+          status: z.enum(["active", "closed", "archived"]).optional().describe("Only memos with this status."),
+          limit: z.number().int().positive().max(200).optional().describe("Max memos to return (default 50)."),
+        },
+      },
+      async ({ symbol, type, status, limit }, extra) => {
+        const userId = userIdFrom(extra);
+        if (!userId) return UNAUTH;
+        const data = await listMemos(db(), userId, { symbol, type, status, includeBody: true, limit });
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      },
+    );
   },
   {
     // Server identity + guidance shown to the connecting client (and surfaced in
@@ -243,10 +338,12 @@ const mcpHandler = createMcpHandler(
       "get_13f_investor, search_sec_filings.\n" +
       "• Private, per-user account (scoped to your signed-in user): get_holdings (real IBKR portfolio), " +
       "get_watchlist, get_paper_account, place_paper_order + cancel_paper_order (simulated), " +
-      "submit_morning_brief.\n\n" +
+      "submit_morning_brief, and the MEMO layer — submit_memo / update_memo / get_memos (durable " +
+      "investment memos: theses, reviews, notes, each linkable to symbols and anchored to a " +
+      "point-in-time snapshot). Recall a name's prior memos with get_memos before reasoning on it.\n\n" +
       "Naming convention: get_* fetches one resource, list_* returns a collection, search_* runs a " +
-      "query; write tools use a plain action verb (place_*, submit_*). The private tools always act on " +
-      "the authenticated user's own data — never pass another user's identity.",
+      "query; write tools use a plain action verb (place_*, submit_*, update_*). The private tools " +
+      "always act on the authenticated user's own data — never pass another user's identity.",
   },
   { basePath: "/api" },
 );
