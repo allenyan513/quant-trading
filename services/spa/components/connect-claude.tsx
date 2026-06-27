@@ -10,18 +10,56 @@ import { apiUrl } from "@/lib/api-base";
  * Same MCP URL source as ConnectClaude (apiUrl("/api/mcp"), the gateway endpoint).
  */
 export function McpCopyButton() {
-  const [url] = useState(() => apiUrl("/api/mcp"));
+  const [url] = useState(() => {
+    const resolved = apiUrl("/api/mcp");
+    // External clients (Claude Desktop / claude.ai) need an ABSOLUTE url — if
+    // VITE_API_URL is unset/relative, resolve it against the current origin.
+    if (resolved && typeof window !== "undefined" && !/^https?:\/\//i.test(resolved)) {
+      try {
+        return new URL(resolved, window.location.origin).href;
+      } catch {
+        return resolved;
+      }
+    }
+    return resolved;
+  });
   const [copied, setCopied] = useState(false);
 
   async function copy() {
     if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
+    const flash = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+    };
+    // This compact button never shows the URL text, so a silent copy failure would
+    // strand the user — fall back through execCommand and finally a prompt so they
+    // can always get the URL (insecure-context / older-mobile browsers).
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        flash();
+        return;
+      }
     } catch {
-      /* clipboard blocked (insecure context) — no-op */
+      /* fall through */
     }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      if (ok) {
+        flash();
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    window.prompt("Copy the MCP URL:", url);
   }
 
   return (

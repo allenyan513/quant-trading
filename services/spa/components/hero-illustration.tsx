@@ -6,7 +6,11 @@
  * in one conversation. Purely decorative (aria-hidden); colors are hardcoded hex to
  * match the CSS tokens (--panel/--panel-2/--border/--accent/--up/--muted).
  */
+import { useId } from "react";
+
 export function HeroIllustration() {
+  // Unique gradient id (useId) — avoids collisions if this ever renders more than once.
+  const glowId = useId();
   return (
     <svg
       viewBox="0 0 640 420"
@@ -17,14 +21,14 @@ export function HeroIllustration() {
     >
       <defs>
         {/* Soft accent glow behind the window — the Apple-style ambient light. */}
-        <radialGradient id="hero-glow" cx="50%" cy="36%" r="62%">
+        <radialGradient id={glowId} cx="50%" cy="36%" r="62%">
           <stop offset="0%" stopColor="#58a6ff" stopOpacity="0.22" />
           <stop offset="55%" stopColor="#58a6ff" stopOpacity="0.05" />
           <stop offset="100%" stopColor="#58a6ff" stopOpacity="0" />
         </radialGradient>
       </defs>
 
-      <rect x="0" y="0" width="640" height="420" fill="url(#hero-glow)" />
+      <rect x="0" y="0" width="640" height="420" fill={`url(#${glowId})`} />
 
       {/* chat window */}
       <rect x="48" y="24" width="544" height="372" rx="18" fill="#131822" stroke="#232c3d" strokeWidth="1.5" />
