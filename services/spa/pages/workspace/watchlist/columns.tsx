@@ -20,7 +20,7 @@ export interface WatchRow {
   symbol: string;
   note: string | null;
   addedAt: string;
-  listId: string | null;
+  listId: string; // every symbol belongs to exactly one list (#199)
   name: string | null;
   sector: string | null;
   industry: string | null;
@@ -56,14 +56,16 @@ export interface WL {
   name: string;
 }
 
-/** Per-row group assignment dropdown (— = ungrouped / All). */
-function AssignCell({ symbol, listId }: { symbol: string; listId: string | null }) {
+/** Per-row list picker — move a symbol between lists. Every symbol is in exactly one
+ *  list (#199), so there's no ungrouped option. */
+function AssignCell({ symbol, listId }: { symbol: string; listId: string }) {
   const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
   const [busy, setBusy] = useState(false);
   async function assign(value: string) {
+    if (!value || value === listId) return;
     setBusy(true);
     try {
-      if (await apiAction("/api/watchlist/assign", "POST", { symbol, listId: value || null })) await refresh();
+      if (await apiAction("/api/watchlist/assign", "POST", { symbol, listId: value })) await refresh();
     } finally {
       setBusy(false);
     }
@@ -71,12 +73,11 @@ function AssignCell({ symbol, listId }: { symbol: string; listId: string | null 
   return (
     <span onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
       <select
-        value={listId ?? ""}
+        value={listId}
         disabled={busy}
         onChange={(e) => assign(e.target.value)}
         style={{ background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, padding: "3px 6px", fontSize: 12, maxWidth: 120 }}
       >
-        <option value="">—</option>
         {(lists ?? []).map((l) => (
           <option key={l.id} value={l.id}>
             {l.name}

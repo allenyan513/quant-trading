@@ -11,7 +11,7 @@ import { columns, ColumnsMenu, DEFAULT_VISIBLE, COLS_KEY, type WatchRow, type WL
 import { DecisionPanel } from "@/components/symbol/decision-panel";
 
 /** Bottom control: a "+" that reveals an inline input to add a symbol (IBKR-style).
- *  When a group tab is active, the new symbol is dropped straight into it. */
+ *  The new symbol lands straight in the active list (#199 — every symbol has a list). */
 function BottomAdd({ activeList }: { activeList: string }) {
   const [open, setOpen] = useState(false);
   const [sym, setSym] = useState("");
@@ -22,9 +22,7 @@ function BottomAdd({ activeList }: { activeList: string }) {
     if (!symbol) return;
     setBusy(true);
     try {
-      if (!(await apiAction("/api/watchlist", "POST", { symbol }))) return;
-      // If a group tab is active, drop the new symbol straight into it.
-      if (activeList !== "all") await apiAction("/api/watchlist/assign", "POST", { symbol, listId: activeList });
+      if (!(await apiAction("/api/watchlist", "POST", { symbol, listId: activeList }))) return;
       setSym("");
       await refresh();
     } finally {
@@ -70,7 +68,20 @@ export default function WatchlistPage() {
   const { data: rows } = useLive<WatchRow[]>("/api/watchlist");
   const syms = useMemo(() => [...new Set((rows ?? []).map((r) => r.symbol))], [rows]);
   useQuotes(syms);
-  const [activeList, setActiveList] = useState<string>("all");
+  const [activeList, setActiveList] = useState<string>("");
+  // Every user has at least one list (default "Favorite"); there's no "All" aggregate (#199).
+  // When the lists load: if empty, ensure a Favorite exists (also re-creates it if the user
+  // deleted their last list); otherwise keep a valid tab selected.
+  useEffect(() => {
+    if (!lists) return; // not loaded yet
+    if (lists.length === 0) {
+      void (async () => {
+        if (await apiAction("/api/watchlist/lists/ensure-default", "POST")) await refresh();
+      })();
+      return;
+    }
+    if (!lists.some((l) => l.id === activeList)) setActiveList(lists[0]?.id ?? "");
+  }, [lists, activeList]);
   const [selected, setSelected] = useState<string | null>(null);
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE));
   // Load saved column choice after mount (server + first client render use the
@@ -105,16 +116,16 @@ export default function WatchlistPage() {
     if (await apiAction(`/api/watchlist/lists/${id}`, "PATCH", { name })) await refresh();
   }
   async function deleteList(id: string) {
-    if (!window.confirm("Delete this list? Its symbols return to All.")) return;
-    if (await apiAction(`/api/watchlist/lists/${id}`, "DELETE")) {
-      setActiveList("all");
-      await refresh();
-    }
+    const n = (rows ?? []).filter((r) => r.listId === id).length;
+    const msg = n > 0 ? `Delete this list? This also removes its ${n} symbol${n === 1 ? "" : "s"}.` : "Delete this list?";
+    if (!window.confirm(msg)) return;
+    // refresh() refetches the lists; the effect re-selects a valid active tab (or re-ensures Favorite).
+    if (await apiAction(`/api/watchlist/lists/${id}`, "DELETE")) await refresh();
   }
 
-  // Drag-and-drop: drag a row onto a tab to (re)group it; drag a tab to reorder.
+  // Drag-and-drop: drag a row onto a tab to move it there; drag a tab to reorder.
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  async function assignSymbolToList(symbol: string, listId: string | null) {
+  async function assignSymbolToList(symbol: string, listId: string) {
     if (await apiAction("/api/watchlist/assign", "POST", { symbol, listId })) await refresh();
   }
   async function reorderTabs(draggedId: string, targetId: string) {
@@ -127,18 +138,18 @@ export default function WatchlistPage() {
     ids.splice(to, 0, moved);
     if (await apiAction("/api/watchlist/lists/reorder", "POST", { ids })) await refresh();
   }
-  // A tab accepts two drop kinds: a dragged row (→ assign its symbol; null for All)
-  // or a dragged tab (→ reorder). targetId is "all" for the All tab.
+  // A tab accepts two drop kinds: a dragged row (→ move its symbol into this list)
+  // or a dragged tab (→ reorder).
   function onTabDrop(e: React.DragEvent, targetId: string) {
     e.preventDefault();
     setDragOverId(null);
     const symbol = e.dataTransfer.getData("symbol");
     if (symbol) {
-      void assignSymbolToList(symbol, targetId === "all" ? null : targetId);
+      void assignSymbolToList(symbol, targetId);
       return;
     }
     const draggedListId = e.dataTransfer.getData("listid");
-    if (draggedListId && targetId !== "all") void reorderTabs(draggedListId, targetId);
+    if (draggedListId) void reorderTabs(draggedListId, targetId);
   }
 
   return (
@@ -146,15 +157,6 @@ export default function WatchlistPage() {
       <div style={{ minWidth: 0, paddingRight: 14 }}>
       <div style={topRow}>
         <div style={tabsWrap}>
-          <button
-            onClick={() => setActiveList("all")}
-            onDragOver={(e) => { e.preventDefault(); setDragOverId("all"); }}
-            onDragLeave={() => setDragOverId((d) => (d === "all" ? null : d))}
-            onDrop={(e) => onTabDrop(e, "all")}
-            style={tabStyle(activeList === "all", dragOverId === "all")}
-          >
-            All
-          </button>
           {(lists ?? []).map((l) => {
             const on = activeList === l.id;
             return (
@@ -195,12 +197,12 @@ export default function WatchlistPage() {
         storageKey="watchlist"
         rowKey={(r: WatchRow) => r.symbol}
         columns={shownColumns}
-        rowFilter={activeList === "all" ? undefined : (r) => r.listId === activeList}
+        rowFilter={(r) => r.listId === activeList}
         getRowDragData={(r) => r.symbol}
         onRowClick={(r) => setSelected(r.symbol)}
         selectedKey={selected ?? undefined}
         onRowDoubleClick={(r) => router.push(`/workspace/data/symbol/${r.symbol}/chart`)}
-        emptyText={activeList === "all" ? "Watchlist is empty — add one below." : "No symbols in this list yet — drag a row here or set its List."}
+        emptyText="No symbols in this list yet — add one below."
       />
       <BottomAdd activeList={activeList} />
       </div>
