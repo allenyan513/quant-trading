@@ -20,19 +20,19 @@ pnpm db:generate              # 改了 schema 后生成迁移 SQL
 pnpm db:migrate               # 应用迁移
 
 pnpm dev                      # 一键起全部服务（本地 tsx 热重载）
-pnpm dev:data                 # 单起 → :8081
-pnpm dev:alpha                # 单起 → :8082
+pnpm dev:data                 # 单起 → :8082
+pnpm dev:alpha                # 单起 → :8083
 pnpm dev:portfolio            # 单起 → :8084
 
 pnpm typecheck                # 全仓 tsc --noEmit；提交前必跑
 pnpm test                     # 全仓 vitest（纯函数单测，不碰 FMP/DB）；CI 也跑
 pnpm build                    # 全仓 tsc 构建
 
-pnpm up                       # docker-compose 全栈（host 8081/8082/8084）
+pnpm up                       # docker-compose 全栈（host 8081(gateway)/8082(data)/8083(alpha)/8084(portfolio)）
 pnpm down
 ```
 
-本地 dev 端口固定为 data 8081 / alpha 8082 / portfolio 8084（脚本里用 `PORT=` 指定）。`.env` 里的 `ALPHA_URL` / `PORTFOLIO_URL` / `DATA_URL` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。
+本地 dev 端口固定为 gateway 8081 / data 8082 / alpha 8083 / portfolio 8084（脚本里用 `PORT=` 指定）。`.env` 里的 `ALPHA_URL` / `PORTFOLIO_URL` / `DATA_URL` 是本地 dev 的 localhost 值；docker-compose 在 compose 文件内用容器主机名覆盖它们。
 
 ## 仓库结构
 

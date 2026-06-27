@@ -46,8 +46,8 @@ cp .env.example .env          # DATABASE_URL, ANTHROPIC_API_KEY, FMP_API_KEY, �
 pnpm db:generate && pnpm db:migrate
 
 pnpm dev                      # all services with hot reload
-pnpm dev:data                 # data       → :8081
-pnpm dev:alpha                # alpha      → :8082
+pnpm dev:data                 # data       → :8082
+pnpm dev:alpha                # alpha      → :8083
 pnpm dev:portfolio            # portfolio  → :8084
 pnpm dev:web                  # web        → :3001
 

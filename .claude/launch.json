@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "spa",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:spa"],
+      "port": 3001,
+      "autoPort": false
+    },
+    {
       "name": "web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:web"],
@@ -11,7 +18,7 @@
       "name": "data",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:data"],
-      "port": 8081
+      "port": 8082
     }
   ]
 }

@@ -31,7 +31,7 @@ services:
       - PORT=8080
       - PORTFOLIO_URL=http://portfolio:8080
       - DATA_URL=http://data:8080
-    ports: ["8082:8080"]
+    ports: ["8083:8080"]
     depends_on:
       portfolio: { condition: service_healthy }
     healthcheck: *healthz
@@ -43,9 +43,21 @@ services:
     environment:
       - PORT=8080
       - ALPHA_URL=http://alpha:8080
-    ports: ["8081:8080"]
+    ports: ["8082:8080"]
     depends_on:
       alpha: { condition: service_healthy }
+    healthcheck: *healthz
+    restart: unless-stopped
+
+  gateway:
+    build: { context: ., dockerfile: Dockerfile.gateway }
+    env_file: .env
+    environment:
+      - PORT=8080
+      # Reserved for PR3's write forwards (proxy move); unused by PR1's read routes.
+      - DATA_URL=http://data:8080
+      - PORTFOLIO_URL=http://portfolio:8080
+    ports: ["8081:8080"]
     healthcheck: *healthz
     restart: unless-stopped
 

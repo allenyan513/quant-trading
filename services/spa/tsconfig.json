@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["src", "components", "lib", "pages", "vite-env.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}
