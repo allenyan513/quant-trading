@@ -59,7 +59,7 @@ export default function OverallTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={grid}>
+      <div className="resp-grid-2" style={grid}>
         {fields.map(([label, value]) => (
           <div key={label} style={row}>
             <span style={lbl}>{label}</span>

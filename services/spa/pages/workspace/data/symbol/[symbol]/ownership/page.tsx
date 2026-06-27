@@ -102,7 +102,8 @@ function Filings({ rows }: { rows: Position[] }) {
   if (rows.length === 0) return null;
   return (
     <Card title={`Ownership filings · 13D/13G (${rows.length})`}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
+      <div className="x-scroll">
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 380 }}>
         {rows.map((r) => (
           <div
             key={r.accessionNumber}
@@ -129,6 +130,7 @@ function Filings({ rows }: { rows: Position[] }) {
           </div>
         ))}
       </div>
+      </div>
     </Card>
   );
 }
@@ -138,7 +140,8 @@ function Holders({ rows }: { rows: Holder[] }) {
   if (rows.length === 0) return null;
   return (
     <Card title={`Legend investors holding · 13F (${rows.length})`}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
+      <div className="x-scroll">
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 340 }}>
         {rows.map((h) => (
           <div
             key={h.cik}
@@ -153,6 +156,7 @@ function Holders({ rows }: { rows: Holder[] }) {
           </div>
         ))}
       </div>
+      </div>
     </Card>
   );
 }
@@ -162,7 +166,8 @@ function Insiders({ data }: { data: Insiders }) {
   if (data.insiders.length === 0) return null;
   return (
     <Card title={`Insider trades · Form 4 (${data.insiders.length})`}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
+      <div className="x-scroll">
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 440 }}>
         {data.insiders.map((t, i) => (
           <div key={i} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 92 }}>
@@ -188,6 +193,7 @@ function Insiders({ data }: { data: Insiders }) {
             </span>
           </div>
         ))}
+      </div>
       </div>
     </Card>
   );

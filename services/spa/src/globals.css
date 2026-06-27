@@ -42,6 +42,13 @@ body {
   color: var(--text);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
+  /* Guardrail: a single overflowing element (wide table, fixed-width grid) must
+     never push the whole page into a horizontal scroll — wide content scrolls
+     within its own container (.x-scroll / table overflow) instead.
+     `clip` (not `hidden`) clips without creating a scroll container, so it
+     leaves the sticky header/nav's positioning untouched. */
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -154,47 +161,59 @@ table {
   animation: tickDown 0.6s ease-out;
 }
 
-/* On narrow viewports the fixed sidebar would crowd the content, so collapse it
-   into a horizontal, wrapping top strip: each section's header and its page
-   links flow inline, sections wrap onto new rows as needed. */
-@media (max-width: 720px) {
-  .app-shell {
-    flex-direction: column;
+/* ===== Mobile (≤767px) — phone layout =====================================
+   The desktop vertical icon rail (.desktop-rail) gives way to a fixed bottom
+   tab bar (.mobile-tabbar, rendered in the workspace layout). Content reclaims
+   horizontal space (tighter padding) and leaves room for the bottom bar. */
+.mobile-tabbar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .desktop-rail {
+    display: none;
   }
-  .app-shell > nav {
-    width: 100% !important;
-    height: auto !important;
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .app-shell > nav > a {
-    border-bottom: none !important;
-    padding: 12px 14px !important;
-  }
-  .app-shell > nav > div {
-    flex: 1 1 100%;
-    display: flex !important;
-    flex-flow: row wrap;
-    align-items: center;
-    gap: 4px 14px;
-    padding: 8px 12px;
-  }
-  .nav-section {
-    margin-bottom: 0 !important;
+  .mobile-tabbar {
     display: flex;
-    align-items: center;
-    gap: 6px;
   }
-  .nav-section-header {
-    padding: 0 !important;
+  /* Compact the sticky header and reclaim side padding on small screens. */
+  .app-header {
+    padding: 8px 12px !important;
   }
-  .nav-section-pages {
-    flex-direction: row !important;
+  .app-main {
+    padding: 12px !important;
+    /* Clear the 56px fixed tab bar (+ a little breathing room) so the last row
+       of content isn't hidden behind it. */
+    padding-bottom: calc(56px + 12px) !important;
   }
+  /* The symbol workbench full-bleeds with a negative margin matching <main>'s
+     padding; realign to the smaller mobile padding. Keep the bottom margin at 0
+     so <main>'s bottom padding still clears the fixed tab bar (don't pull the
+     workbench down under it). */
+  .symbol-workbench {
+    margin: -12px !important;
+    margin-bottom: 0 !important;
+  }
+  /* Fixed-grid → single column fallbacks (desktop grids set inline/below). */
+  .resp-grid-2 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .ledger-metrics > div {
+    min-width: 96px !important;
+    padding: 8px 12px !important;
+  }
+  /* Financials key-metrics trend: compact the sparkline column + gap so the four
+     columns (metric · latest · YoY · trend) stay on one screen width. */
+  .resp-trend {
+    grid-template-columns: minmax(0, 1fr) auto auto 56px !important;
+    column-gap: 8px !important;
+  }
+}
+
+/* Horizontal-scroll wrapper for wide tables/rows: the table scrolls inside its
+   own box on narrow screens instead of forcing the whole page to scroll. */
+.x-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* =====================================================================

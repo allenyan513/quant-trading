@@ -20,7 +20,7 @@ export function TrendOverview({
   const mono: React.CSSProperties = { fontFamily: "ui-monospace, Menlo, monospace" };
   return (
     <Card title={`Key metrics · Multi-year trend${range ? ` · ${range} (annual)` : ""}`}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto 132px", columnGap: 14, alignItems: "center" }}>
+      <div className="resp-trend" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto 132px", columnGap: 14, alignItems: "center" }}>
         <div style={hdr}>Metric</div>
         <div style={{ ...hdr, textAlign: "right" }}>Latest</div>
         <div style={{ ...hdr, textAlign: "right" }}>YoY</div>

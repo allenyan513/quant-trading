@@ -1,6 +1,6 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Nav } from "@/components/nav";
+import { Nav, MobileTabBar } from "@/components/nav";
 import { CommandPalette } from "@/components/command-palette";
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "@/lib/next-navigation";
@@ -47,6 +47,7 @@ export default function DashboardLayout() {
       <Nav />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <header
+          className="app-header"
           style={{
             display: "flex",
             alignItems: "center",
@@ -62,10 +63,11 @@ export default function DashboardLayout() {
           <HistoryNav />
           <CommandPalette />
         </header>
-        <main style={{ flex: 1, minWidth: 0, padding: 20, width: "100%" }}>
+        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: 20, width: "100%" }}>
           <Outlet />
         </main>
       </div>
+      <MobileTabBar />
     </div>
   );
 }

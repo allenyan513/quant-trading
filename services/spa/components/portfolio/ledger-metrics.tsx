@@ -46,7 +46,7 @@ function Strip({ s }: { s: AccountSummary }) {
     { label: "Buying power", value: fmtMoney(s.buyingPower) },
   ];
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 1, border: "1px solid var(--border)", background: "var(--border)", marginBottom: 12 }}>
+    <div className="ledger-metrics" style={{ display: "flex", flexWrap: "wrap", gap: 1, border: "1px solid var(--border)", background: "var(--border)", marginBottom: 12 }}>
       {metrics.map((m) => (
         <div key={m.label} style={{ background: "var(--panel)", padding: "8px 16px", minWidth: 120, flex: "0 0 auto" }}>
           <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 2 }}>{m.label}</div>
