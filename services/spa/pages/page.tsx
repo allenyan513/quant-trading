@@ -1,6 +1,9 @@
+import { Github } from "lucide-react";
 import Link from "@/components/link";
 import { McpCopyButton } from "@/components/connect-claude";
 import { HeroIllustration } from "@/components/hero-illustration";
+
+const REPO_URL = "https://github.com/allenyan513/quant-trading";
 
 /**
  * Public marketing homepage — served at `/` (the first thing any visitor sees).
@@ -16,12 +19,38 @@ export default function HomePage() {
   return (
     <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
-      <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px clamp(16px, 5vw, 40px)" }}>
+      <header style={{ display: "flex", alignItems: "center", gap: "clamp(12px, 3vw, 18px)", padding: "16px clamp(16px, 5vw, 40px)" }}>
         <div style={{ flex: 1, fontWeight: 800, letterSpacing: 0.3, fontSize: 16 }}>
           <span style={{ color: "var(--accent)" }}>Sweet</span>ValueLab
         </div>
-        <Link href="/sign-in" style={{ fontSize: 14, color: "var(--muted)" }}>
+        <a
+          href={REPO_URL}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="GitHub repository (open source)"
+          title="Open source on GitHub"
+          style={{ display: "inline-flex", alignItems: "center", color: "var(--muted)" }}
+        >
+          <Github size={20} strokeWidth={1.75} />
+        </a>
+        <Link href="/sign-in" style={{ fontSize: 14, color: "var(--text)" }}>
           Sign in
+        </Link>
+        <Link
+          href="/workspace"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            height: 36,
+            padding: "0 16px",
+            borderRadius: 999,
+            background: "var(--accent)",
+            color: "#06223f",
+            fontSize: 14,
+            fontWeight: 700,
+          }}
+        >
+          Workspace
         </Link>
       </header>
 
