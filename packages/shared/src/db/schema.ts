@@ -1037,3 +1037,57 @@ export const morningBriefs = pgTable(
   // (filter by user_id + order by brief_date), so no extra index.
   (t) => [primaryKey({ columns: [t.userId, t.briefDate] })],
 );
+
+// ---- Memos — per-user investment-memo layer (generalizes morning briefs). Owned by
+// data (web + the OAuth MCP `submit_memo`/`update_memo` tools forward the write, T12).
+// A memo is a free-form Markdown document (thesis / review / weekly / research /
+// reflection / note) linkable to 0..N symbols. The narrative is authored by the user's
+// own Claude (or a light web compose); the server stores it and runs no LLM. Distinct
+// from `morning_briefs` (date-keyed daily brief — a special case kept separate) and the
+// per-order `thesis` field (a micro-note bound to one paper order).
+export const memos = pgTable(
+  "data_memos",
+  {
+    id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // thesis | review | weekly | research | reflection | note | morning_call
+    title: text("title").notNull(),
+    markdown: text("markdown").notNull(),
+    direction: text("direction"), // long | short | neutral | null (directional view; null otherwise)
+    status: text("status").default("active").notNull(), // active | closed | archived
+    pinned: boolean("pinned").default(false).notNull(), // evergreen vs time-stream
+    idempotencyKey: text("idempotency_key"), // dedup retried MCP submissions
+    codeVersion: text("code_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).default(sql`now()`).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    index("idx_memos_user_created").on(t.userId, t.createdAt),
+    index("idx_memos_user_status").on(t.userId, t.status),
+    // Dedup retried submissions (esp. MCP). Partial: only enforced when a key is given.
+    uniqueIndex("uq_memos_idem").on(t.userId, t.idempotencyKey).where(sql`${t.idempotencyKey} is not null`),
+  ],
+);
+
+// Per-(memo, symbol) link carrying the POINT-IN-TIME snapshot captured server-side when
+// the symbol was attached: the price, the reference valuation snapshot id, and the user's
+// position at that moment. The snapshot is inherently per-symbol, so it lives on the join
+// row (a 0-symbol reflection has none; a 5-symbol weekly captures 5). Never overwritten on
+// edit — it records what was true when written, which is the whole point of a memo.
+export const memoSymbols = pgTable(
+  "data_memo_symbols",
+  {
+    memoId: text("memo_id").notNull().references(() => memos.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    priceAtWrite: doublePrecision("price_at_write"), // live quote price at attach time
+    priceTs: timestamp("price_ts", { withTimezone: true }), // exchange quote ts (quoteTs ?? fetchedAt)
+    valuationSnapshotId: text("valuation_snapshot_id"), // data_valuation_snapshots.snapshot_id at attach time
+    // Denormalized PIT detail: { fairValue, upsidePct, verdict, position: { paper, live } }.
+    context: jsonb("context"),
+    attachedAt: timestamp("attached_at", { withTimezone: true }).default(sql`now()`).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.memoId, t.symbol] }),
+    index("idx_memo_symbols_symbol").on(t.symbol), // symbol-detail "memos for SYMBOL"
+  ],
+);

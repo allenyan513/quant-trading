@@ -19,6 +19,7 @@ import { dismissCandidate } from "./candidates.js";
 import { addWatchlist, removeWatchlist } from "./watchlist.js";
 import { createList, renameList, deleteList, assignToList, reorderLists } from "./watchlist-lists.js";
 import { submitMorningBrief } from "./morning-brief.js";
+import { submitMemo, updateMemo, deleteMemo } from "./memo.js";
 import { warmAndPullNews, revalue, ensureFresh } from "./refresh.js";
 import { computeReferenceValuation } from "./valuation/reference.js";
 import { sync13FAll, sync13FForFiler, setCusipMapping, resolveUnmappedCusips } from "./thirteenf/sync.js";
@@ -314,6 +315,74 @@ app.post(
     c.set("logContext", { userId, date });
     const res = await submitMorningBrief(userId, date, markdown, summary);
     log.info("morning_brief.submit", { userId, date });
+    return res;
+  }),
+);
+
+// Memos: per-user investment-memo layer (generalizes morning briefs). The narrative is
+// authored by the user's own Claude (MCP `submit_memo`/`update_memo`) or web compose →
+// web forwards here (T12). data stores it and computes each symbol's PIT snapshot
+// server-side (price/valuation/position) — no LLM. Reads are in `@qt/shared/memo-read`.
+app.post(
+  "/memos/submit",
+  route("memo.submit", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const title = typeof body.title === "string" ? body.title : "";
+    const markdown = typeof body.markdown === "string" ? body.markdown : "";
+    if (!userId || !title.trim() || !markdown.trim()) {
+      return c.json(fail("bad_request", "userId, title and markdown are required"), 400);
+    }
+    c.set("logContext", { userId });
+    const res = await submitMemo({
+      userId,
+      type: body.type as string | undefined,
+      title,
+      markdown,
+      symbols: body.symbols,
+      direction: body.direction,
+      status: body.status,
+      idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : null,
+    });
+    log.info("memo.submit", { userId, memo_id: res.id, type: res.type, symbols: res.symbols.length });
+    return res;
+  }),
+);
+
+app.post(
+  "/memos/update",
+  route("memo.update", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const id = String(body.id ?? "").trim();
+    if (!userId || !id) return c.json(fail("bad_request", "userId and id are required"), 400);
+    c.set("logContext", { userId, memo_id: id });
+    const res = await updateMemo({
+      userId,
+      id,
+      title: typeof body.title === "string" ? body.title : undefined,
+      markdown: typeof body.markdown === "string" ? body.markdown : undefined,
+      status: body.status,
+      direction: body.direction,
+      pinned: typeof body.pinned === "boolean" ? body.pinned : undefined,
+      addSymbols: body.addSymbols,
+      removeSymbols: body.removeSymbols,
+    });
+    log.info("memo.update", { userId, memo_id: id });
+    return res;
+  }),
+);
+
+app.post(
+  "/memos/delete",
+  route("memo.delete", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    const id = String(body.id ?? "").trim();
+    if (!userId || !id) return c.json(fail("bad_request", "userId and id are required"), 400);
+    c.set("logContext", { userId, memo_id: id });
+    const res = await deleteMemo(userId, id);
+    log.info("memo.delete", { userId, memo_id: id, deleted: res.deleted });
     return res;
   }),
 );

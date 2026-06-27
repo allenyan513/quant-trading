@@ -19,6 +19,7 @@ const TABS: TabDef[] = [
   { seg: "ownership", label: "Ownership" },
   { seg: "events", label: "Events" },
   { seg: "news", label: "News" },
+  { seg: "memo", label: "Memo" },
   { seg: "overall", label: "Overall" },
 ];
 

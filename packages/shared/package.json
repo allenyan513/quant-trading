@@ -28,6 +28,7 @@
     "./envelope": "./src/envelope.ts",
     "./marketdata": "./src/marketdata/index.ts",
     "./paper-read": "./src/paper-read.ts",
+    "./memo-read": "./src/memo-read.ts",
     "./metrics": "./src/metrics.ts",
     "./research": "./src/research.ts",
     "./valuation-types": "./src/valuation-types.ts",
