@@ -30,11 +30,18 @@ const asJson =
 
 export type LogFields = Record<string, unknown>;
 
+// Per-call knobs. `sink: false` keeps a line out of the `system_logs` DB table
+// (it still goes to stdout/Cloud Logging) — use for high-volume lines like the
+// per-request access log that would otherwise flood the table and the pg pool.
+export interface LogOpts {
+  sink?: boolean;
+}
+
 export interface Logger {
-  debug(event: string, fields?: LogFields): void;
-  info(event: string, fields?: LogFields): void;
-  warn(event: string, fields?: LogFields): void;
-  error(event: string, fields?: LogFields): void;
+  debug(event: string, fields?: LogFields, opts?: LogOpts): void;
+  info(event: string, fields?: LogFields, opts?: LogOpts): void;
+  warn(event: string, fields?: LogFields, opts?: LogOpts): void;
+  error(event: string, fields?: LogFields, opts?: LogOpts): void;
 }
 
 function fmtValue(v: unknown): string {
@@ -60,11 +67,12 @@ function fmtFields(fields?: LogFields): string {
 }
 
 export function createLogger(service: string): Logger {
-  function emit(level: Level, event: string, fields?: LogFields): void {
+  function emit(level: Level, event: string, fields?: LogFields, opts?: LogOpts): void {
     if (ORDER[level] < threshold) return;
     const ts = new Date().toISOString();
-    // Best-effort DB persistence for the observability dashboard (on except under test).
-    sinkLog({ ts, level, service, event, fields });
+    // Best-effort DB persistence for the observability dashboard (on except under
+    // test, and unless the caller opts out for high-volume lines like access logs).
+    if (opts?.sink !== false) sinkLog({ ts, level, service, event, fields });
     const sink = level === "error" || level === "warn" ? console.error : console.log;
     if (asJson) {
       // Normalize Error fields so they don't serialize to "{}".
@@ -80,9 +88,9 @@ export function createLogger(service: string): Logger {
     sink(`${ts.slice(11, 23)} [${service}] ${level.toUpperCase().padEnd(5)} ${event}${fmtFields(fields)}`);
   }
   return {
-    debug: (e, f) => emit("debug", e, f),
-    info: (e, f) => emit("info", e, f),
-    warn: (e, f) => emit("warn", e, f),
-    error: (e, f) => emit("error", e, f),
+    debug: (e, f, o) => emit("debug", e, f, o),
+    info: (e, f, o) => emit("info", e, f, o),
+    warn: (e, f, o) => emit("warn", e, f, o),
+    error: (e, f, o) => emit("error", e, f, o),
   };
 }
