@@ -9,7 +9,7 @@
 import { useParams } from "@/lib/next-navigation";
 import { useLive } from "@/components/live";
 import { Card, Badge, TimeText } from "@/components/ui";
-import { fmtMoney, fmtNum, formatLargeNumber } from "@/lib/format";
+import { fmtMoney, fmtNum, money } from "@/lib/format";
 
 type Rec = Record<string, unknown>;
 interface Dated {
@@ -84,12 +84,12 @@ function Estimates({ rows }: { rows: EstRow[] }) {
               return (
                 <tr key={r.fiscalDate}>
                   <td style={{ ...td, textAlign: "left" }}>{r.fiscalDate.slice(0, 4)}</td>
-                  <td style={{ ...td, ...mono }}>{n(d, "revenueAvg") == null ? "—" : formatLargeNumber(n(d, "revenueAvg")!)}</td>
-                  <td style={{ ...td, ...mono }}>{eps == null ? "—" : `$${eps.toFixed(2)}`}</td>
+                  <td style={{ ...td, ...mono }}>{n(d, "revenueAvg") == null ? "—" : money(n(d, "revenueAvg")!, "compact")}</td>
+                  <td style={{ ...td, ...mono }}>{eps == null ? "—" : money(eps, "cell")}</td>
                   <td style={{ ...td, ...mono, color: "var(--muted)" }}>
-                    {n(d, "revenueLow") == null ? "—" : `${formatLargeNumber(n(d, "revenueLow")!)}–${formatLargeNumber(n(d, "revenueHigh") ?? n(d, "revenueLow")!)}`}
+                    {n(d, "revenueLow") == null ? "—" : `${money(n(d, "revenueLow")!, "compact")}–${money(n(d, "revenueHigh") ?? n(d, "revenueLow")!, "compact")}`}
                   </td>
-                  <td style={{ ...td, ...mono, color: "var(--muted)" }}>{epsL == null ? "—" : `$${epsL.toFixed(2)}–$${(epsH ?? epsL).toFixed(2)}`}</td>
+                  <td style={{ ...td, ...mono, color: "var(--muted)" }}>{epsL == null ? "—" : `${money(epsL, "cell")}–${money(epsH ?? epsL, "cell")}`}</td>
                   <td style={{ ...td, ...mono, color: "var(--muted)" }}>{an == null ? "—" : fmtNum(an, 0)}</td>
                 </tr>
               );

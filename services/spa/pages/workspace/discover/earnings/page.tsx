@@ -11,7 +11,7 @@ import { useMemo, useState } from "react";
 import { useLive } from "@/components/live";
 import { PageTitle } from "@/components/page-title";
 import { EarningsDrawer } from "@/components/earnings-drawer";
-import { formatLargeNumber } from "@/lib/format";
+import { money } from "@/lib/format";
 import { groupTopNPerDay, type EarningsCalEntry } from "@qt/shared/earnings-read";
 
 interface CalResp {
@@ -66,7 +66,7 @@ function WeekEntry({ e, mine, onClick }: { e: EarningsCalEntry; mine: boolean; o
     <button onClick={onClick} title={e.name ?? e.symbol} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 4px", width: "100%", background: mine ? MINE_BG : "transparent", border: "none", borderRadius: 4, cursor: "pointer", textAlign: "left", fontSize: 12, color: "var(--fg)" }}>
       <Logo e={e} size={18} />
       <span style={{ fontWeight: 600, minWidth: 46, flexShrink: 0 }}>{e.symbol}</span>
-      <span style={{ flex: 1, minWidth: 0, color: "var(--muted)", fontSize: 11, textAlign: "right" }}>{e.marketCap == null ? "" : formatLargeNumber(e.marketCap)}</span>
+      <span style={{ flex: 1, minWidth: 0, color: "var(--muted)", fontSize: 11, textAlign: "right" }}>{e.marketCap == null ? "" : money(e.marketCap, "compact")}</span>
       {bm && <span style={{ color: bm.color, fontSize: 11, width: 10 }}>{bm.mark}</span>}
     </button>
   );

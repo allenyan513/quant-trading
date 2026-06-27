@@ -4,7 +4,7 @@
 // revenue + EPS for the next few fiscal years.
 
 import { Card, Grid } from "@/components/ui";
-import { formatLargeNumber, fmtPct } from "@/lib/format";
+import { money, fmtPct } from "@/lib/format";
 import { type Row, num, div } from "./shared";
 
 export function ForwardEstimates({ income, estimates }: { income: Row[]; estimates: Row[] }) {
@@ -35,11 +35,11 @@ export function ForwardEstimates({ income, estimates }: { income: Row[]; estimat
             <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span style={{ color: "var(--muted)" }}>Revenue</span>
-                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{r.rev == null ? "—" : formatLargeNumber(r.rev)}{g(r.revG)}</span>
+                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{r.rev == null ? "—" : money(r.rev, "compact")}{g(r.revG)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span style={{ color: "var(--muted)" }}>EPS</span>
-                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{r.eps == null ? "—" : `$${r.eps.toFixed(2)}`}{g(r.epsG)}</span>
+                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{r.eps == null ? "—" : money(r.eps, "cell")}{g(r.epsG)}</span>
               </div>
             </div>
           </div>

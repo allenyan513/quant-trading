@@ -1,5 +1,5 @@
 import { MethodologyCard } from "@/components/valuation/methodology-card";
-import { formatLargeNumber } from "@/lib/format";
+import { money } from "@/lib/format";
 import type { WACCResult } from "@/types";
 
 const METHODOLOGY = [
@@ -109,8 +109,8 @@ export function WACCSection({ wacc: w }: Props) {
         <div>
           <h3 className="val-h3">Capital Structure</h3>
           <div className="space-y-1.5 text-sm max-w-lg">
-            <Row label="Equity (Market Cap)" value={formatLargeNumber(w.total_equity, { prefix: "$", decimals: 1 })} />
-            <Row label="Debt" value={formatLargeNumber(w.total_debt, { prefix: "$", decimals: 1 })} />
+            <Row label="Equity (Market Cap)" value={money(w.total_equity, "compactHeadline", { decimals: 1 })} />
+            <Row label="Debt" value={money(w.total_debt, "compactHeadline", { decimals: 1 })} />
             <div className="border-t my-2" />
             <Row label="Equity Weight (E / V)" value={pct(w.equity_weight)} highlight />
             <Row label="Debt Weight (D / V)" value={pct(w.debt_weight)} highlight />

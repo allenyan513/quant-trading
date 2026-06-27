@@ -9,7 +9,7 @@
 
 import { useParams } from "@/lib/next-navigation";
 import { useLive } from "@/components/live";
-import { formatLargeNumber } from "@/lib/format";
+import { money } from "@/lib/format";
 
 interface ProfileResp {
   profile: Record<string, unknown>;
@@ -41,7 +41,7 @@ export default function OverallTab() {
     ["Industry", txt(p.industry)],
     ["Employees", numv(p.fullTimeEmployees) != null ? Number(p.fullTimeEmployees).toLocaleString() : txt(p.fullTimeEmployees)],
     ["Exchange", txt(p.exchangeShortName) ?? txt(p.exchange)],
-    ["Market cap", mktCap != null ? formatLargeNumber(mktCap) : null],
+    ["Market cap", mktCap != null ? money(mktCap, "compact") : null],
     ["Beta", beta != null ? beta.toFixed(2) : null],
     ["IPO date", txt(p.ipoDate)],
     ["Currency", txt(p.currency)],

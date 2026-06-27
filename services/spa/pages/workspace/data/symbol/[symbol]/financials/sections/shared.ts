@@ -3,7 +3,7 @@
  * sections. Pure (no JSX) so each section file can pull only what it needs.
  */
 
-import { formatLargeNumber, formatRatio } from "@/lib/format";
+import { money, formatRatio } from "@/lib/format";
 
 export type Rec = Record<string, unknown>;
 export interface Row {
@@ -56,13 +56,13 @@ export function fmtKind(kind: Kind, v: number | null): string {
   if (v == null) return "—";
   switch (kind) {
     case "money":
-      return formatLargeNumber(v);
+      return money(v, "compact");
     case "pct":
       return formatRatio(v);
     case "ratio":
       return `${v.toFixed(2)}x`;
     case "count":
-      return formatLargeNumber(v, { prefix: "", decimals: 2 });
+      return money(v, "compact", { decimals: 2 });
   }
 }
 
@@ -117,9 +117,9 @@ export const CASHFLOW_LINES: Line[] = [
 
 export function fmtLine(kind: LineKind, v: number | null): string {
   if (v == null) return "—";
-  if (kind === "pershare") return `$${v.toFixed(2)}`;
-  if (kind === "count") return formatLargeNumber(v, { prefix: "", decimals: 2 });
-  return formatLargeNumber(v);
+  if (kind === "pershare") return money(v, "cell");
+  if (kind === "count") return money(v, "compact", { decimals: 2 });
+  return money(v, "compact");
 }
 
 // Column header: annual shows the fiscal year (2025); quarter shows year-month
