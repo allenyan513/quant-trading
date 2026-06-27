@@ -72,12 +72,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Light feature strip */}
+      {/* Three-step flow — Connect → Chat & trade → Review, all in one conversation */}
       <section style={{ width: "100%", maxWidth: 960, margin: "0 auto", padding: "8px clamp(20px, 5vw, 40px) 24px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 28 }}>
-          <Feature title="Trustworthy facts" body="PIT-correct filings, 13F holdings, ownership, insiders, and a deterministic reference valuation — no hallucinated numbers." />
-          <Feature title="Your own Claude" body="Connect over MCP and research in natural language, on your own subscription. The intelligence stays yours." />
-          <Feature title="Pro terminal" body="Prefer a screen? The workspace visualizes the same facts — valuation, ownership, filings, watchlist, holdings." />
+        <div style={{ textAlign: "center", marginBottom: "clamp(24px, 5vw, 40px)" }}>
+          <h2 style={{ fontSize: "clamp(24px, 3.6vw, 32px)", fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>All in one conversation.</h2>
+          <p style={{ fontSize: 15, color: "var(--muted)", margin: "8px 0 0" }}>No dashboards to manage — just chat with your Claude.</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 28 }}>
+          <Step n={1} title="Connect" body="Add SweetValueLab to your Claude as an MCP connector — one URL, once." />
+          <Step n={2} title="Chat & trade" body="Ask Claude to research a name, surface a buy/sell signal, and place a paper trade — right in the chat." />
+          <Step n={3} title="Review" body="Have Claude replay and review your trades over time. No dashboard required." />
         </div>
       </section>
 
@@ -102,10 +106,27 @@ export default function HomePage() {
   );
 }
 
-function Feature({ title, body }: { title: string; body: string }) {
+function Step({ n, title, body }: { n: number; title: string; body: string }) {
   return (
     <div>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 32,
+          height: 32,
+          borderRadius: 999,
+          border: "1px solid var(--accent)",
+          color: "var(--accent)",
+          fontSize: 15,
+          fontWeight: 700,
+          marginBottom: 12,
+        }}
+      >
+        {n}
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{title}</div>
       <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6, margin: 0 }}>{body}</p>
     </div>
   );
