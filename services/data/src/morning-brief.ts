@@ -1,7 +1,7 @@
 /**
  * Morning brief storage (data_morning_briefs). The brief's narrative is generated
  * by the user's OWN Claude (skill + web search, on their subscription) and posted
- * back via the OAuth MCP `submit_morning_brief` tool → web forwards here (T12). data
+ * back via the OAuth MCP `submit_morning_brief` tool → gateway forwards here (T12). data
  * just stores it — runs no LLM. Idempotent by (user_id, brief_date): re-submitting
  * the same day overwrites.
  */

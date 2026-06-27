@@ -1,7 +1,7 @@
 /**
  * Ownership read queries — the symbol-centric SEC ownership view, shared by the web
  * dashboard (Ownership tab) and the MCP `get_symbol_research` ownership section so
- * both serve identical shapes from one source. The Drizzle db is injected (web =
+ * both serve identical shapes from one source. The Drizzle db is injected (gateway =
  * neon-http, data = pg Pool), so builders are driver-agnostic. All read-only.
  *
  * Two parts:

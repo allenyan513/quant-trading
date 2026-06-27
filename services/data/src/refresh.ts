@@ -5,7 +5,7 @@
  *   warm marketdata caches (data) + pull recent news (data) + recompute the
  *   reference valuation (data, /internal/valuation).
  *
- * Entry points: the per-symbol `/warm` endpoint (web button — warm + news only)
+ * Entry points: the per-symbol `/warm` endpoint (the SPA button — warm + news only)
  * and the auto-refresh when a symbol is added to a watchlist (warm + news awaited,
  * valuation fired best-effort).
  *

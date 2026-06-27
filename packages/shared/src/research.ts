@@ -1,7 +1,7 @@
 /**
- * Per-symbol research read queries — shared by the web dashboard and data's MCP
+ * Per-symbol research read queries — shared by the SPA dashboard and data's MCP
  * endpoint so both serve identical shapes from a single source. The Drizzle db
- * client is injected (web uses a neon-http client, data a pg Pool); both are
+ * client is injected (the gateway uses a neon-http client, data a pg Pool); both are
  * `PgDatabase`, so the query builders here are driver-agnostic. All read-only.
  */
 import { and, desc, eq, sql } from "drizzle-orm";

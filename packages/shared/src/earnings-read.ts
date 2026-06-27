@@ -1,7 +1,7 @@
 /**
  * Earnings-calendar read — the enriched, market-cap-ranked calendar backing the
  * Discover grid. Reads `data_earnings_calendar` (written by data's daily enrich job).
- * The Drizzle db is injected (web = neon-http, data = pg Pool). All read-only.
+ * The Drizzle db is injected (gateway = neon-http, data = pg Pool). All read-only.
  */
 import { and, asc, gte, lte } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";

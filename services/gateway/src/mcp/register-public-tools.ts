@@ -1,6 +1,6 @@
 /**
  * Registers the PUBLIC market-data MCP tools (SEC / public sources only) on an MCP
- * server. Used by the OAuth-gated `/api/mcp` endpoint alongside the private account
+ * server. Used by the OAuth-gated `/mcp` endpoint alongside the private account
  * tools — kept in its own module so the public tool surface is defined in one place.
  * Tools read the read-only DB directly via the shared queries (same as the dashboard).
  */

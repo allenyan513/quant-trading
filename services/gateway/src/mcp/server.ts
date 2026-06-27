@@ -5,7 +5,7 @@
  * SEC/public sources) PLUS the PRIVATE per-user account tools (get_holdings,
  * get_watchlist, paper account, memos, morning brief), scoped to the token's user.
  *
- * Ported verbatim from web's `app/api/mcp/route.ts`. The gateway is the OAuth 2.1
+ * Ported from the (now-removed) Next web's `app/api/mcp/route.ts`. The gateway is the OAuth 2.1
  * Authorization Server (Better Auth + mcp() plugin), so token validation is a
  * same-origin `getMcpSession` DB lookup — no cross-service hop. The whole endpoint is
  * gated by mcp-handler's withMcpAuth: an unauthenticated call gets 401 +

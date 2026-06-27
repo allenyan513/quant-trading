@@ -1,6 +1,6 @@
 /**
  * Per-user watchlist (data_watchlist). Each user's own followed symbols. data
- * owns the table (T12); web forwards add/remove here with the session user's id,
+ * owns the table (T12); the gateway forwards add/remove here with the session user's id,
  * and reads it directly (DB-direct, scoped to the user) for display.
  *
  * Pure user CRUD — no pipeline role. This table USED to be the global house

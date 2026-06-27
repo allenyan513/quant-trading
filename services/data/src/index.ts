@@ -49,8 +49,8 @@ const jobAuth: MiddlewareHandler = async (c, next) => {
 };
 app.use("/jobs/*", jobAuth);
 
-// (The MCP endpoint moved to services/web — web is the sole public ingress; data
-// is internal. See services/web/app/api/[transport]/route.ts.)
+// (The MCP endpoint lives in services/gateway — the gateway is the sole public
+// ingress; data is internal. See services/gateway/src/mcp/server.ts.)
 
 // Fallback window for explicit/partial overrides and the scanner.
 function defaultWindow(): { from: string; to: string } {
@@ -199,8 +199,8 @@ app.post(
   }),
 );
 
-// Per-user watchlist (data owns data_watchlist, T12). web forwards add/remove with
-// the session user's id; reads stay in web (DB-direct, scoped to the user, with the
+// Per-user watchlist (data owns data_watchlist, T12). the gateway forwards add/remove with
+// the session user's id; reads stay in the gateway (DB-direct, scoped to the user, with the
 // valuation/position join). The old house "universe" crons that read this table
 // were SEVERED when it became per-user (see follow-up issue).
 app.post(
@@ -234,7 +234,7 @@ app.post(
   }),
 );
 
-// Per-user watchlist groups (data owns data_watchlist_lists, T12). web forwards
+// Per-user watchlist groups (data owns data_watchlist_lists, T12). the gateway forwards
 // create/rename/delete + symbol→list assignment with the session user's id.
 app.post(
   "/watchlist/lists/create",
@@ -299,7 +299,7 @@ app.post(
 );
 
 // Morning brief (#97): the user's own Claude (skill + web search) generates the brief
-// and posts it back via the OAuth MCP `submit_morning_brief` tool → web forwards here
+// and posts it back via the OAuth MCP `submit_morning_brief` tool → the gateway forwards here
 // (T12). data just stores it — no LLM. Idempotent by (userId, date).
 app.post(
   "/morning-brief/submit",
@@ -321,7 +321,7 @@ app.post(
 
 // Memos: per-user investment-memo layer (generalizes morning briefs). The narrative is
 // authored by the user's own Claude (MCP `submit_memo`/`update_memo`) or web compose →
-// web forwards here (T12). data stores it and computes each symbol's PIT snapshot
+// the gateway forwards here (T12). data stores it and computes each symbol's PIT snapshot
 // server-side (price/valuation/position) — no LLM. Reads are in `@qt/shared/memo-read`.
 app.post(
   "/memos/submit",
@@ -387,7 +387,7 @@ app.post(
   }),
 );
 
-// On-demand cache warming for the per-symbol detail page. web is read-only and
+// On-demand cache warming for the per-symbol detail page. the gateway is read-only and
 // can't reach FMP, so the "Refresh data" button forwards here. Deterministically
 // read-through fills the symbol's marketdata caches (statements/ratios/prices/
 // ratings/insider/pt) so the Chart/Financials tabs populate. Synchronous (a few
@@ -405,7 +405,7 @@ app.post(
 );
 
 // Page-open auto-refresh: warm + revalue at most once per 24h, in the background.
-// web fires this on opening a symbol (fire-and-forget) instead of the user clicking
+// the gateway fires this on opening a symbol (fire-and-forget) instead of the user clicking
 // "Refresh data"; returns immediately (skipped if recently warmed). See refresh.ts.
 app.post(
   "/ensure",
@@ -418,8 +418,8 @@ app.post(
   }),
 );
 
-// Near-real-time quotes (read-through cached, TTL-gated). web polls these during
-// market hours to tick the watchlist + symbol-detail price. GET so web forwards
+// Near-real-time quotes (read-through cached, TTL-gated). the gateway polls these during
+// market hours to tick the watchlist + symbol-detail price. GET so the gateway forwards
 // via dataGet. ?symbols= is comma-separated (FMP isn't comma-batchable, so /quotes
 // fans out individual gated calls under the global throttle).
 app.get(
@@ -446,7 +446,7 @@ app.get(
 // own external sync. data stays the cross-cutting *market* data hub.)
 
 // ---- 13F — legendary investor quarterly holdings (SEC, free). data owns the
-// data_13f_* tables; web reads them. Display only (parse + store); see #99. ----
+// data_13f_* tables; the gateway reads them. Display only (parse + store); see #99. ----
 
 // Sync every tracked manager's latest 13F filings. Two entry points, same body:
 // `/jobs/sync-13f` (cron, JOB_TOKEN — quarterly cadence; 13F lands 45d after
@@ -500,7 +500,7 @@ app.post(
 );
 
 // ---- SEC 13D/13G beneficial ownership (symbol-centric companion to 13F). data
-// owns data_ownership_* tables; web reads them. SEC-only (no FMP). See #105. ----
+// owns data_ownership_* tables; the gateway reads them. SEC-only (no FMP). See #105. ----
 
 // Sync every tracked activist's SC 13D/13G filings. `/jobs/sync-ownership` (cron,
 // JOB_TOKEN — daily is fine; accession-skip makes re-runs cheap) and
@@ -526,7 +526,7 @@ app.post(
   }),
 );
 
-// ---- SEC 8-K material events (symbol-centric). data owns data_8k_filings; web reads.
+// ---- SEC 8-K material events (symbol-centric). data owns data_8k_filings; the gateway reads.
 // Item codes come structured from submissions (no doc parse). The 8-K → alpha repricing
 // feed is a separate follow-up (#103 part 2). ----
 // `/jobs/pull-8k` (cron, JOB_TOKEN — daily; accession-skip makes re-runs cheap) and
@@ -540,7 +540,7 @@ app.post("/jobs/pull-8k", route("8k.sync", sync8K));
 app.post("/eightk/pull", route("8k.sync", sync8K));
 
 // ---- SEC Form 4 insider transactions (symbol-centric, direct from SEC). data owns
-// data_form4; web reads (Ownership tab). Sole insider source — the legacy FMP
+// data_form4; the gateway reads (Ownership tab). Sole insider source — the legacy FMP
 // `data_insider` cache was retired (#104/#132). ----
 async function syncForm4(c: Context) {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
@@ -552,7 +552,7 @@ app.post("/form4/pull", route("form4.sync", syncForm4));
 
 // ---- Earnings calendar enrich (Discover grid). Joins FMP earnings-calendar + profile
 // (market cap / logo / sector) into data_earnings_calendar so the grid ranks the top-N
-// by market cap. data owns the write; web reads the table directly (T12). #141. ----
+// by market cap. data owns the write; the gateway reads the table directly (T12). #141. ----
 async function syncEarnings(c: Context) {
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
   const weeksAhead = Number(body.weeksAhead);
@@ -566,7 +566,7 @@ app.post("/jobs/sync-earnings", route("earnings.sync", syncEarnings));
 app.post("/earnings/sync", route("earnings.sync", syncEarnings));
 
 // ---- EDGAR full-text search (live passthrough; data is the sole external receiver,
-// so web's MCP search_sec_filings tool forwards here rather than calling efts itself). ----
+// so the gateway's MCP search_sec_filings tool forwards here rather than calling efts itself). ----
 app.post("/edgar/search", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
@@ -587,7 +587,7 @@ app.post("/edgar/search", async (c) => {
 });
 
 // ---- Discover live market snapshots (FMP passthrough; data is the sole external
-// receiver, so web's /api/markets/* routes forward here). #141 Phase 2. ----
+// receiver, so the gateway's /markets/* routes forward here). #141 Phase 2. ----
 function calendarWindow(days: number): { from: string; to: string } {
   const from = new Date();
   const to = new Date(from.getTime() + days * 24 * 3600 * 1000);

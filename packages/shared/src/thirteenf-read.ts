@@ -1,7 +1,7 @@
 /**
- * 13F read queries — shared by the web dashboard and data's MCP endpoint so both
+ * 13F read queries — shared by the SPA dashboard and data's MCP endpoint so both
  * serve identical shapes from one source (mirrors research.ts). The Drizzle db is
- * injected (web = neon-http, data = pg Pool; both PgDatabase), so the builders
+ * injected (gateway = neon-http, data = pg Pool; both PgDatabase), so the builders
  * here are driver-agnostic. All read-only.
  */
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";

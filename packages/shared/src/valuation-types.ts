@@ -1,7 +1,7 @@
 /**
  * Valuation domain types — the single source of truth shared by the producer
  * (services/data's deterministic valuation engine, `src/valuation/`) and the
- * consumer (services/web's read-only dashboard). The `data_valuation_snapshots`
+ * consumer (services/spa's read-only dashboard). The `data_valuation_snapshots`
  * `detail` jsonb conforms to these shapes, so both sides MUST agree on them;
  * keeping one definition here is what stops the wire contract from drifting.
  *

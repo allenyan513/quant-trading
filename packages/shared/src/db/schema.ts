@@ -54,7 +54,7 @@ export const companyProfile = pgTable("data_company_profile", {
 /**
  * `watchlist` (data_watchlist) — each user's PRIVATE followed symbols.
  * Per-user (PK [user_id, symbol], FK → auth_user, cascade). data owns the writes
- * (web forwards, T12); web reads scoped to the session user.
+ * (the gateway forwards, T12); the gateway reads scoped to the session user.
  *
  * NOTE: this table used to be the GLOBAL "house universe" (source/discovery/TTL)
  * that drove the refresh / valuation-sweep / discovery pipelines. When the parallel
@@ -77,7 +77,7 @@ export const watchlist = pgTable(
 /**
  * Per-user named watchlist groups (tabs, IBKR-style). `data_watchlist.list_id`
  * points here; deleting a list set-nulls its members (they fall back to "All").
- * data owns it (T12); web forwards create/rename/delete and reads it scoped to the user.
+ * data owns it (T12); the gateway forwards create/rename/delete and reads it scoped to the user.
  */
 export const watchlistLists = pgTable("data_watchlist_lists", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -288,8 +288,8 @@ export const valuationSnapshots = pgTable("data_valuation_snapshots", {
 // (account_id = config.holdingsAccountId(), default "me"); the table shape
 // generalizes to multi-user (one row per user) with no migration. The Flex
 // token is stored PLAINTEXT by explicit choice — keep `DATABASE_URL` pointed at
-// a trusted role and don't expose this table to the web read role's queries
-// (web reads a masked status only). Written only by portfolio (POST /holdings/credentials).
+// a trusted role and don't expose this table to the gateway read role's queries
+// (the gateway reads a masked status only). Written only by portfolio (POST /holdings/credentials).
 export const holdingsAccounts = pgTable("portfolio_holdings_accounts", {
   accountId: text("account_id").primaryKey(),
   flexToken: text("flex_token").notNull(),
@@ -498,7 +498,7 @@ export const ownershipSubjects = pgTable("data_ownership_subjects", {
 // Official "current report" filings. The item codes (2.02 earnings, 5.02 leadership,
 // 1.03 bankruptcy, 8.01 other, …) come STRUCTURED from the submissions feed's `items`
 // field — no document parsing. One immutable row per filing (accession PK). data owns;
-// web reads. The alpha-feed (8-K → data_events → repricing) is a separate follow-up
+// the gateway reads. The alpha-feed (8-K → data_events → repricing) is a separate follow-up
 // (#103 part 2); this table is the foundation. symbol is the subject company ticker
 // (the filer IS the subject), denormalized for the symbol query.
 export const eightKFilings = pgTable(
@@ -521,7 +521,7 @@ export const eightKFilings = pgTable(
 // beneficial ownership) carries the transaction CODE (P open-market buy, S sell, M
 // option exercise, A grant, F tax, G gift, …), the 10b5-1 plan flag, and derivative
 // vs non-derivative — all of which FMP flattened away. One row per transaction within a
-// filing (PK = accession + ordinal). data owns; web reads (Ownership tab). Sole insider
+// filing (PK = accession + ordinal). data owns; the gateway reads (Ownership tab). Sole insider
 // source — the legacy FMP `data_insider` cache was retired (#132). See #104.
 export const form4Transactions = pgTable(
   "data_form4",
@@ -553,7 +553,7 @@ export const form4Transactions = pgTable(
   ],
 );
 
-// ---- Enriched earnings calendar (Discover; data owns the write, web reads). Cached
+// ---- Enriched earnings calendar (Discover; data owns the write, the gateway reads). Cached
 // daily by the enrich job (FMP earnings-calendar + getProfile market cap / logo /
 // sector) so the grid can rank the top-N by market cap per day. Mutable: estimates
 // firm up and actuals/market cap refresh, so it's an upsert (not an immutable PIT row).
@@ -802,7 +802,7 @@ export const positions = pgTable(
 // Net positions are SIGNED: a sell beyond a long (or from flat) opens a SHORT
 // (negative `quantity`), bounded by buying power (cash − 2·short collateral; no margin/
 // borrow modeling). Options and partial fills are deferred (`asset_class` leaves room).
-// Owned by the portfolio service; web reads only.
+// Owned by the portfolio service; the gateway reads only.
 
 export const paperAccounts = pgTable("portfolio_paper_accounts", {
   userId: text("user_id").primaryKey().references(() => authUser.id, { onDelete: "cascade" }),
@@ -906,7 +906,7 @@ export const logs = pgTable(
 );
 
 // ---- Better Auth — platform identity + OAuth Authorization Server (multi-tenant
-// pivot, #P0). Owned by web's Better Auth instance (services/web/lib/auth-server.ts).
+// pivot, #P0). Owned by the gateway's Better Auth instance (services/gateway/src/auth.ts).
 // Shapes follow Better Auth's core schema (email/password); JS keys match Better
 // Auth field names (camelCase), SQL is snake_case, tables prefixed `auth_`.
 // `auth_user.id` is the tenant key threaded through per-user data. The OAuth/MCP
@@ -957,7 +957,7 @@ export const authVerification = pgTable("auth_verification", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`now()`).notNull(),
 });
 
-// ---- OAuth 2.1 provider tables for the Better Auth `mcp()` plugin (#P2). web's
+// ---- OAuth 2.1 provider tables for the Better Auth `mcp()` plugin (#P2). the gateway’s
 // Better Auth instance is the Authorization Server: these hold dynamically-
 // registered MCP clients (DCR), issued access/refresh tokens, and per-user consent.
 // Managed ENTIRELY by Better Auth (we never query them directly — `getMcpSession`
@@ -1018,7 +1018,7 @@ export const oauthConsent = pgTable(
 // separate `user_watchlist` table.)
 
 // ---- Morning briefs (#97) — one immutable daily portfolio brief per user. Owned
-// by data (web forwards the write from the OAuth MCP `submit_morning_brief` tool,
+// by data (the gateway forwards the write from the OAuth MCP `submit_morning_brief` tool,
 // T12). The narrative is generated by the user's own Claude (skill + web search) and
 // posted back here for archive/display; the server stores it, runs no LLM. PK
 // (user_id, brief_date) → idempotent: re-submitting the same day overwrites.
@@ -1039,7 +1039,7 @@ export const morningBriefs = pgTable(
 );
 
 // ---- Memos — per-user investment-memo layer (generalizes morning briefs). Owned by
-// data (web + the OAuth MCP `submit_memo`/`update_memo` tools forward the write, T12).
+// data (the gateway + the OAuth MCP `submit_memo`/`update_memo` tools forward the write, T12).
 // A memo is a free-form Markdown document (thesis / review / weekly / research /
 // reflection / note) linkable to 0..N symbols. The narrative is authored by the user's
 // own Claude (or a light web compose); the server stores it and runs no LLM. Distinct

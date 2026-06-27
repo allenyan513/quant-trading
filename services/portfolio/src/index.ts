@@ -54,8 +54,8 @@ app.post(
 );
 
 // ---- Paper trading (per-user, order-driven) ----
-// web forwards order placement here (it's read-only on the DB); `userId` comes from
-// web's session / the MCP bearer token, never from raw client input. Internal-only,
+// the gateway forwards order placement here (it's read-only on the DB); `userId` comes from
+// the gateway session / the MCP bearer token, never from raw client input. Internal-only,
 // same trust model as alpha->portfolio /signals.
 
 app.post(
@@ -149,7 +149,7 @@ const jobAuth: MiddlewareHandler = async (c, next) => {
 app.use("/jobs/sync-holdings", jobAuth);
 
 // Save/update the IBKR Flex credentials (token + query id) for the configured
-// account. web's "Connect IBKR" form forwards here so the dashboard stays read-only.
+// account. the gateway's "Connect IBKR" form forwards here so the dashboard stays read-only.
 app.post(
   "/holdings/credentials",
   route("holdings.credentials", async (c) => {
@@ -202,7 +202,7 @@ app.post(
     return res;
   }),
 );
-// Manual (web forward): sync the signed-in user's account (accountId in body).
+// Manual (gateway forward): sync the signed-in user's account (accountId in body).
 app.post("/holdings/sync", (c) => runHoldingsSync(c));
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {

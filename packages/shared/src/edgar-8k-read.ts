@@ -1,7 +1,7 @@
 /**
  * 8-K read queries — the symbol-centric material-events view, shared by the web
  * dashboard (Events tab) and the MCP `get_symbol_research` events section so both
- * serve identical shapes from one source. The Drizzle db is injected (web = neon-http,
+ * serve identical shapes from one source. The Drizzle db is injected (gateway = neon-http,
  * data = pg Pool), driver-agnostic. All read-only.
  */
 import { desc, eq } from "drizzle-orm";

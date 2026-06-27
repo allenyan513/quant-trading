@@ -1,6 +1,6 @@
 // 13F — legendary investor quarterly holdings (read-only; see #99). The read
 // logic lives in @qt/shared/thirteenf-read (one source, shared with data's MCP
-// endpoint); these wrappers just inject web's db().
+// endpoint); these wrappers just inject the gateway's db().
 
 import { db } from "../db.js";
 import * as shared13f from "@qt/shared/thirteenf-read";
