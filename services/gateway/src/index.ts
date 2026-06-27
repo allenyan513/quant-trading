@@ -13,8 +13,11 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { ok, config } from "@qt/shared";
+import { eq } from "drizzle-orm";
+import { ok, config, dbSchema } from "@qt/shared";
 import { oAuthDiscoveryMetadata, oAuthProtectedResourceMetadata } from "better-auth/plugins";
+import { route } from "./route.js";
+import { db } from "./db.js";
 import { log } from "./log.js";
 import { auth } from "./auth.js";
 import { mcpRequestHandler } from "./mcp/server.js";
@@ -26,6 +29,7 @@ import { registerWatchlistRoutes } from "./routes/watchlist.js";
 import { registerHoldingsRoutes } from "./routes/holdings.js";
 import { registerPaperRoutes } from "./routes/paper.js";
 import { registerMemoRoutes } from "./routes/memos.js";
+import { registerLegendsRoutes } from "./routes/legends.js";
 
 const app = new Hono();
 
@@ -55,6 +59,32 @@ const protectedResource = oAuthProtectedResourceMetadata(auth);
 app.get("/.well-known/oauth-authorization-server", (c) => discovery(c.req.raw));
 app.get("/.well-known/oauth-protected-resource", (c) => protectedResource(c.req.raw));
 
+// Display info for the SPA's OAuth consent page (the app name + redirect host for a
+// client_id). Public — client_id isn't a secret (it rides in the OAuth redirect).
+// Replaces the consent page's direct DB read in web.
+app.get(
+  "/consent-info",
+  route("consent.info", async (c) => {
+    const clientId = c.req.query("client_id") ?? "";
+    if (!clientId) return { name: "", redirectHost: "" };
+    const rows = await db()
+      .select({ name: dbSchema.oauthApplication.name, redirectUrls: dbSchema.oauthApplication.redirectUrls })
+      .from(dbSchema.oauthApplication)
+      .where(eq(dbSchema.oauthApplication.clientId, clientId))
+      .limit(1);
+    const app0 = rows[0];
+    if (!app0) return { name: "", redirectHost: "" };
+    let redirectHost = "";
+    try {
+      const first = (app0.redirectUrls ?? "").split(/[\s,]+/).filter(Boolean)[0];
+      if (first) redirectHost = new URL(first).host;
+    } catch {
+      /* leave blank */
+    }
+    return { name: app0.name, redirectHost };
+  }),
+);
+
 // OAuth-gated MCP endpoint (streamable HTTP). No token → 401 + WWW-Authenticate → the
 // client runs the OAuth dance against the AS above and retries with a bearer.
 app.all("/mcp", (c) => mcpRequestHandler(c.req.raw));
@@ -71,6 +101,7 @@ registerWatchlistRoutes(app); // per-user watchlist + groups (authed)
 registerHoldingsRoutes(app); // per-user IBKR holdings (authed)
 registerPaperRoutes(app); // per-user paper account (authed)
 registerMemoRoutes(app); // per-user memos + morning-brief archive (authed)
+registerLegendsRoutes(app); // 13F superinvestor holdings (public)
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });

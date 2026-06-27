@@ -6,8 +6,8 @@
 import type { Hono } from "hono";
 import { authed, readBody, qstr, qint } from "../route.js";
 import { dataPost } from "../data-proxy.js";
-import { listMemos } from "@qt/shared/memo-read";
-import { listMorningBriefs } from "../queries/index.js";
+import { listMemos, getMemo } from "@qt/shared/memo-read";
+import { listMorningBriefs, getMorningBrief } from "../queries/index.js";
 import { db } from "../db.js";
 
 export function registerMemoRoutes(app: Hono): void {
@@ -68,6 +68,12 @@ export function registerMemoRoutes(app: Hono): void {
   /** Delete a memo (cascade removes its symbol links). */
   app.post("/memos/:id/delete", authed("memos.delete", (c, uid) => dataPost("/memos/delete", { userId: uid, id: c.req.param("id") })));
 
+  /** A single memo by id (full body + symbol PIT snapshots), session-scoped. */
+  app.get("/memos/:id", authed("memos.detail", (c, uid) => getMemo(db(), uid, c.req.param("id") ?? "")));
+
   /** The signed-in user's morning-brief archive (list view, no markdown body). */
   app.get("/morning-brief", authed("morning_brief", (_c, uid) => listMorningBriefs(uid)));
+
+  /** A single morning brief by date (full markdown body), session-scoped. */
+  app.get("/morning-brief/:date", authed("morning_brief.detail", (c, uid) => getMorningBrief(uid, c.req.param("date") ?? "")));
 }

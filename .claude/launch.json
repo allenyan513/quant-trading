@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "spa",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:spa"],
+      "port": 3001,
+      "autoPort": false
+    },
+    {
       "name": "web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:web"],

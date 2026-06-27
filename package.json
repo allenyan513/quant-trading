@@ -19,6 +19,7 @@
     "dev:portfolio": "pnpm --filter @qt/portfolio dev",
     "dev:gateway": "pnpm --filter @qt/gateway dev",
     "dev:web": "pnpm --filter @qt/web dev",
+    "dev:spa": "pnpm --filter @qt/spa dev",
     "db:generate": "pnpm --filter @qt/shared db:generate",
     "db:migrate": "pnpm --filter @qt/shared db:migrate",
     "up": "docker compose up --build",

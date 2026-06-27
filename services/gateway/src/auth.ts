@@ -90,6 +90,19 @@ export const auth = betterAuth({
       requireLocalEmailVerified: false,
     },
   },
+  // Cross-subdomain session cookie so the SPA (apex) and gateway (api subdomain) share
+  // one session. Enabled only when WEB_ORIGIN is a real domain (prod) — on localhost the
+  // host is cookie-shared across ports already, and a ".localhost" domain breaks it.
+  ...(webOrigin.includes("localhost")
+    ? {}
+    : {
+        advanced: {
+          crossSubDomainCookies: {
+            enabled: true,
+            domain: `.${new URL(webOrigin).hostname.split(".").slice(-2).join(".")}`,
+          },
+        },
+      }),
   // mcp() = OAuth 2.1 AS for the gated MCP endpoint: authorize/token/consent/DCR/PKCE
   // + discovery metadata. bearer() issues/accepts Authorization: Bearer for the SPA +
   // native human-token path. The login + consent pages are React pages on the SPA, so
