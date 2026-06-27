@@ -10,24 +10,29 @@
  */
 import { and, eq } from "drizzle-orm";
 import { db, dbSchema } from "@qt/shared";
+import { resolveListId } from "./watchlist-lists.js";
 
 const { watchlist } = dbSchema;
 
-/** Add a symbol to the user's watchlist. Idempotent (updates the note on conflict). */
+/** Add a symbol to the user's watchlist. Idempotent (updates the note on conflict, keeps
+ *  the existing list). Lands in `listId` if the user owns it, else their default Favorite (#199). */
 export async function addWatchlist(
   userId: string,
   symbol: string,
   note?: string,
-): Promise<{ userId: string; symbol: string }> {
+  listId?: string | null,
+): Promise<{ userId: string; symbol: string; listId: string }> {
   const uid = userId.trim();
   const sym = symbol.trim().toUpperCase();
   if (!uid || !sym) throw new Error("userId and symbol are required");
   const noteVal = note?.trim() || null;
+  const targetListId = await resolveListId(uid, listId);
   await db()
     .insert(watchlist)
-    .values({ userId: uid, symbol: sym, note: noteVal })
+    .values({ userId: uid, symbol: sym, note: noteVal, listId: targetListId })
+    // On re-add keep the symbol where it already lives; only refresh the note.
     .onConflictDoUpdate({ target: [watchlist.userId, watchlist.symbol], set: { note: noteVal } });
-  return { userId: uid, symbol: sym };
+  return { userId: uid, symbol: sym, listId: targetListId };
 }
 
 /** Remove a symbol from the user's watchlist. */

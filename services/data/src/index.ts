@@ -17,7 +17,7 @@ import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
 import { dismissCandidate } from "./candidates.js";
 import { addWatchlist, removeWatchlist } from "./watchlist.js";
-import { createList, renameList, deleteList, assignToList, reorderLists } from "./watchlist-lists.js";
+import { createList, renameList, deleteList, assignToList, reorderLists, ensureDefaultList } from "./watchlist-lists.js";
 import { submitMorningBrief } from "./morning-brief.js";
 import { submitMemo, updateMemo, deleteMemo } from "./memo.js";
 import { warmAndPullNews, revalue, ensureFresh } from "./refresh.js";
@@ -211,8 +211,9 @@ app.post(
     const symbol = String(body.symbol ?? "").trim();
     if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
     const note = typeof body.note === "string" ? body.note : undefined;
+    const listId = body.listId ? String(body.listId).trim() : undefined;
     c.set("logContext", { userId, symbol });
-    const res = await addWatchlist(userId, symbol, note);
+    const res = await addWatchlist(userId, symbol, note, listId);
     // Warm the newly-added symbol so its detail page / the MCP aren't empty. Await
     // warm + news (deterministic, a few seconds); fire the valuation best-effort so
     // the add button doesn't block on an LLM repricing. Per-symbol, not watchlist-wide.
@@ -274,6 +275,17 @@ app.post(
 );
 
 app.post(
+  "/watchlist/lists/ensure-default",
+  route("watchlist.list.ensureDefault", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const userId = String(body.userId ?? "").trim();
+    if (!userId) return c.json(fail("bad_request", "userId required"), 400);
+    c.set("logContext", { userId });
+    return ensureDefaultList(userId);
+  }),
+);
+
+app.post(
   "/watchlist/lists/reorder",
   route("watchlist.list.reorder", async (c) => {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
@@ -291,8 +303,8 @@ app.post(
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
     const userId = String(body.userId ?? "").trim();
     const symbol = String(body.symbol ?? "").trim();
-    if (!userId || !symbol) return c.json(fail("bad_request", "userId and symbol required"), 400);
-    const listId = body.listId ? String(body.listId).trim() : null;
+    const listId = body.listId ? String(body.listId).trim() : "";
+    if (!userId || !symbol || !listId) return c.json(fail("bad_request", "userId, symbol and listId required"), 400);
     c.set("logContext", { userId, symbol });
     return assignToList(userId, symbol, listId);
   }),

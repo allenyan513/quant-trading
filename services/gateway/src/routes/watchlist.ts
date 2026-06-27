@@ -20,6 +20,13 @@ export function registerWatchlistRoutes(app: Hono): void {
     }),
   );
 
+  // Idempotent: guarantee the user has a list (creates "Favorite" if none) and returns
+  // the default — the SPA calls this when the watchlist has no lists yet (#199).
+  app.post(
+    "/watchlist/lists/ensure-default",
+    authed("watchlist.lists.ensureDefault", (_c, uid) => dataPost("/watchlist/lists/ensure-default", { userId: uid })),
+  );
+
   app.patch(
     "/watchlist/lists/:id",
     authed("watchlist.lists.rename", async (c, uid) => {
@@ -48,10 +55,12 @@ export function registerWatchlistRoutes(app: Hono): void {
   app.post(
     "/watchlist/assign",
     authed("watchlist.assign", async (c, uid) => {
-      const body = await readBody<{ symbol?: string; listId?: string | null }>(c);
+      const body = await readBody<{ symbol?: string; listId?: string }>(c);
       const symbol = (body.symbol ?? "").trim();
+      const listId = (body.listId ?? "").trim();
       if (!symbol) throw new Error("symbol required");
-      return dataPost("/watchlist/assign", { userId: uid, symbol, listId: body.listId ?? null });
+      if (!listId) throw new Error("listId required"); // every symbol belongs to a list (#199)
+      return dataPost("/watchlist/assign", { userId: uid, symbol, listId });
     }),
   );
 
@@ -61,10 +70,10 @@ export function registerWatchlistRoutes(app: Hono): void {
   app.post(
     "/watchlist",
     authed("watchlist.add", async (c, uid) => {
-      const { symbol, note } = await readBody<{ symbol?: string; note?: string }>(c);
+      const { symbol, note, listId } = await readBody<{ symbol?: string; note?: string; listId?: string }>(c);
       const s = (symbol ?? "").trim();
       if (!s) throw new Error("symbol required");
-      return dataPost("/watchlist", { userId: uid, symbol: s, note });
+      return dataPost("/watchlist", { userId: uid, symbol: s, note, listId: (listId ?? "").trim() || undefined });
     }),
   );
 

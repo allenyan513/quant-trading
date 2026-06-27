@@ -7,7 +7,7 @@
  * can flip through names on the same view. Read-only; reuses the watchlist queries.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useRouter, useParams } from "@/lib/next-navigation";
 import { useLive } from "@/components/live";
@@ -18,7 +18,7 @@ interface RailRow {
   price: number | null;
   changePct: number | null;
   verdict: string | null;
-  listId: string | null;
+  listId: string;
 }
 interface WL {
   id: string;
@@ -40,9 +40,13 @@ export function WatchlistRail({ symbol }: { symbol: string }) {
   const active = (params.symbol ?? symbol).toUpperCase();
   const { data: rows } = useLive<RailRow[]>("/api/watchlist");
   const { data: lists } = useLive<WL[]>("/api/watchlist/lists");
-  const [group, setGroup] = useState<string>("all");
+  // No "All" aggregate (#199) — default to the first list once they load.
+  const [group, setGroup] = useState<string>("");
+  useEffect(() => {
+    if (lists && lists.length > 0 && !lists.some((l) => l.id === group)) setGroup(lists[0]?.id ?? "");
+  }, [lists, group]);
 
-  const shown = (rows ?? []).filter((r) => group === "all" || r.listId === group);
+  const shown = (rows ?? []).filter((r) => r.listId === group);
 
   function open(sym: string) {
     if (sym.toUpperCase() === active) return;
@@ -52,7 +56,6 @@ export function WatchlistRail({ symbol }: { symbol: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", borderRight: "1px solid var(--border)", maxHeight: "calc(100vh - 90px)", position: "sticky", top: 0 }}>
       <div style={{ display: "flex", gap: 2, padding: 6, borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
-        <button onClick={() => setGroup("all")} style={tab(group === "all")}>All</button>
         {(lists ?? []).map((l) => (
           <button key={l.id} onClick={() => setGroup(l.id)} style={tab(group === l.id)}>{l.name}</button>
         ))}

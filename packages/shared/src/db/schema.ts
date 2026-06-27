@@ -69,14 +69,17 @@ export const watchlist = pgTable(
     symbol: text("symbol").notNull(),
     note: text("note"),
     addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`).notNull(),
-    listId: text("list_id").references(() => watchlistLists.id, { onDelete: "set null" }), // null = "All"/ungrouped
+    // Every symbol belongs to exactly one list (IBKR-style; no "All"/ungrouped). Deleting
+    // a list cascade-deletes its symbols. A "Favorite" list is auto-created per user (#199).
+    listId: text("list_id").notNull().references(() => watchlistLists.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.userId, t.symbol] })],
 );
 
 /**
  * Per-user named watchlist groups (tabs, IBKR-style). `data_watchlist.list_id`
- * points here; deleting a list set-nulls its members (they fall back to "All").
+ * points here; deleting a list cascade-deletes its member symbols. Every user gets a
+ * default "Favorite" list (auto-created when they have none) — a normal, renamable list.
  * data owns it (T12); the gateway forwards create/rename/delete and reads it scoped to the user.
  */
 export const watchlistLists = pgTable("data_watchlist_lists", {
