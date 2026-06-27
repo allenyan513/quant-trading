@@ -165,8 +165,8 @@ const mcpHandler = createMcpHandler(
           "the crossing market price — never worse than your limit — use a limit order for a watch/entry " +
           "at a target price (status comes back 'working'). " +
           "A buy adds a long (or covers a short); a sell reduces/closes a long, and a sell beyond the long " +
-          "(or from flat) opens a SHORT. Bounded by buying power (cash minus short collateral); an order " +
-          "that exceeds it is rejected 'insufficient_buying_power'. Equity only (no options/margin). " +
+          "(or from flat) opens a SHORT. Bounded by buying power (cash minus twice the short collateral); an " +
+          "order that exceeds it is rejected 'insufficient_buying_power'. Equity only (no options/margin). " +
           "Optionally attach a thesis (rationale " +
           "+ targetPrice / stopPrice / timeHorizon) — recorded with the order, informational only, never " +
           "auto-executed. SIMULATED — never touches a real brokerage. Returns the fill (or working/" +

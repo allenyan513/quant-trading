@@ -17,7 +17,7 @@
  * row-locks the account so concurrent orders serialize instead of racing.
  *
  * A sell beyond a long (or from flat) opens a SHORT — bounded by buying power
- * (cash − short collateral; no margin/borrow modeling). Options and partial fills
+ * (cash − 2·short collateral; no margin/borrow modeling). Options and partial fills
  * are deferred.
  */
 import { and, eq } from "drizzle-orm";
@@ -166,10 +166,11 @@ async function sumShortCollateral(tx: DbTx, userId: string): Promise<number> {
  * (or from flat) opens/extends a SHORT. Cash always moves by −Δ·price (buys debit, sells
  * — including short opens — credit). Realized P&L is recognized on the closed portion.
  *
- * Buying power = cash − short collateral (no margin/borrow modeling — a deliberate v1
+ * Buying power = cash − 2·short collateral (no margin/borrow modeling — a deliberate v1
  * sim simplification). Only the position-INCREASING notional consumes it; a reduce/close
- * frees capital. Short-sale proceeds inflate cash but are reserved as collateral here, so
- * they can't fund unbounded shorts.
+ * frees capital. Short-sale proceeds inflate cash but are locked AND require equal
+ * collateral (the 2× factor), so each $1 of short notional costs $1 of buying power —
+ * preventing unbounded shorts.
  */
 async function applyFill(tx: DbTx, userId: string, symbol: string, side: OrderSide, quantity: number, price: number | null, now: Date): Promise<FillOutcome> {
   const startingCash = config.paperStartingCash();
@@ -200,13 +201,21 @@ async function applyFill(tx: DbTx, userId: string, symbol: string, side: OrderSi
   const p = price;
 
   const { signedDelta, newQty, newAvg, realized, increasingShares } = fillMath(held, avg, side, quantity, p);
+  const cash1 = cash0 - signedDelta * p; // buys debit, sells (incl short opens) credit
 
-  // Buying-power gate: only the increasing portion (full order if opening/adding; the
-  // remainder past the close on a flip; nothing on a pure reduce) consumes buying power.
+  // Buying-power gate (only when the order GROWS exposure — a pure reduce/cover frees
+  // capital and is never gated). Invariant kept ≥ 0 after the trade:
+  //   buying power = cash − 2 · short collateral (cost basis of open shorts).
+  // A short's sale proceeds land in cash but are LOCKED, and it also requires equal
+  // collateral — so each $1 of short notional consumes $1 of buying power (subtracting
+  // the collateral only once would let `cash − collateral` stay flat → unbounded shorts).
+  // No margin/borrow modeling — a deliberate v1 sim simplification.
   const increasingNotional = increasingShares * p;
   if (increasingNotional > EPS) {
-    const shortCollateral = await sumShortCollateral(tx, userId);
-    if (increasingNotional > cash0 - shortCollateral + EPS) return reject("insufficient_buying_power");
+    const shortCollateralBefore = await sumShortCollateral(tx, userId);
+    const deltaCollateral = (newQty < 0 ? Math.abs(newQty) * newAvg : 0) - (held < 0 ? Math.abs(held) * avg : 0);
+    const shortCollateralAfter = shortCollateralBefore + deltaCollateral;
+    if (cash1 - 2 * shortCollateralAfter < -EPS) return reject("insufficient_buying_power");
   }
 
   // Persist the net position (delete when flat), cash (−Δ·price), and realized.
@@ -218,7 +227,6 @@ async function applyFill(tx: DbTx, userId: string, symbol: string, side: OrderSi
       .values({ userId, symbol, quantity: newQty, avgCost: newAvg, updatedAt: now })
       .onConflictDoUpdate({ target: [paperPositions.userId, paperPositions.symbol], set: { quantity: newQty, avgCost: newAvg, updatedAt: now } });
   }
-  const cash1 = cash0 - signedDelta * p;
   await tx.update(paperAccounts).set({ cash: cash1, realizedPnl: realized0 + (realized ?? 0), updatedAt: now }).where(eq(paperAccounts.userId, userId));
   return { filled: true, rejectReason: null, fillPrice: p, realizedPnl: realized, cash: cash1, position: Math.abs(newQty) > EPS ? { symbol, quantity: newQty, avgCost: newAvg } : null };
 }

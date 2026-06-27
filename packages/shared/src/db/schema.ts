@@ -795,7 +795,7 @@ export const positions = pgTable(
 // quote (matched on page open — see paper.ts `matchWorkingOrders`). Each order can carry a recorded
 // thesis (rationale/target/stop/horizon — informational, never auto-executed).
 // Net positions are SIGNED: a sell beyond a long (or from flat) opens a SHORT
-// (negative `quantity`), bounded by buying power (cash − short collateral; no margin/
+// (negative `quantity`), bounded by buying power (cash − 2·short collateral; no margin/
 // borrow modeling). Options and partial fills are deferred (`asset_class` leaves room).
 // Owned by the portfolio service; web reads only.
 
