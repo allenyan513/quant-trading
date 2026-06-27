@@ -14,16 +14,18 @@
  *  - The MCP resource is now `${BETTER_AUTH_URL}/mcp` (rootless on the api subdomain),
  *    and the OAuth login/consent pages live on the SPA (absolute `${WEB_ORIGIN}/...`).
  *
- * Uses a neon-serverless WebSocket Pool (NOT the gateway's read-only neon-http `db()` —
- * Better Auth needs transactions). Auth/OAuth tables live in the shared Drizzle schema.
+ * Uses the shared node-postgres `db()` pool (NOT the gateway's read-only neon-http `db()` —
+ * Better Auth needs writes + transactions). The shared pool is the same TCP client the
+ * internal services run on, hardened for Cloud Run + Neon (keepAlive / SSL / short idle
+ * timeout). It deliberately replaces the earlier neon-serverless WebSocket Pool, whose
+ * WSS connections to Neon failed on Cloud Run ("All attempts to open a WebSocket … failed").
+ * Auth/OAuth tables live in the shared Drizzle schema.
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { mcp } from "better-auth/plugins";
 import { bearer } from "better-auth/plugins/bearer";
-import { Pool } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { config, dbSchema } from "@qt/shared";
+import { config, db, dbSchema } from "@qt/shared";
 
 // Public base URL of the AS (OAuth metadata + the MCP resource identifier). On the
 // gateway this is the api subdomain, e.g. https://api.sweetvaluelab.com.
@@ -40,19 +42,9 @@ const googleCreds = (() => {
   return clientId && clientSecret ? { clientId, clientSecret } : undefined;
 })();
 
-// Module singleton — one WebSocket Pool per long-lived server instance.
-const authPool = new Pool({ connectionString: config.databaseUrl() });
-const authDb = drizzle(authPool, {
-  schema: {
-    authUser: dbSchema.authUser,
-    authSession: dbSchema.authSession,
-    authAccount: dbSchema.authAccount,
-    authVerification: dbSchema.authVerification,
-    oauthApplication: dbSchema.oauthApplication,
-    oauthAccessToken: dbSchema.oauthAccessToken,
-    oauthConsent: dbSchema.oauthConsent,
-  },
-});
+// Shared node-postgres pool (one per long-lived Cloud Run instance, lazily built
+// in @qt/shared). Write-capable + transaction-capable over plain TCP — no WebSocket.
+const authDb = db();
 
 export const auth = betterAuth({
   appName: "quant-trading",
