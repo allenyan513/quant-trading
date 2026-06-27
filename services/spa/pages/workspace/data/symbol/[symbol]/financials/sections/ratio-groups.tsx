@@ -16,7 +16,7 @@ export function RatioGroups({ income, balance, cashflow, ratios }: { income: Row
 
   const ratioX = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}x`);
   const pct = (v: number | null) => (v == null ? "—" : formatRatio(v));
-  const usd = (v: number | null) => (v == null ? "—" : `$${v.toFixed(2)}`);
+  const usd = (v: number | null) => (v == null ? "—" : v.toFixed(2));
   const shares = num(li, "weightedAverageShsOutDil");
   const fcf = num(lc, "freeCashFlow") ?? add(num(lc, "operatingCashFlow"), num(lc, "capitalExpenditure"));
 

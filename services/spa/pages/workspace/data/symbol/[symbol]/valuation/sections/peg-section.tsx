@@ -141,7 +141,7 @@ export function PEGSection({ summary }: Props) {
                     {d.earnings_history.map((entry) => (
                       <tr key={entry.year} className="border-b border-muted/30">
                         <td className="py-1.5">FY{entry.year}</td>
-                        <td className="py-1.5 text-right font-mono">{formatLargeNumber(entry.net_income)}</td>
+                        <td className="py-1.5 text-right font-mono">{formatLargeNumber(entry.net_income, { prefix: "$" })}</td>
                         <td className="py-1.5 text-right font-mono">${entry.eps?.toFixed(2) ?? "—"}</td>
                         <td className={cn("py-1.5 text-right font-mono", entry.yoy_growth !== null && entry.yoy_growth >= 0 ? "text-green-400" : "text-red-400")}>
                           {entry.yoy_growth !== null ? `${entry.yoy_growth >= 0 ? "+" : ""}${entry.yoy_growth.toFixed(1)}%` : "—"}

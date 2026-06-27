@@ -39,7 +39,7 @@ export function ForwardEstimates({ income, estimates }: { income: Row[]; estimat
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span style={{ color: "var(--muted)" }}>EPS</span>
-                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{r.eps == null ? "—" : `$${r.eps.toFixed(2)}`}{g(r.epsG)}</span>
+                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>{r.eps == null ? "—" : r.eps.toFixed(2)}{g(r.epsG)}</span>
               </div>
             </div>
           </div>

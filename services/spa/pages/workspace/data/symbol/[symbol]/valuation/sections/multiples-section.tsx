@@ -96,7 +96,7 @@ function MultiplePanel({ model, currentPrice }: { model: ValuationResult; curren
               {d?.industry_median != null ? d.industry_median.toFixed(1) : "—"}x
             </strong>
             {d?.company_metric != null && (
-              <> on company {d.metric_label ?? "metric"} of {formatLargeNumber(d.company_metric)}</>
+              <> on company {d.metric_label ?? "metric"} of {formatLargeNumber(d.company_metric, { prefix: "$" })}</>
             )}
             ) implies a fair value of <strong className="text-foreground">{`$${model.fair_value.toFixed(2)}`}</strong> per share.
           </>
