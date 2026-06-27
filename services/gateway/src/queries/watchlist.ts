@@ -200,12 +200,14 @@ export async function listWatchlistOverview(userId: string) {
       };
     })
     // Most undervalued first; symbols without a valuation sink to the bottom.
-    // Compare explicitly: two nulls would make (-Infinity)-(-Infinity)=NaN,
-    // which yields an unstable sort.
+    // Compare explicitly and return only -1/0/1 — never NaN (two nulls) or ±Infinity
+    // (one null), both of which can yield an unstable sort. Symbols without a
+    // valuation (null upside) sink to the bottom.
     .sort((a, b) => {
       const av = a.upsidePct ?? -Infinity;
       const bv = b.upsidePct ?? -Infinity;
-      return av === bv ? 0 : bv - av;
+      if (av === bv) return 0;
+      return bv > av ? 1 : -1;
     });
 }
 

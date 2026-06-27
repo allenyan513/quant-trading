@@ -48,8 +48,18 @@ export async function getHoldingsNav(userId: string) {
     .where(eq(holdingsNavHistory.accountId, userId))
     .orderBy(holdingsNavHistory.date);
 
-  if (navRows.length === 0) {
-    return { asOf: null, navIndex: null, endingNav: null, points: [], kpis: null };
+  // KPIs (volatility/sharpe/…) need ≥2 NAV points; with 0–1 they'd be NaN. Short-circuit
+  // to null KPIs (the consumer already handles that for a fresh account).
+  if (navRows.length < 2) {
+    const last = navRows[0];
+    return {
+      asOf: last?.date ?? null,
+      navIndex: last?.navIndex ?? null,
+      endingNav: last?.endingNav ?? null,
+      dayReturn: last?.dailyReturn ?? null,
+      points: navRows.map((r) => ({ date: r.date, nav: 100, spy: null })),
+      kpis: null,
+    };
   }
 
   const firstDate = navRows[0]!.date;

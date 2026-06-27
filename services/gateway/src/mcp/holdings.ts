@@ -7,14 +7,13 @@
  */
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "../db.js";
-import { dbSchema, metrics, type DailyReturn } from "@qt/shared";
+import { dbSchema, metrics, config, type DailyReturn } from "@qt/shared";
 
 const { holdingsAccounts, holdingsNavHistory, holdingsTrades, holdingsPositions, dailyPrices } = dbSchema;
 
-// Risk-free rate read statically (Next only inlines static process.env access; a
-// dynamic config.riskFreeRate() would read empty in a route handler). Falls back
-// to the same default config uses.
-const riskFreeRate = (): number => Number(process.env.RISK_FREE_RATE ?? "0.043");
+// Risk-free rate from the shared config (plain Node gateway — the Next static-inlining
+// caveat the web copy carried no longer applies).
+const riskFreeRate = (): number => config.riskFreeRate();
 
 export const HOLDINGS_SECTIONS = ["performance", "positions", "trades"] as const;
 export type HoldingsSection = (typeof HOLDINGS_SECTIONS)[number];

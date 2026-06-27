@@ -8,6 +8,7 @@
  * ingress); web reads the read-only DB just like every dashboard page.
  */
 import { db } from "../db.js";
+import { log } from "../log.js";
 import { getLatestValuation, getFinancials, getPrices, getAnalystsData, getSymbolNews } from "@qt/shared/research";
 import { getOwnershipForSymbol } from "@qt/shared/ownership-read";
 import { get8KForSymbol } from "@qt/shared/edgar-8k-read";
@@ -185,7 +186,7 @@ export async function getSymbolResearch(symbol: string, sections?: ResearchSecti
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors[s] = msg;
-        console.warn("mcp.fetch_section_failed", { symbol: sym, section: s, error: msg });
+        log.warn("mcp.fetch_section_failed", { symbol: sym, section: s, error: msg });
       }
     }),
   );

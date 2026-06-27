@@ -13,7 +13,8 @@ export function registerWatchlistRoutes(app: Hono): void {
   app.post(
     "/watchlist/lists/reorder",
     authed("watchlist.lists.reorder", async (c, uid) => {
-      const ids = ((await readBody<{ ids?: unknown }>(c)).ids as unknown[] | undefined)?.map((x) => String(x)) ?? [];
+      const body = await readBody<{ ids?: unknown }>(c);
+      const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
       if (ids.length === 0) throw new Error("ids required");
       return dataPost("/watchlist/lists/reorder", { userId: uid, ids });
     }),
