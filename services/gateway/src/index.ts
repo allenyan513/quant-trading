@@ -19,6 +19,7 @@ import { oAuthDiscoveryMetadata, oAuthProtectedResourceMetadata } from "better-a
 import { route } from "./route.js";
 import { db } from "./db.js";
 import { log } from "./log.js";
+import { requestLog } from "./request-log.js";
 import { auth } from "./auth.js";
 import { mcpRequestHandler } from "./mcp/server.js";
 import { registerSymbolRoutes } from "./routes/symbol.js";
@@ -32,6 +33,9 @@ import { registerMemoRoutes } from "./routes/memos.js";
 import { registerLegendsRoutes } from "./routes/legends.js";
 
 const app = new Hono();
+
+// Per-request access log (outermost, so it times the whole request incl. CORS).
+app.use("*", requestLog);
 
 // CORS for cross-origin browser clients (the SPA's credentialed `/auth/*` calls in
 // particular). Single reflective middleware: in dev (GATEWAY_CORS_ORIGINS unset → "*")
