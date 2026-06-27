@@ -42,9 +42,13 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
 
   // Google (preferred + the only sign-up path). Better Auth handles the redirect to
   // Google + the callback; for the MCP-authorize case the oidc_login_prompt cookie
-  // hook resumes to consent. callbackURL is validated to a same-origin path.
+  // hook resumes to consent. The callback runs ON THE GATEWAY origin, so callbackURL
+  // must be an ABSOLUTE SPA URL (gateway-relative would land on the gateway, which
+  // doesn't serve the SPA). safeFrom() keeps it a same-origin path; trustedOrigins on
+  // the gateway allows redirecting back to this SPA origin.
   async function googleSignIn() {
-    await signIn.social({ provider: "google", callbackURL: safeFrom() });
+    const dest = typeof window !== "undefined" ? window.location.origin + safeFrom() : safeFrom();
+    await signIn.social({ provider: "google", callbackURL: dest });
   }
 
   const inputStyle = {
