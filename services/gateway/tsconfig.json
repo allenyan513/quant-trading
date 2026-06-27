@@ -2,7 +2,13 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    // Leaf app (run via tsx; no package consumes its .d.ts) — same posture as web.
+    // Off because the exported Better Auth instance's inferred type isn't portably
+    // nameable (better-auth pulls in transitive zod-v4 internals → TS2742), and an app
+    // never needs declarations anyway.
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["src/**/*.ts"]
 }

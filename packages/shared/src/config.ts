@@ -22,6 +22,19 @@ export const config = {
    *  (cross-origin SPA with cookies) pins it to the SPA origin via env. */
   gatewayCorsOrigins: () => optionalEnv("GATEWAY_CORS_ORIGINS", "*"),
 
+  // ---- Better Auth (gateway's identity provider + OAuth 2.1 AS for MCP) ----
+  /** Session/token signing secret. Required wherever the auth instance is built. */
+  betterAuthSecret: () => requireEnv("BETTER_AUTH_SECRET"),
+  /** Public base URL of the Authorization Server = the gateway origin (e.g.
+   *  https://api.sweetvaluelab.com); the MCP resource is `${this}/mcp`. */
+  betterAuthUrl: () => optionalEnv("BETTER_AUTH_URL", "http://localhost:8083"),
+  /** The SPA origin (apex) that hosts the human login + OAuth consent pages, and the
+   *  CORS-allowed origin for the SPA's credentialed `/auth/*` calls. */
+  webOrigin: () => optionalEnv("WEB_ORIGIN", "http://localhost:3001"),
+  /** Google social-login credentials — optional; only wired when both are present. */
+  googleClientId: () => optionalEnv("GOOGLE_CLIENT_ID", ""),
+  googleClientSecret: () => optionalEnv("GOOGLE_CLIENT_SECRET", ""),
+
   anthropicApiKey: () => requireEnv("ANTHROPIC_API_KEY"),
   // Models are code constants, not per-deploy knobs: a model is coupled to the
   // prompt contract + the look-ahead cutoff, so changing one is a code change

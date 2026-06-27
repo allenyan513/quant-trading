@@ -3,30 +3,57 @@
  * iOS/Android, and the OAuth-gated MCP connector). Hono, structurally identical
  * to data/alpha/portfolio (see `.claude/rules/services.md`).
  *
- * PR1 scope: the read-only DB layer lifted out of `services/web` (`./db` +
- * `./queries/*`) behind 3 representative public reads (static / query-param /
- * path-param). Auth + MCP + the rest of the business routes land in PR2/PR3;
- * the SPA + DNS cutover in PR4/PR5. No writes here — write forwards to the
- * owning services (data/portfolio) arrive with PR3's proxy move.
+ * Surface so far:
+ *  - PR1: read-only DB reads (`/health`, `/overview`, `/data/symbol/:symbol/profile`).
+ *  - PR2: Better Auth (`/auth/*`) + OAuth discovery (`/.well-known/*`) + the OAuth-gated
+ *    MCP endpoint (`/mcp`) with all 12 tools. The MCP OAuth login/consent UI lives on
+ *    the SPA (apex); this gateway is the AS.
+ * The rest of the business routes (PR3) + SPA/DNS cutover (PR4/PR5) follow.
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { ok, fail, config } from "@qt/shared";
+import { oAuthDiscoveryMetadata, oAuthProtectedResourceMetadata } from "better-auth/plugins";
 import { route } from "./route.js";
 import { log } from "./log.js";
 import { getOverview, getCompanyProfile } from "./queries/index.js";
+import { auth } from "./auth.js";
+import { mcpRequestHandler } from "./mcp/server.js";
 
 const app = new Hono();
 
-// CORS for cross-origin SPA/native clients. Permissive default in dev; PR4 pins
-// it to the SPA origin via GATEWAY_CORS_ORIGINS once cookies are in play.
-const corsOrigins = config.gatewayCorsOrigins();
+// CORS for cross-origin browser clients (the SPA's credentialed `/auth/*` calls in
+// particular). Single reflective middleware: in dev (GATEWAY_CORS_ORIGINS unset → "*")
+// echo the caller's origin; in prod pin to the allow-list. `credentials: true` so the
+// SPA's session cookie rides cross-origin (apex ↔ api subdomain are same-site). Non-
+// browser callers (curl, the MCP client) ignore CORS entirely.
+const corsAllow = config.gatewayCorsOrigins();
+const allowList = corsAllow === "*" ? null : corsAllow.split(",").map((o) => o.trim());
 app.use(
   "*",
-  cors({ origin: corsOrigins === "*" ? "*" : corsOrigins.split(",").map((o) => o.trim()) }),
+  cors({
+    origin: (origin) => (allowList ? (origin && allowList.includes(origin) ? origin : allowList[0] ?? "") : (origin ?? "*")),
+    credentials: true,
+  }),
 );
 
+// ---- Auth + OAuth (Better Auth is the OAuth 2.1 AS for the MCP connector) ----
+// All Better Auth routes (sign-in/out, session, OAuth authorize/token/consent, DCR).
+// basePath is "/auth" (set in auth.ts), rootless on the api subdomain.
+app.on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw));
+
+// OAuth discovery metadata (delegated to Better Auth, fed by the mcp() plugin).
+const discovery = oAuthDiscoveryMetadata(auth);
+const protectedResource = oAuthProtectedResourceMetadata(auth);
+app.get("/.well-known/oauth-authorization-server", (c) => discovery(c.req.raw));
+app.get("/.well-known/oauth-protected-resource", (c) => protectedResource(c.req.raw));
+
+// OAuth-gated MCP endpoint (streamable HTTP). No token → 401 + WWW-Authenticate → the
+// client runs the OAuth dance against the AS above and retries with a bearer.
+app.all("/mcp", (c) => mcpRequestHandler(c.req.raw));
+
+// ---- Read routes (PR1) ----
 // Service liveness (compose/Cloud Run healthcheck). Distinct from the dashboard's
 // cross-pipeline overview below.
 app.get("/health", (c) => c.json(ok({ service: "gateway", status: "up" })));
