@@ -3,7 +3,7 @@
 import { useParams } from "react-router-dom";
 import Link from "@/components/link";
 import { useLive } from "@/components/live";
-import { fmtMoney, fmtQuarter } from "@/lib/format";
+import { fmtMoney, fmtQuarter, money } from "@/lib/format";
 
 interface HoldingRow {
   cusip: string;
@@ -93,7 +93,7 @@ export default function LegendHoldingsTab() {
                   <td style={tdR}>{(h.pctPortfolio * 100).toFixed(2)}%</td>
                   <td style={{ ...td, color: act.color, whiteSpace: "nowrap" }}>{act.text}</td>
                   <td style={tdR}>{h.shares > 0 ? Math.round(h.shares).toLocaleString() : "—"}</td>
-                  <td style={tdR}>{h.reportedPrice != null ? `$${h.reportedPrice.toFixed(2)}` : "—"}</td>
+                  <td style={tdR}>{h.reportedPrice != null ? money(h.reportedPrice, "cell") : "—"}</td>
                   <td style={tdR}>{h.value > 0 ? fmtMoney(h.value) : "—"}</td>
                 </tr>
               );

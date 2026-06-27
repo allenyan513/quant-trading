@@ -10,7 +10,7 @@
 import { useParams } from "@/lib/next-navigation";
 import { useLive } from "@/components/live";
 import { Card, Badge, TimeText } from "@/components/ui";
-import { fmtMoney, formatLargeNumber } from "@/lib/format";
+import { fmtMoney, money } from "@/lib/format";
 
 interface Position {
   accessionNumber: string;
@@ -118,7 +118,7 @@ function Filings({ rows }: { rows: Position[] }) {
               )}
             </span>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 110, textAlign: "right" }}>
-              {r.sharesOwned == null ? "" : `${formatLargeNumber(r.sharesOwned, { prefix: "", decimals: 0 })} sh`}
+              {r.sharesOwned == null ? "" : `${money(r.sharesOwned, "compact", { decimals: 0 })} sh`}
             </span>
             <span style={{ ...mono, fontWeight: 600, minWidth: 64, textAlign: "right" }}>
               {r.pctOfClass == null ? "—" : `${r.pctOfClass.toFixed(2)}%`}
@@ -146,7 +146,7 @@ function Holders({ rows }: { rows: Holder[] }) {
           >
             <span style={{ flex: 1, minWidth: 0 }}>{h.filerLabel ?? h.filerName}</span>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 100, textAlign: "right" }}>
-              {formatLargeNumber(h.shares, { prefix: "", decimals: 0 })} sh
+              {money(h.shares, "compact", { decimals: 0 })} sh
             </span>
             <span style={{ ...mono, fontWeight: 600, minWidth: 80, textAlign: "right" }}>{fmtMoney(h.value)}</span>
             <span style={{ color: "var(--muted)", fontSize: 12, minWidth: 64, textAlign: "right" }}>{h.quarter.slice(0, 7)}</span>
@@ -181,10 +181,10 @@ function Insiders({ data }: { data: Insiders }) {
               </span>
             )}
             <span style={{ ...mono, fontSize: 12, color: "var(--muted)", minWidth: 68, textAlign: "right" }}>
-              {t.shares == null ? "—" : formatLargeNumber(t.shares, { prefix: "", decimals: 0 })}
+              {t.shares == null ? "—" : money(t.shares, "compact", { decimals: 0 })}
             </span>
             <span style={{ ...mono, minWidth: 72, textAlign: "right" }}>
-              {t.value != null ? formatLargeNumber(t.value) : t.price != null ? fmtMoney(t.price) : "—"}
+              {t.value != null ? money(t.value, "compact") : t.price != null ? fmtMoney(t.price) : "—"}
             </span>
           </div>
         ))}

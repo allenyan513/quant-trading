@@ -8,7 +8,7 @@
  * fetches on open (no polling).
  */
 import { useEffect, useState } from "react";
-import { formatLargeNumber, fmtPct } from "@/lib/format";
+import { money, fmtPct } from "@/lib/format";
 import { apiSend } from "@/lib/api-client";
 import { apiUrl, FETCH_OPTS } from "@/lib/api-base";
 import type { EarningsCalEntry } from "@qt/shared/earnings-read";
@@ -41,8 +41,8 @@ function Avatar({ entry, size = 40 }: { entry: EarningsCalEntry; size?: number }
 }
 
 /** est vs actual cell with surprise/beat coloring. */
-function EstActual({ label, est, act, money, surprisePct }: { label: string; est: number | null; act: number | null; money?: boolean; surprisePct?: number | null }) {
-  const fmt = (v: number | null) => (v == null ? "—" : money ? formatLargeNumber(v) : v.toFixed(2));
+function EstActual({ label, est, act, asMoney, surprisePct }: { label: string; est: number | null; act: number | null; asMoney?: boolean; surprisePct?: number | null }) {
+  const fmt = (v: number | null) => (v == null ? "—" : asMoney ? money(v, "compact") : v.toFixed(2));
   const beat = act != null && est != null ? act >= est : null;
   return (
     <div style={{ flex: 1 }}>
@@ -124,13 +124,13 @@ export function EarningsDrawer({ entry, mine, onClose, onAdded }: { entry: Earni
 
         <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--muted)", flexWrap: "wrap" }}>
           <span>📅 {entry.reportDate}</span>
-          {entry.marketCap != null && <span>Market cap {formatLargeNumber(entry.marketCap)}</span>}
+          {entry.marketCap != null && <span>Market cap {money(entry.marketCap, "compact")}</span>}
           {entry.sector && <span>{entry.sector}</span>}
         </div>
 
         <div style={{ display: "flex", gap: 16, padding: "12px 0", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
           <EstActual label="EPS" est={entry.epsEstimated} act={entry.epsActual} surprisePct={epsSurprise} />
-          <EstActual label="Revenue" est={entry.revenueEstimated} act={entry.revenueActual} money />
+          <EstActual label="Revenue" est={entry.revenueEstimated} act={entry.revenueActual} asMoney />
         </div>
 
         <div>

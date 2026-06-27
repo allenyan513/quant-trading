@@ -12,18 +12,56 @@ export function fmtPct(v: number | null | undefined, digits = 1): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(digits)}%`;
 }
 
-export function fmtMoney(v: number | null | undefined): string {
+// ============================================================
+// Money — the single source of truth for how a money figure is displayed.
+// Whether it shows `$`, how many decimals, and whether it's abbreviated (1.2B) is
+// decided HERE by semantic ROLE, never at the call site. So a product change like
+// "show $ in tables" or "use 1 decimal" is a one-line edit to MONEY_POLICY below —
+// not a sweep across ~30 files. Pick the role that matches the surface:
+//
+//   cell             table / KPI cell          bare, 2dp        1,234.50
+//   headline         valuation hero & cards    with $, 2dp      $1,234.50
+//   compact          abbreviated, table        bare, T/B/M      1.2B
+//   compactHeadline  abbreviated, valuation    with $, T/B/M     $1.2B
+//   billions         watchlist Mkt cap         bare, uniform B  4,663.27B
+//
+// `opts.decimals` overrides the role's decimals for the rare caller that needs it
+// (e.g. a whole-number abbreviated figure) — that's a display nuance, NOT the
+// currency policy, so it stays out of MONEY_POLICY.
+// ============================================================
+export type MoneyStyle = "cell" | "headline" | "compact" | "compactHeadline" | "billions";
+
+const MONEY_POLICY: Record<MoneyStyle, { currency: boolean; abbrev: boolean; billions: boolean; decimals: number }> = {
+  cell: { currency: false, abbrev: false, billions: false, decimals: 2 },
+  headline: { currency: true, abbrev: false, billions: false, decimals: 2 },
+  compact: { currency: false, abbrev: true, billions: false, decimals: 1 },
+  compactHeadline: { currency: true, abbrev: true, billions: false, decimals: 1 },
+  billions: { currency: false, abbrev: false, billions: true, decimals: 2 },
+};
+
+export function money(v: number | null | undefined, style: MoneyStyle = "cell", opts?: { decimals?: number }): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  // Always 2 decimals so money columns line up on the decimal point (1000.1 → 1000.10).
-  return `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const p = MONEY_POLICY[style];
+  const dp = opts?.decimals ?? p.decimals;
+  // Sign goes BEFORE the currency symbol — "-$1,234.50", never "$-1,234.50".
+  const prefix = (v < 0 ? "-" : "") + (p.currency ? "$" : "");
+  const a = Math.abs(v);
+  if (p.billions) return `${prefix}${(a / 1e9).toLocaleString("en-US", { maximumFractionDigits: dp })}B`;
+  if (p.abbrev) {
+    if (a >= 1e12) return `${prefix}${(a / 1e12).toFixed(dp)}T`;
+    if (a >= 1e9) return `${prefix}${(a / 1e9).toFixed(dp)}B`;
+    if (a >= 1e6) return `${prefix}${(a / 1e6).toFixed(dp)}M`;
+    return `${prefix}${a.toLocaleString("en-US", { maximumFractionDigits: dp })}`;
+  }
+  // Full number, fixed decimals so columns line up on the decimal point.
+  return `${prefix}${a.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
 }
 
-/** Large USD figure in billions, IBKR-style — always the same unit so the column
- *  stays scannable: 4663269130000 → "4,663.27B", 1.5e9 → "1.5B". nullish → dash. */
-export function fmtBillions(v: number | null | undefined): string {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return `${(v / 1e9).toLocaleString("en-US", { maximumFractionDigits: 2 })}B`;
-}
+/** Table / KPI money — bare, 2 decimals (IBKR-style). Alias for `money(v, "cell")`. */
+export const fmtMoney = (v: number | null | undefined): string => money(v, "cell");
+
+/** Watchlist market cap — uniform billions, bare (4663269130000 → "4,663.27B"). */
+export const fmtBillions = (v: number | null | undefined): string => money(v, "billions");
 
 function toDate(ts: string | Date | null | undefined): Date | null {
   if (!ts) return null;
@@ -127,27 +165,9 @@ export function fmtFull(ts: string | Date | null | undefined): string {
 // The valuation detail page + its component closure depend on these exact names.
 // ============================================================
 
-/** Format a number with T/B/M abbreviations (e.g., $1.2T, $1.2B, $1.2M). */
-export function formatLargeNumber(
-  n: number,
-  opts?: { prefix?: string; decimals?: number; includeK?: boolean },
-): string {
-  const { prefix = "$", decimals = 1, includeK = false } = opts ?? {};
-  if (Math.abs(n) >= 1e12) return `${prefix}${(n / 1e12).toFixed(decimals)}T`;
-  if (Math.abs(n) >= 1e9) return `${prefix}${(n / 1e9).toFixed(decimals)}B`;
-  if (Math.abs(n) >= 1e6) return `${prefix}${(n / 1e6).toFixed(decimals)}M`;
-  if (includeK && Math.abs(n) >= 1e3) return `${prefix}${(n / 1e3).toFixed(decimals)}K`;
-  return `${prefix}${n.toLocaleString()}`;
-}
-
-/** Format a number as locale-aware USD currency (e.g., $1,234.56). */
+/** Valuation per-share money — with `$`, 2 decimals. Alias for `money(n, "headline")`. */
 export function formatCurrency(n: number): string {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return money(n, "headline");
 }
 
 /** Format a number in millions (e.g., 125000000 → "125,000"). */

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ValuationHero } from "@/components/valuation/valuation-hero";
 import { cn } from "@/lib/utils";
-import { formatLargeNumber, formatRatio } from "@/lib/format";
+import { money, formatRatio } from "@/lib/format";
 import type {
   ValuationSummary,
   ValuationModelType,
@@ -96,7 +96,7 @@ function MultiplePanel({ model, currentPrice }: { model: ValuationResult; curren
               {d?.industry_median != null ? d.industry_median.toFixed(1) : "—"}x
             </strong>
             {d?.company_metric != null && (
-              <> on company {d.metric_label ?? "metric"} of {formatLargeNumber(d.company_metric)}</>
+              <> on company {d.metric_label ?? "metric"} of {money(d.company_metric, "compactHeadline")}</>
             )}
             ) implies a fair value of <strong className="text-foreground">{`$${model.fair_value.toFixed(2)}`}</strong> per share.
           </>
@@ -127,7 +127,7 @@ function MultiplePanel({ model, currentPrice }: { model: ValuationResult; curren
                       {p.ticker}
                       <span className="text-muted-foreground font-normal"> · {p.name}</span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono">{formatLargeNumber(p.market_cap, { prefix: "" })}</td>
+                    <td className="py-2 px-3 text-right font-mono">{money(p.market_cap, "compact")}</td>
                     <td className="py-2 px-3 text-right font-mono">{ratio(p.trailing_pe)}</td>
                     <td className="py-2 px-3 text-right font-mono">{ratio(p.forward_pe)}</td>
                     <td className="py-2 px-3 text-right font-mono">{ratio(p.ev_ebitda)}</td>

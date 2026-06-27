@@ -4,7 +4,7 @@
 // valuation / profitability / health / per-share.
 
 import { Card, Grid } from "@/components/ui";
-import { formatRatio } from "@/lib/format";
+import { money, formatRatio } from "@/lib/format";
 import { type Row, num, div, add } from "./shared";
 
 export function RatioGroups({ income, balance, cashflow, ratios }: { income: Row[]; balance: Row[]; cashflow: Row[]; ratios: Row[] }) {
@@ -16,7 +16,7 @@ export function RatioGroups({ income, balance, cashflow, ratios }: { income: Row
 
   const ratioX = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}x`);
   const pct = (v: number | null) => (v == null ? "—" : formatRatio(v));
-  const usd = (v: number | null) => (v == null ? "—" : `$${v.toFixed(2)}`);
+  const usd = (v: number | null) => (v == null ? "—" : money(v, "cell"));
   const shares = num(li, "weightedAverageShsOutDil");
   const fcf = num(lc, "freeCashFlow") ?? add(num(lc, "operatingCashFlow"), num(lc, "capitalExpenditure"));
 

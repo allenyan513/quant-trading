@@ -4,7 +4,7 @@
 // comparables, plus a median row.
 
 import { Card } from "@/components/ui";
-import { formatLargeNumber, formatRatio } from "@/lib/format";
+import { money, formatRatio } from "@/lib/format";
 import { type Peer, type Row, num, div, median } from "./shared";
 
 export function PeerCompare({ symbol, peers, income, balance }: { symbol: string; peers: Peer[]; income: Row[]; balance: Row[] }) {
@@ -33,7 +33,7 @@ export function PeerCompare({ symbol, peers, income, balance }: { symbol: string
     net_margin: median(peers.map((p) => p.net_margin)),
     roe: median(peers.map((p) => p.roe)),
   };
-  const cap = (v?: number | null) => (v == null ? "—" : formatLargeNumber(v));
+  const cap = (v?: number | null) => (v == null ? "—" : money(v, "compact"));
   const x = (v?: number | null) => (v == null ? "—" : `${v.toFixed(1)}x`);
   const pc = (v?: number | null) => (v == null ? "—" : formatRatio(v));
   const cols: { h: string; f: (p: Peer) => string }[] = [

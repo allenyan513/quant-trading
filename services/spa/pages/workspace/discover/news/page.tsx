@@ -7,6 +7,7 @@ import { PageTitle } from "@/components/page-title";
 import { Badge, StatusBadge, TimeText } from "@/components/ui";
 import { SymbolLink } from "@/components/symbol-link";
 import { apiSend } from "@/lib/api-client";
+import { money } from "@/lib/format";
 
 interface NewsRow {
   id: string;
@@ -271,13 +272,11 @@ export default function NewsPage() {
 
 /** Triage verdict cell: priority badge + materiality, or the screen-out reason
  * / "untriaged". Rationale shows on hover. */
-/** Compact USD for market cap, e.g. 4.2e8 -> "$420M", 1.2e9 -> "$1.2B". */
+/** Compact market cap, bare (IBKR-style — News is a summary surface, no `$`):
+ *  4.2e8 -> "420M", 1.2e9 -> "1.2B". */
 function fmtUsd(n: number): string {
   if (!Number.isFinite(n)) return "?";
-  if (n >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${Math.round(n / 1e6)}M`;
-  return `$${Math.round(n)}`;
+  return money(n, "compact");
 }
 
 interface TriageLabel {

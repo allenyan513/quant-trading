@@ -1,7 +1,7 @@
 import { ValuationHero } from "@/components/valuation/valuation-hero";
 import { PEGGauge } from "@/components/valuation/peg-gauge";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatLargeNumber, formatRatio } from "@/lib/format";
+import { formatCurrency, money, formatRatio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ValuationSummary } from "@/types";
 import type { PEGDetails } from "@/types";
@@ -141,7 +141,7 @@ export function PEGSection({ summary }: Props) {
                     {d.earnings_history.map((entry) => (
                       <tr key={entry.year} className="border-b border-muted/30">
                         <td className="py-1.5">FY{entry.year}</td>
-                        <td className="py-1.5 text-right font-mono">{formatLargeNumber(entry.net_income)}</td>
+                        <td className="py-1.5 text-right font-mono">{money(entry.net_income, "compactHeadline")}</td>
                         <td className="py-1.5 text-right font-mono">${entry.eps?.toFixed(2) ?? "—"}</td>
                         <td className={cn("py-1.5 text-right font-mono", entry.yoy_growth !== null && entry.yoy_growth >= 0 ? "text-green-400" : "text-red-400")}>
                           {entry.yoy_growth !== null ? `${entry.yoy_growth >= 0 ? "+" : ""}${entry.yoy_growth.toFixed(1)}%` : "—"}
