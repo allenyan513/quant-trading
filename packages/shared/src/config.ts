@@ -99,6 +99,10 @@ export const config = {
   portfolioUrl: () => requireEnv("PORTFOLIO_URL"),
   dataUrl: () => requireEnv("DATA_URL"),
 
+  /** True in a deployed environment — NODE_ENV=production is baked into the service
+   *  images. Guards that stay open for local-dev convenience use this to fail closed. */
+  isProduction: () => optionalEnv("NODE_ENV", "") === "production",
+
   /** Shared secret guarding cron/job endpoints (e.g. the daily refresh hit by
    *  GitHub Actions). Empty (local dev) = open; set in prod so only the cron can
    *  trigger jobs. Partial fix for #24 (full service-to-service auth is separate). */
