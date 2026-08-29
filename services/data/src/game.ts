@@ -14,11 +14,15 @@
  */
 import { fmpGet, marketdata, tickerToCik } from "@qt/shared";
 import { fetch8KFilings, decodeItems, type DecodedItem } from "@qt/shared/edgar-8k";
-import { GAME_SYMBOLS, type GameBar, type GameDataset, type GameEvent, type GameFundamental, type GameMacro } from "@qt/shared/game";
+import { GAME_SYMBOLS, type GameBar, type GameDataset, type GameEvent, type GameFundamental, type GameTapeRow } from "@qt/shared/game";
 import { log } from "./log.js";
 
-/** Index/vol tickers behind the macro strip. */
-const MACRO = { spy: "SPY", qqq: "QQQ", vix: "^VIX" } as const;
+/** The watchlist rail's benchmark rows. A future portfolio mode extends this list. */
+const TAPE = [
+  { symbol: "SPY", name: "S&P 500" },
+  { symbol: "QQQ", name: "Nasdaq 100" },
+  { symbol: "^VIX", name: "Volatility" },
+] as const;
 
 /** How many events survive per day. Five keeps the panel game-sized (user call). */
 const MAX_EVENTS_PER_DAY = 5;
@@ -276,36 +280,33 @@ async function loadFundamentals(symbol: string): Promise<GameFundamental[]> {
   return out.sort((a, b) => a.knownAt.localeCompare(b.knownAt));
 }
 
-// ───────────────────────────── macro tape ─────────────────────────────
+// ───────────────────────────── watchlist tape ─────────────────────────────
 
-/** SPY/QQQ % change + the VIX level per day. Missing series degrade to nulls. */
-async function loadMacro(): Promise<Record<string, GameMacro>> {
-  const [spy, qqq, vix] = await Promise.all(
-    [MACRO.spy, MACRO.qqq, MACRO.vix].map((s) =>
-      loadBars(s).catch((err) => {
-        log.warn("game.macro.failed", { symbol: s, error: err instanceof Error ? err.message : String(err) });
+/**
+ * Close + day change per session for each benchmark. Values are rounded on the way out:
+ * the raw doubles carry 15 significant digits that JSON faithfully serializes, which
+ * triples this section's payload for precision no one can see on a watchlist row.
+ */
+async function loadTape(): Promise<GameTapeRow[]> {
+  const rows = await Promise.all(
+    TAPE.map(async ({ symbol, name }) => {
+      const bars = await loadBars(symbol).catch((err) => {
+        log.warn("game.tape.failed", { symbol, error: err instanceof Error ? err.message : String(err) });
         return [] as GameBar[];
-      }),
-    ),
+      });
+      const days: Record<string, { c: number; pct: number | null }> = {};
+      for (let i = 0; i < bars.length; i++) {
+        const prev = bars[i - 1]?.c;
+        const c = bars[i]!.c;
+        days[bars[i]!.d] = {
+          c: Math.round(c * 100) / 100,
+          pct: prev && prev > 0 ? Math.round((c / prev - 1) * 10_000) / 100 : null,
+        };
+      }
+      return { symbol, name, days };
+    }),
   );
-
-  const pctByDate = (bars: GameBar[]): Map<string, number> => {
-    const m = new Map<string, number>();
-    for (let i = 1; i < bars.length; i++) {
-      const prev = bars[i - 1]!.c;
-      if (prev > 0) m.set(bars[i]!.d, (bars[i]!.c / prev - 1) * 100);
-    }
-    return m;
-  };
-  const spyPct = pctByDate(spy!);
-  const qqqPct = pctByDate(qqq!);
-  const vixLevel = new Map(vix!.map((b) => [b.d, b.c]));
-
-  const out: Record<string, GameMacro> = {};
-  for (const d of new Set([...spyPct.keys(), ...qqqPct.keys(), ...vixLevel.keys()])) {
-    out[d] = { spy: spyPct.get(d) ?? null, qqq: qqqPct.get(d) ?? null, vix: vixLevel.get(d) ?? null };
-  }
-  return out;
+  return rows.filter((r) => Object.keys(r.days).length > 0);
 }
 
 // ───────────────────────────── assembly ─────────────────────────────
@@ -357,12 +358,12 @@ export async function buildGameDataset(symbol: string): Promise<GameDataset> {
       return [];
     });
 
-  const [grades, earnings, filings, news, macro, profile, fundamentals] = await Promise.all([
+  const [grades, earnings, filings, news, tape, profile, fundamentals] = await Promise.all([
     settle("grades", gradeEvents(sym)),
     settle("earnings", earningsEvents(sym)),
     settle("filings", filingEvents(sym)),
     settle("news", newsEvents(sym, newsFrom, newsTo)),
-    loadMacro().catch(() => ({}) as Record<string, GameMacro>),
+    loadTape().catch(() => [] as GameTapeRow[]),
     marketdata.getProfile(sym).catch(() => null),
     loadFundamentals(sym).catch((err) => {
       log.warn("game.source.failed", { symbol: sym, source: "fundamentals", error: err instanceof Error ? err.message : String(err) });
@@ -387,7 +388,7 @@ export async function buildGameDataset(symbol: string): Promise<GameDataset> {
     companyName: typeof profile?.companyName === "string" ? profile.companyName : null,
     bars,
     events,
-    macro,
+    tape,
     fundamentals,
   };
   cache.set(sym, { at: Date.now(), dataset });

@@ -77,11 +77,23 @@ export interface GameEvent {
   url?: string;
 }
 
-/** Index/vol tape for the day — the macro backdrop the player trades against. */
-export interface GameMacro {
-  spy: number | null; // % change
-  qqq: number | null;
-  vix: number | null; // level, not % change
+/** One symbol's close + day change on a given session. */
+export interface GameTick {
+  c: number;
+  /** Day-over-day % change. Null on the first bar of the series. */
+  pct: number | null;
+}
+
+/**
+ * A row in the left-hand watchlist: the market context the player trades against
+ * (SPY / QQQ / VIX today). Shaped as a list of symbols rather than fixed spy/qqq/vix
+ * fields so a future portfolio mode — where the player holds 5–15 names — can put its
+ * real positions in the same rail without reshaping the dataset.
+ */
+export interface GameTapeRow {
+  symbol: string;
+  name: string;
+  days: Record<string, GameTick>;
 }
 
 /**
@@ -106,7 +118,9 @@ export interface GameDataset {
   bars: GameBar[];
   /** date → that day's events, already ranked and capped. */
   events: Record<string, GameEvent[]>;
-  macro: Record<string, GameMacro>;
+  /** Benchmarks for the watchlist rail. The played symbol is NOT here — its full bars
+   *  are in `bars`, since only it is tradable today. */
+  tape: GameTapeRow[];
   /** Ascending by knownAt. Empty when the statements were unavailable. */
   fundamentals: GameFundamental[];
 }

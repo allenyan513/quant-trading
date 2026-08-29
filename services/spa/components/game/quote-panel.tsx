@@ -35,13 +35,17 @@ export function QuotePanel({ quote, symbol, name }: { quote: GameQuote; symbol: 
           <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>{symbol}</span>
           <span style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
         </div>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 26, color: dirColor, lineHeight: 1.2 }}>{q.close.toFixed(2)}</div>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: dirColor }}>
-          {q.changeAbs == null ? "—" : `${q.changeAbs >= 0 ? "+" : "−"}${Math.abs(q.changeAbs).toFixed(2)}`} {fmtPct(q.changePct, 2)}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 2 }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 24, color: dirColor, lineHeight: 1.1 }}>{q.close.toFixed(2)}</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: dirColor }}>
+            {q.changeAbs == null ? "—" : `${q.changeAbs >= 0 ? "+" : "−"}${Math.abs(q.changeAbs).toFixed(2)}`} {fmtPct(q.changePct, 2)}
+          </span>
         </div>
       </div>
 
-      <dl style={{ display: "grid", gridTemplateColumns: "auto auto", gap: "3px 8px", margin: 0, fontSize: 11 }}>
+      {/* Two label/value pairs per line, broker-terminal style: same 15 stats in half the
+          height, which is what leaves the news feed below usable room. */}
+      <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr auto 1fr", gap: "4px 10px", margin: 0, fontSize: 11 }}>
         <Row label="High" value={q.high.toFixed(2)} color={UP} />
         <Row label="Low" value={q.low.toFixed(2)} color={DOWN} />
         <Row label="Open" value={q.open.toFixed(2)} />

@@ -16,6 +16,8 @@ import { PriceChartLazy, type Bar, type ChartMarker } from "@/components/price-c
 import { StartScreen } from "@/components/game/start-screen";
 import { QuotePanel } from "@/components/game/quote-panel";
 import { Settlement } from "@/components/game/settlement";
+import { Watchlist, buildWatchRows } from "@/components/game/watchlist";
+import { NewsFeed, buildNewsDays } from "@/components/game/news-feed";
 import {
   newGame,
   pickWindow,
@@ -27,23 +29,12 @@ import {
   maxBuyable,
   type GameDataset,
   type GameState,
-  type GameEvent,
   type GameTicker,
   type OrderSide,
 } from "@qt/shared/game";
 
 const UP = "#3fb950";
 const DOWN = "#f85149";
-
-/** Icon + tint per event kind — the news panel's only visual coding. */
-const EVENT_STYLE: Record<GameEvent["kind"], { icon: string; color: string }> = {
-  earnings: { icon: "◆", color: "#58a6ff" },
-  filing: { icon: "▣", color: "#d29922" },
-  rating: { icon: "★", color: "#a371f7" },
-  move: { icon: "⚡", color: "#f0883e" },
-  macro: { icon: "◇", color: "var(--muted)" },
-  news: { icon: "●", color: "var(--muted)" },
-};
 
 const pnlColor = (v: number): string => (v > 0 ? UP : v < 0 ? DOWN : "var(--text)");
 
@@ -151,8 +142,25 @@ export default function GamePage() {
     [state],
   );
 
-  const todaysEvents = today ? (dataset?.events[today.d] ?? []) : [];
-  const todaysMacro = today ? dataset?.macro[today.d] : undefined;
+  const watchRows = useMemo(() => {
+    if (!today || !state || !ticker) return [];
+    const prev = bars[state.cursor - 1]?.c;
+    return buildWatchRows(
+      {
+        symbol: ticker.symbol,
+        name: ticker.name,
+        close: today.c,
+        pct: prev && prev > 0 ? (today.c / prev - 1) * 100 : null,
+      },
+      dataset?.tape ?? [],
+      today.d,
+    );
+  }, [today, state, ticker, bars, dataset]);
+
+  const newsDays = useMemo(
+    () => (state && dataset ? buildNewsDays(bars, startIndex, state.cursor, dataset.events) : []),
+    [state, dataset, bars, startIndex],
+  );
 
   const submit = useCallback(
     (side: OrderSide) => {
@@ -210,9 +218,12 @@ export default function GamePage() {
   const affordable = nextOpen ? maxBuyable(state.cash, nextOpen) : 0;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* ── Header: the in-game date + the macro tape ── */}
-      <header style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+    // The board is a fixed-height terminal, not a scrolling document: every rail is
+    // bounded so its own overflow scrolls. Letting the page grow instead made the news
+    // history stretch the grid row — and with it the chart container — to ~6000px.
+    <div style={{ height: "100vh", boxSizing: "border-box", overflow: "hidden", background: "var(--bg)", color: "var(--text)", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* ── Header: the in-game date. The tape lives in the watchlist rail. ── */}
+      <header style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap", flexShrink: 0 }}>
         <button
           onClick={backToMenu}
           style={{ fontSize: 18, fontWeight: 600, background: "none", border: "none", color: "var(--text)", cursor: "pointer", padding: 0 }}
@@ -222,20 +233,13 @@ export default function GamePage() {
         <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--muted)" }}>
           {today.d} · {dataset.companyName ?? ticker.name}
         </span>
-        {todaysMacro && (
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted)" }}>
-            SPY <span style={{ color: pnlColor(todaysMacro.spy ?? 0) }}>{fmtPct(todaysMacro.spy)}</span> · QQQ{" "}
-            <span style={{ color: pnlColor(todaysMacro.qqq ?? 0) }}>{fmtPct(todaysMacro.qqq)}</span> · VIX{" "}
-            {todaysMacro.vix?.toFixed(1) ?? "—"}
-          </span>
-        )}
         <button onClick={backToMenu} style={{ marginLeft: "auto", padding: "4px 10px", fontSize: 12, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", borderRadius: 4 }}>
           Quit to menu
         </button>
       </header>
 
       {/* ── KPI strip: the account, not the stock ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1, background: "var(--border)", border: "1px solid var(--border)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1, background: "var(--border)", border: "1px solid var(--border)", flexShrink: 0 }}>
         <Kpi label="Net liquidation" value={money(kpis.equity, "cell")} />
         <Kpi label="Cash" value={money(kpis.cash, "cell")} />
         <Kpi label="Position" value={kpis.shares ? `${fmtNum(kpis.shares, 0)} sh` : "—"} sub={kpis.shares ? `avg ${money(kpis.avgCost, "cell")}` : undefined} />
@@ -247,13 +251,13 @@ export default function GamePage() {
         <Kpi label="Buy & hold" value={fmtPct(kpis.buyHoldReturnPct)} sub={`ann. ${fmtPct(kpis.buyHoldCagrPct)}`} color="var(--muted)" />
       </div>
 
-      {/* Terminal layout: stats rail · chart · order + news. */}
-      <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr) 300px", gap: 12, flex: 1, minHeight: 560 }}>
-        {quote && <QuotePanel quote={quote} symbol={ticker.symbol} name={dataset.companyName ?? ticker.name} />}
+      {/* Terminal layout: watchlist · chart · stats + order + news. */}
+      <div style={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr) 320px", gap: 12, flex: 1, minHeight: 0 }}>
+        <Watchlist rows={watchRows} />
 
         {/* RSI/MACD stay ON: PriceChart allocates their panes regardless, so turning them
             off only buys dead space — and indicators belong in a trading game. */}
-        <div style={{ border: "1px solid var(--border)", background: "var(--panel)", minHeight: 560 }}>
+        <div style={{ border: "1px solid var(--border)", background: "var(--panel)", minHeight: 0, overflow: "hidden" }}>
           {visibleBars.length > 1 && (
             <PriceChartLazy
               key={ticker.symbol}
@@ -268,7 +272,11 @@ export default function GamePage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
-          <div style={{ border: "1px solid var(--border)", background: "var(--panel)", padding: 12 }}>
+          <div style={{ flexShrink: 0 }}>
+            {quote && <QuotePanel quote={quote} symbol={ticker.symbol} name={dataset.companyName ?? ticker.name} />}
+          </div>
+
+          <div style={{ border: "1px solid var(--border)", background: "var(--panel)", padding: 12, flexShrink: 0 }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", marginBottom: 8 }}>Order</div>
 
             <input
@@ -349,28 +357,7 @@ export default function GamePage() {
             </button>
           </div>
 
-          {/* ── Today's news: the top few events, never a full dump ── */}
-          <div style={{ border: "1px solid var(--border)", background: "var(--panel)", padding: 12, flex: 1, minHeight: 0, overflowY: "auto" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", marginBottom: 8 }}>{today.d} · News</div>
-            {todaysEvents.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>Quiet session. No material events.</div>
-            ) : (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                {todaysEvents.map((e, i) => {
-                  const st = EVENT_STYLE[e.kind];
-                  return (
-                    <li key={`${e.kind}-${i}`} style={{ display: "flex", gap: 8, fontSize: 12, lineHeight: 1.4 }}>
-                      <span style={{ color: st.color }}>{st.icon}</span>
-                      <span>
-                        <span>{e.title}</span>
-                        {e.detail && <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 2 }}>{e.detail}</div>}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+          <NewsFeed days={newsDays} />
         </div>
       </div>
 
