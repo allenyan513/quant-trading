@@ -32,7 +32,8 @@ import { searchFilings } from "@qt/shared/edgar-fts";
 import { fetchMovers, fetchEarningsCalendar, fetchEconomicCalendar, fetchEarningsHistory } from "@qt/shared/markets";
 import { syncEarningsCalendar } from "./earnings/sync.js";
 import { route } from "./route.js";
-import { buildGameDataset, GAME_SYMBOLS } from "./game.js";
+import { buildGameDataset } from "./game.js";
+import { GAME_SYMBOLS } from "@qt/shared/game";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -462,7 +463,7 @@ app.get(
   route("game.dataset", async (c) => {
     const symbol = (c.req.query("symbol") ?? "").trim().toUpperCase();
     if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
-    if (!(GAME_SYMBOLS as readonly string[]).includes(symbol)) {
+    if (!GAME_SYMBOLS.includes(symbol)) {
       return c.json(fail("bad_request", `symbol must be one of ${GAME_SYMBOLS.join(", ")}`), 400);
     }
     return buildGameDataset(symbol);

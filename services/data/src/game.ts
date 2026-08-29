@@ -14,11 +14,8 @@
  */
 import { fmpGet, marketdata, tickerToCik } from "@qt/shared";
 import { fetch8KFilings, decodeItems, type DecodedItem } from "@qt/shared/edgar-8k";
-import type { GameBar, GameDataset, GameEvent, GameMacro } from "@qt/shared/game";
+import { GAME_SYMBOLS, type GameBar, type GameDataset, type GameEvent, type GameFundamental, type GameMacro } from "@qt/shared/game";
 import { log } from "./log.js";
-
-/** Presets: distinct enough regimes that the same strategy scores very differently. */
-export const GAME_SYMBOLS = ["NVDA", "TSLA", "AAPL", "META", "PLTR"] as const;
 
 /** Index/vol tickers behind the macro strip. */
 const MACRO = { spy: "SPY", qqq: "QQQ", vix: "^VIX" } as const;
@@ -211,6 +208,74 @@ function moveEvents(symbol: string, bars: GameBar[]): GameEvent[] {
   return out;
 }
 
+// ───────────────────────────── PIT fundamentals ─────────────────────────────
+
+interface FmpQuarter {
+  date?: string;
+  /** When the filing hit EDGAR — the PIT anchor. Falls back to fiscal date if absent. */
+  acceptedDate?: string;
+  epsDiluted?: number | null;
+  revenue?: number | null;
+  weightedAverageShsOutDil?: number | null;
+  totalStockholdersEquity?: number | null;
+}
+
+/** 10 years of quarters — deeper than any window the game can draw. */
+const QUARTERS = 40;
+
+/** Four consecutive quarters ending at `i` (newest-first array), or null if short. */
+function ttm(rows: FmpQuarter[], i: number, key: "epsDiluted" | "revenue"): number | null {
+  let sum = 0;
+  for (let k = i; k < i + 4; k++) {
+    const v = rows[k]?.[key];
+    if (v == null) return null;
+    sum += v;
+  }
+  return sum;
+}
+
+/**
+ * Build the PIT fundamentals timeline: one row per reported quarter, stamped with the
+ * date it became public rather than the date the quarter ended. A quarter ending in
+ * January that files in late February must not be visible on February 1st.
+ *
+ * Statements are fetched straight from FMP rather than through the marketdata cache: that
+ * layer serves EDGAR-derived rows whose field names vary by source, and the game only
+ * needs four numbers with a reliable acceptedDate.
+ */
+async function loadFundamentals(symbol: string): Promise<GameFundamental[]> {
+  const [income, balance] = await Promise.all([
+    fmpGet<FmpQuarter[]>("income-statement", { symbol, period: "quarter", limit: QUARTERS }, { softFail402: true }),
+    fmpGet<FmpQuarter[]>("balance-sheet-statement", { symbol, period: "quarter", limit: QUARTERS }, { softFail402: true }),
+  ]);
+  if (!income?.length) return [];
+
+  // Equity by fiscal date, so a balance sheet joins its income statement.
+  const equityByDate = new Map<string, number>();
+  for (const b of balance ?? []) {
+    if (b.date && b.totalStockholdersEquity != null) equityByDate.set(b.date, b.totalStockholdersEquity);
+  }
+
+  const out: GameFundamental[] = [];
+  for (let i = 0; i < income.length; i++) {
+    const r = income[i]!;
+    // acceptedDate is "YYYY-MM-DD HH:MM:SS"; the date half is all the game needs.
+    const knownAt = (r.acceptedDate ?? r.date ?? "").slice(0, 10);
+    if (!knownAt) continue;
+    const shares = r.weightedAverageShsOutDil ?? null;
+    const equity = r.date ? (equityByDate.get(r.date) ?? null) : null;
+    out.push({
+      knownAt,
+      ttmEps: ttm(income, i, "epsDiluted"),
+      ttmRevenue: ttm(income, i, "revenue"),
+      sharesOut: shares,
+      bookValuePerShare: equity != null && shares ? equity / shares : null,
+    });
+  }
+  // Ascending — pickFundamental scans from the end for the newest already-public row.
+  return out.sort((a, b) => a.knownAt.localeCompare(b.knownAt));
+}
+
 // ───────────────────────────── macro tape ─────────────────────────────
 
 /** SPY/QQQ % change + the VIX level per day. Missing series degrade to nulls. */
@@ -292,13 +357,17 @@ export async function buildGameDataset(symbol: string): Promise<GameDataset> {
       return [];
     });
 
-  const [grades, earnings, filings, news, macro, profile] = await Promise.all([
+  const [grades, earnings, filings, news, macro, profile, fundamentals] = await Promise.all([
     settle("grades", gradeEvents(sym)),
     settle("earnings", earningsEvents(sym)),
     settle("filings", filingEvents(sym)),
     settle("news", newsEvents(sym, newsFrom, newsTo)),
     loadMacro().catch(() => ({}) as Record<string, GameMacro>),
     marketdata.getProfile(sym).catch(() => null),
+    loadFundamentals(sym).catch((err) => {
+      log.warn("game.source.failed", { symbol: sym, source: "fundamentals", error: err instanceof Error ? err.message : String(err) });
+      return [] as GameFundamental[];
+    }),
   ]);
 
   const events = bucketByDay([...grades, ...earnings, ...filings, ...news, ...moveEvents(sym, bars)]);
@@ -310,6 +379,7 @@ export async function buildGameDataset(symbol: string): Promise<GameDataset> {
     earnings: earnings.length,
     filings: filings.length,
     news: news.length,
+    fundamentals: fundamentals.length,
   });
 
   const dataset: GameDataset = {
@@ -318,6 +388,7 @@ export async function buildGameDataset(symbol: string): Promise<GameDataset> {
     bars,
     events,
     macro,
+    fundamentals,
   };
   cache.set(sym, { at: Date.now(), dataset });
   return dataset;

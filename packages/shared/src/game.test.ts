@@ -8,6 +8,8 @@ import {
   computeKpis,
   maxBuyable,
   cagr,
+  pickFundamental,
+  computeQuote,
   INITIAL_CASH,
   type GameBar,
 } from "./game.js";
@@ -204,5 +206,73 @@ describe("helpers", () => {
     expect(cagr(1.5, 10)).toBeNull();
     expect(cagr(0, 365)).toBeNull();
     expect(cagr(2, 365)).toBeCloseTo(100, 6);
+  });
+});
+
+describe("PIT fundamentals", () => {
+  const funds = [
+    { knownAt: "2021-02-24", ttmEps: 1.0, ttmRevenue: 1000, sharesOut: 100, bookValuePerShare: 5 },
+    { knownAt: "2021-05-26", ttmEps: 2.0, ttmRevenue: 2000, sharesOut: 100, bookValuePerShare: 6 },
+    { knownAt: "2021-08-18", ttmEps: 3.0, ttmRevenue: 3000, sharesOut: 100, bookValuePerShare: 7 },
+  ];
+
+  it("returns the newest filing already public on the date, never a later one", () => {
+    expect(pickFundamental(funds, "2021-05-25")?.ttmEps).toBe(1.0); // day before the Q lands
+    expect(pickFundamental(funds, "2021-05-26")?.ttmEps).toBe(2.0); // the day it lands
+    expect(pickFundamental(funds, "2021-08-01")?.ttmEps).toBe(2.0); // still the prior Q
+  });
+
+  it("returns null before any filing exists", () => {
+    expect(pickFundamental(funds, "2020-01-01")).toBeNull();
+    expect(pickFundamental([], "2021-05-26")).toBeNull();
+  });
+});
+
+describe("computeQuote", () => {
+  const bars: GameBar[] = [
+    { d: "2021-01-04", o: 90, h: 95, l: 88, c: 92, v: 1_000 },
+    { d: "2021-01-05", o: 92, h: 110, l: 91, c: 100, v: 2_000 },
+  ];
+  const funds = [{ knownAt: "2021-01-01", ttmEps: 4, ttmRevenue: 500, sharesOut: 1_000, bookValuePerShare: 25 }];
+
+  it("derives session stats from the current bar and the one before it", () => {
+    const q = computeQuote(bars, 1, funds)!;
+    expect(q.close).toBe(100);
+    expect(q.prevClose).toBe(92);
+    expect(q.changeAbs).toBe(8);
+    expect(q.changePct).toBeCloseTo(8.6957, 3);
+    expect(q.rangePct).toBeCloseTo((19 / 92) * 100, 6);
+    expect(q.week52High).toBe(110);
+    expect(q.week52Low).toBe(88);
+  });
+
+  it("computes PIT multiples off the filing that was public", () => {
+    const q = computeQuote(bars, 1, funds)!;
+    expect(q.marketCap).toBe(100_000);
+    expect(q.peTtm).toBe(25); // 100 / 4
+    expect(q.priceToBook).toBe(4); // 100 / 25
+    expect(q.psTtm).toBe(200); // 100_000 / 500
+    expect(q.isLoss).toBe(false);
+  });
+
+  it("flags a loss instead of printing a negative P/E", () => {
+    const q = computeQuote(bars, 1, [{ ...funds[0]!, ttmEps: -2 }])!;
+    expect(q.peTtm).toBeNull();
+    expect(q.isLoss).toBe(true);
+  });
+
+  it("degrades to nulls when no filing is public yet", () => {
+    const q = computeQuote(bars, 1, [])!;
+    expect(q.marketCap).toBeNull();
+    expect(q.peTtm).toBeNull();
+    expect(q.isLoss).toBe(false);
+    expect(q.close).toBe(100); // price stats still work
+  });
+
+  it("has no prev-close stats on the very first bar", () => {
+    const q = computeQuote(bars, 0, funds)!;
+    expect(q.prevClose).toBeNull();
+    expect(q.changePct).toBeNull();
+    expect(q.rangePct).toBeNull();
   });
 });

@@ -16,6 +16,38 @@
  *      player has to actually have a view, not just wait out the drawdown.
  */
 
+// ───────────────────────────── the roster ─────────────────────────────
+
+export interface GameTicker {
+  symbol: string;
+  name: string;
+  /** One line on why this company is worth a game — shown on the start screen. */
+  blurb: string;
+}
+
+/**
+ * The playable universe, and the single source of truth for it (data validates the
+ * query against this list; the SPA renders the start screen from it).
+ *
+ * Chosen so buy-and-hold is NOT the automatic answer. A megacap that only went up
+ * teaches nothing — the player wins by doing nothing. Most of these round-tripped a
+ * boom, so the same "just hold" instinct that wins on NVDA loses badly here, and the
+ * window draw decides which lesson you get.
+ */
+export const GAME_UNIVERSE: readonly GameTicker[] = [
+  { symbol: "NVDA", name: "NVIDIA", blurb: "The one everybody knows. Here as the control case: the run where holding was right." },
+  { symbol: "ENPH", name: "Enphase Energy", blurb: "Solar microinverters. Went up 20x, then gave back nearly all of it — the hardest hold on this list." },
+  { symbol: "SMCI", name: "Super Micro Computer", blurb: "AI server builder that became a meme, then an accounting controversy. Violent both ways." },
+  { symbol: "CELH", name: "Celsius Holdings", blurb: "Energy drinks. Hypergrowth into every shelf in America, then the growth stopped." },
+  { symbol: "DECK", name: "Deckers Outdoor", blurb: "UGG and HOKA. A quiet ten-bagger nobody talked about until it was over." },
+  { symbol: "CPRT", name: "Copart", blurb: "Online salvage-car auctions. Boring, dominant, compounds for decades." },
+  { symbol: "VRT", name: "Vertiv Holdings", blurb: "Power and cooling for data centers — the AI trade without the AI logo." },
+  { symbol: "AXON", name: "Axon Enterprise", blurb: "Tasers and police body cameras. A near-monopoly on a market it invented." },
+  { symbol: "FICO", name: "Fair Isaac", blurb: "The credit score itself. Pricing power most monopolies would envy." },
+];
+
+export const GAME_SYMBOLS: readonly string[] = GAME_UNIVERSE.map((t) => t.symbol);
+
 // ───────────────────────────── dataset (server → client) ─────────────────────────────
 
 /** One daily bar. Short keys — the dataset ships ~1300 of these per game. */
@@ -52,6 +84,22 @@ export interface GameMacro {
   vix: number | null; // level, not % change
 }
 
+/**
+ * One reported quarter, stamped with when it became PUBLIC (the filing's acceptedDate),
+ * not when the quarter ended. The whole point: on an in-game day the player may only see
+ * fundamentals that had actually been filed by then. Showing today's P/E on a 2022 screen
+ * would be a look-ahead leak dressed up as a stat.
+ */
+export interface GameFundamental {
+  /** YYYY-MM-DD the filing hit the tape. Ascending across the array. */
+  knownAt: string;
+  /** Trailing-twelve-month diluted EPS as of this filing. */
+  ttmEps: number | null;
+  ttmRevenue: number | null;
+  sharesOut: number | null;
+  bookValuePerShare: number | null;
+}
+
 export interface GameDataset {
   symbol: string;
   companyName: string | null;
@@ -59,6 +107,8 @@ export interface GameDataset {
   /** date → that day's events, already ranked and capped. */
   events: Record<string, GameEvent[]>;
   macro: Record<string, GameMacro>;
+  /** Ascending by knownAt. Empty when the statements were unavailable. */
+  fundamentals: GameFundamental[];
 }
 
 // ───────────────────────────── game state (client-owned) ─────────────────────────────
@@ -306,5 +356,99 @@ export function computeKpis(state: GameState, bars: GameBar[], startIndex: numbe
     buyHoldReturnPct: (buyHoldEquity / INITIAL_CASH - 1) * 100,
     buyHoldCagrPct: cagr(buyHoldEquity / INITIAL_CASH, days),
     daysElapsed: days,
+  };
+}
+
+// ───────────────────────────── quote statistics ─────────────────────────────
+
+/**
+ * The "what am I looking at" panel: session numbers straight off the bar, range stats
+ * over the visible past, and PIT valuation multiples.
+ *
+ * Every field here is computable from data the player is already allowed to see. There
+ * is deliberately no forward P/E: consensus estimates carry no as-of date in our feed,
+ * so a "2023 forward P/E" would really be an estimate analysts made in 2026 — the
+ * future, printed on the dashboard.
+ */
+export interface GameQuote {
+  close: number;
+  open: number;
+  high: number;
+  low: number;
+  prevClose: number | null;
+  changeAbs: number | null;
+  changePct: number | null;
+  volume: number;
+  /** Traded value ≈ volume × the session's average price. */
+  turnover: number;
+  /** (high − low) / prevClose, in percent. */
+  rangePct: number | null;
+  avgPrice: number;
+  week52High: number | null;
+  week52Low: number | null;
+  marketCap: number | null;
+  /** Null when TTM EPS is missing OR negative — the UI prints "Loss" for the latter. */
+  peTtm: number | null;
+  isLoss: boolean;
+  priceToBook: number | null;
+  psTtm: number | null;
+  ttmEps: number | null;
+}
+
+/** Trading days in a 52-week window. */
+const WEEK52_BARS = 252;
+
+/**
+ * The most recent fundamental the player is allowed to see on `date`. Linear scan from
+ * the end: the array is one row per quarter (tens of entries), so an index would cost
+ * more than it saves.
+ */
+export function pickFundamental(fundamentals: GameFundamental[], date: string): GameFundamental | null {
+  for (let i = fundamentals.length - 1; i >= 0; i--) {
+    const f = fundamentals[i]!;
+    if (f.knownAt <= date) return f;
+  }
+  return null;
+}
+
+export function computeQuote(bars: GameBar[], cursor: number, fundamentals: GameFundamental[]): GameQuote | null {
+  const bar = bars[cursor];
+  if (!bar) return null;
+  const prevClose = bars[cursor - 1]?.c ?? null;
+  const avgPrice = (bar.h + bar.l + bar.c) / 3;
+
+  let week52High: number | null = null;
+  let week52Low: number | null = null;
+  for (let i = Math.max(0, cursor - WEEK52_BARS + 1); i <= cursor; i++) {
+    const b = bars[i]!;
+    week52High = week52High == null ? b.h : Math.max(week52High, b.h);
+    week52Low = week52Low == null ? b.l : Math.min(week52Low, b.l);
+  }
+
+  const f = pickFundamental(fundamentals, bar.d);
+  const marketCap = f?.sharesOut != null ? bar.c * f.sharesOut : null;
+  const eps = f?.ttmEps ?? null;
+  const bvps = f?.bookValuePerShare ?? null;
+
+  return {
+    close: bar.c,
+    open: bar.o,
+    high: bar.h,
+    low: bar.l,
+    prevClose,
+    changeAbs: prevClose == null ? null : bar.c - prevClose,
+    changePct: prevClose ? (bar.c / prevClose - 1) * 100 : null,
+    volume: bar.v,
+    turnover: bar.v * avgPrice,
+    rangePct: prevClose ? ((bar.h - bar.l) / prevClose) * 100 : null,
+    avgPrice,
+    week52High,
+    week52Low,
+    marketCap,
+    peTtm: eps != null && eps > 0 ? bar.c / eps : null,
+    isLoss: eps != null && eps <= 0,
+    priceToBook: bvps != null && bvps > 0 ? bar.c / bvps : null,
+    psTtm: marketCap != null && f?.ttmRevenue != null && f.ttmRevenue > 0 ? marketCap / f.ttmRevenue : null,
+    ttmEps: eps,
   };
 }
