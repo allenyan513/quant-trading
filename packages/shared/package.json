@@ -19,6 +19,7 @@
     "./form4-read": "./src/form4-read.ts",
     "./edgar-fts": "./src/edgar-fts.ts",
     "./xbrl-frames": "./src/xbrl-frames.ts",
+    "./game": "./src/game.ts",
     "./markets": "./src/markets.ts",
     "./market-hours": "./src/market-hours.ts",
     "./earnings-read": "./src/earnings-read.ts",

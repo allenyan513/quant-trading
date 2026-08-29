@@ -32,6 +32,7 @@ import { searchFilings } from "@qt/shared/edgar-fts";
 import { fetchMovers, fetchEarningsCalendar, fetchEconomicCalendar, fetchEarningsHistory } from "@qt/shared/markets";
 import { syncEarningsCalendar } from "./earnings/sync.js";
 import { route } from "./route.js";
+import { buildGameDataset, GAME_SYMBOLS } from "./game.js";
 import { log } from "./log.js";
 
 const app = new Hono();
@@ -450,6 +451,21 @@ app.get(
       ? [...new Set(raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean))].slice(0, 100)
       : [];
     return { quotes: await marketdata.getLiveQuotes(symbols) };
+  }),
+);
+
+// ---- Replay game (public, read-only) — one self-contained dataset per game. Bars +
+// a ranked per-day event feed + the macro tape; the browser owns the simulation, so
+// there is no game state on the server and no new tables. See src/game.ts. ----
+app.get(
+  "/game/dataset",
+  route("game.dataset", async (c) => {
+    const symbol = (c.req.query("symbol") ?? "").trim().toUpperCase();
+    if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
+    if (!(GAME_SYMBOLS as readonly string[]).includes(symbol)) {
+      return c.json(fail("bad_request", `symbol must be one of ${GAME_SYMBOLS.join(", ")}`), 400);
+    }
+    return buildGameDataset(symbol);
   }),
 );
 
