@@ -31,6 +31,7 @@ import { registerHoldingsRoutes } from "./routes/holdings.js";
 import { registerPaperRoutes } from "./routes/paper.js";
 import { registerMemoRoutes } from "./routes/memos.js";
 import { registerLegendsRoutes } from "./routes/legends.js";
+import { registerToolsRoutes } from "./routes/tools.js";
 
 const app = new Hono();
 
@@ -106,6 +107,7 @@ registerHoldingsRoutes(app); // per-user IBKR holdings (authed)
 registerPaperRoutes(app); // per-user paper account (authed)
 registerMemoRoutes(app); // per-user memos + morning-brief archive (authed)
 registerLegendsRoutes(app); // 13F superinvestor holdings (public)
+registerToolsRoutes(app); // public no-login tools (dividend backtest)
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   log.info("listening", { port: info.port });

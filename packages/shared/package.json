@@ -27,6 +27,7 @@
     "./config": "./src/config.ts",
     "./envelope": "./src/envelope.ts",
     "./marketdata": "./src/marketdata/index.ts",
+    "./backtest": "./src/backtest/dividend.ts",
     "./paper-read": "./src/paper-read.ts",
     "./memo-read": "./src/memo-read.ts",
     "./metrics": "./src/metrics.ts",
