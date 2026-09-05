@@ -18,7 +18,7 @@ import { PublicHeader, PublicFooter } from "@/components/public-chrome";
 import { BacktestResultsSection } from "@/components/backtest/results";
 import { BacktestMethodNotes } from "@/components/backtest/method";
 import { PresetSiblings } from "@/components/backtest/preset-links";
-import { FaqList } from "@/components/backtest/ui";
+import { FaqList, panel, table, Th, Td } from "@/components/backtest/ui";
 import { useDividendBacktest } from "@/lib/backtest";
 import { presetRequest, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";
 import { applySeo, presetSeo } from "@/lib/seo";
@@ -58,7 +58,45 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
         </p>
       </section>
 
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "16px clamp(16px, 5vw, 40px) 0" }}>
+      {/* Fund facts FIRST. This block is fully static, so it is what a non-JS
+          crawler (and the first paint) actually sees — the page opens with a real
+          side-by-side answer instead of an empty slot while the backtest loads. */}
+      {preset.facts && preset.facts.length > 0 && (
+        <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "16px clamp(16px, 5vw, 40px) 0" }}>
+          <div style={panel}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>
+              {preset.holdings.map((h) => h.symbol).join(" vs ")} at a glance
+            </h2>
+            <div style={{ overflowX: "auto" }}>
+              <table style={table}>
+                <thead>
+                  <tr>
+                    <Th>&nbsp;</Th>
+                    {preset.holdings.map((h) => (
+                      <Th key={h.symbol}>{h.symbol}</Th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preset.facts.map((f) => (
+                    <tr key={f.label}>
+                      <Td color="var(--muted)">{f.label}</Td>
+                      {f.values.map((v, i) => (
+                        <Td key={i}>{v}</Td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0 0" }}>
+              Fund facts as of {preset.updated}. Holdings counts change at each index rebalance.
+            </p>
+          </div>
+        </section>
+      )}
+
+      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "0 clamp(16px, 5vw, 40px)" }}>
         <BacktestResultsSection result={result} loading={loading} error={error} />
       </section>
 

@@ -27,6 +27,12 @@ export interface PresetHolding {
   weight: number;
 }
 
+/** One row of the at-a-glance fund table. `values` aligns with `holdings` order. */
+export interface PresetFact {
+  readonly label: string;
+  readonly values: readonly string[];
+}
+
 export interface BacktestPreset {
   /** URL segment: lowercase, hyphens. Frozen once published — a live URL is a
    *  promise to everyone who linked it. */
@@ -53,6 +59,12 @@ export interface BacktestPreset {
    *  Per-preset by design: the same generic questions on every page is exactly
    *  the boilerplate ratio that gets scaled pages filtered. */
   readonly faq: readonly FaqEntry[];
+
+  /** Side-by-side fund facts. Hand-verified, deliberately limited to things that
+   *  barely move (index rules, weighting, fee) plus counts stamped with `updated`.
+   *  This is STATIC — it lands in the prerendered HTML with no API call, so it is
+   *  the part of the page a non-JS crawler can actually read. */
+  readonly facts?: readonly PresetFact[];
 
   /** Sibling slugs to link. Validated by `assertPresetGraph()`. */
   readonly related: readonly string[];
@@ -98,6 +110,21 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
         "Yes. Each dividend buys more shares at that day's close, and the chart also plots what would have happened if you had taken the cash instead — the gap between the two lines is what reinvestment was worth.",
       ],
     ],
+    facts: [
+      { label: "Index tracked", values: ["Dow Jones U.S. Dividend 100", "FTSE Custom High Dividend Yield"] },
+      {
+        label: "How it selects",
+        values: [
+          "10+ consecutive years of dividends, then ranked on cash flow to debt, return on equity, yield and 5-year dividend growth",
+          "The higher-yielding half of US dividend payers, by forecast yield",
+        ],
+      },
+      { label: "Holdings", values: ["103", "615"] },
+      { label: "Weighting", values: ["Modified market cap, with per-stock and per-sector caps", "Market cap"] },
+      { label: "Expense ratio", values: ["0.06%", "0.04%"] },
+      { label: "Pays", values: ["Quarterly", "Quarterly"] },
+      { label: "Launched", values: ["October 2011", "November 2006"] },
+    ],
     related: ["schd", "jepi-vs-schd"],
     linkLabel: "SCHD vs VYM",
     linkBlurb: "Quality screen versus pure high yield, over ten years.",
@@ -134,6 +161,21 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
         "Run it above — but read the income-by-year table alongside the total-return figure. A fund can pay a large distribution and still finish behind on total return if the payout comes at the cost of upside.",
       ],
     ],
+    facts: [
+      { label: "Management", values: ["Actively managed", "Rules-based index fund"] },
+      {
+        label: "What it holds",
+        values: [
+          "Large-cap US stocks plus equity-linked notes that sell S&P 500 calls",
+          "About 100 US companies with 10+ years of dividends",
+        ],
+      },
+      { label: "Where the payout comes from", values: ["Mostly option premium", "Dividends declared by the holdings"] },
+      { label: "Holdings", values: ["136", "103"] },
+      { label: "Pays", values: ["Monthly", "Quarterly"] },
+      { label: "Expense ratio", values: ["0.35%", "0.06%"] },
+      { label: "Launched", values: ["May 2020", "October 2011"] },
+    ],
     related: ["schd-vs-vym", "schd"],
     linkLabel: "JEPI vs SCHD",
     linkBlurb: "Covered-call income against dividend growth.",
@@ -169,6 +211,20 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
         "Does this include taxes and fees?",
         "No. Returns here are gross: no dividend withholding, no commissions, and no fees beyond the fund's own expense ratio, which is already inside its price. A taxable account did worse than this.",
       ],
+    ],
+    facts: [
+      { label: "Index tracked", values: ["Dow Jones U.S. Dividend 100"] },
+      {
+        label: "How it selects",
+        values: [
+          "10+ consecutive years of dividends, then ranked on cash flow to debt, return on equity, yield and 5-year dividend growth",
+        ],
+      },
+      { label: "Holdings", values: ["103"] },
+      { label: "Weighting", values: ["Modified market cap, with per-stock and per-sector caps"] },
+      { label: "Expense ratio", values: ["0.06%"] },
+      { label: "Pays", values: ["Quarterly"] },
+      { label: "Launched", values: ["October 2011"] },
     ],
     related: ["schd-vs-vym", "jepi-vs-schd"],
     linkLabel: "SCHD on its own",
