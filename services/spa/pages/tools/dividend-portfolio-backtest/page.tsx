@@ -16,14 +16,11 @@ import Link from "@/components/link";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { apiSend } from "@/lib/api-client";
 import { money, fmtPct, fmtNum } from "@/lib/format";
+import { applySeo, DIVIDEND_BACKTEST_SEO } from "@/lib/seo";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
 
 const MAX_HOLDINGS = 10;
 const MAX_YEARS = 10;
-const CANONICAL = "https://sweetvaluelab.com/tools/dividend-portfolio-backtest";
-const TITLE = "Dividend Portfolio Backtest — reinvested vs. cash, free, no sign-up";
-const DESCRIPTION =
-  "Backtest a dividend portfolio on daily prices: total return with and without reinvestment, income by year, yield on cost, and every dividend cut in the window. Free, no account.";
 
 interface Row {
   symbol: string;
@@ -98,19 +95,12 @@ export default function DividendBacktestPage() {
   const [copied, setCopied] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Per-route metadata. A single-document SPA ships one index.html, so the page
-  // that wants its own identity in search results has to write it on mount.
-  // The canonical is deliberately the BARE path: a run encodes its inputs in the
+  // A cold load already carries this route's head tags (the prerender wrote them
+  // into its own HTML file); this covers arriving by in-app navigation. The
+  // canonical is deliberately the BARE path — a run encodes its inputs in the
   // query string, and every shared `?p=…` link would otherwise be indexed as a
   // separate near-duplicate of this page.
-  useEffect(() => {
-    document.title = TITLE;
-    setMeta('meta[name="description"]', "content", DESCRIPTION);
-    setMeta('link[rel="canonical"]', "href", CANONICAL);
-    setMeta('meta[property="og:title"]', "content", TITLE);
-    setMeta('meta[property="og:description"]', "content", DESCRIPTION);
-    setMeta('meta[property="og:url"]', "content", CANONICAL);
-  }, []);
+  useEffect(() => applySeo(DIVIDEND_BACKTEST_SEO), []);
 
   // The query string is the single source of truth for a run: submitting writes to
   // it, and this effect executes whatever it says — so a pasted link and a fresh
@@ -468,7 +458,7 @@ export default function DividendBacktestPage() {
         </div>
 
         <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 14px" }}>Questions</h2>
-        <Faq q="Do I need an account?">No. Nothing here is gated, and results live in the URL — copy the link to share a run.</Faq>
+        <Faq q="Do I need an account to backtest a dividend portfolio?">No. Nothing here is gated, and results live in the URL — copy the link to share a run.</Faq>
         <Faq q="Which tickers work?">
           US-listed stocks, ETFs and REITs. If a symbol has no dividend history, it still backtests — it just contributes price return only.
         </Faq>
@@ -505,12 +495,6 @@ export default function DividendBacktestPage() {
       </footer>
     </main>
   );
-}
-
-/** Point an existing <head> tag at a new value, creating nothing — index.html
- *  declares the full set, so a missing selector means the shell changed. */
-function setMeta(selector: string, attr: string, value: string): void {
-  document.querySelector(selector)?.setAttribute(attr, value);
 }
 
 // ───────────────────────── local presentation bits ─────────────────────────
@@ -595,7 +579,7 @@ function Td({ children, align = "left", color }: { children: React.ReactNode; al
 function Note({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
+      <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>{title}</h3>
       <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6, margin: 0 }}>{children}</p>
     </div>
   );
@@ -604,7 +588,7 @@ function Note({ title, children }: { title: string; children: React.ReactNode })
 function Faq({ q, children }: { q: string; children: React.ReactNode }) {
   return (
     <div style={{ borderTop: "1px solid var(--border)", padding: "14px 0" }}>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{q}</div>
+      <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>{q}</h3>
       <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6, margin: 0 }}>{children}</p>
     </div>
   );

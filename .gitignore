@@ -10,3 +10,7 @@ coverage/
 # local-only reference projects (quant-researcher / value-scope); anchored to
 # repo root so it doesn't swallow the /data/legends dashboard route.
 /legends/
+
+# Local Cloudflare Pages emulator state (`wrangler pages dev`, used to verify
+# the SPA prerender output against real Pages routing).
+.wrangler

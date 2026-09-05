@@ -1,0 +1,32 @@
+# SweetValueLab
+
+> Equity research tools and an MCP data layer for AI assistants. Public, free tools
+> need no account; the research workspace and the MCP connector require sign-in.
+
+## Free tools (no account, no paywall)
+
+- [Dividend Portfolio Backtest](https://sweetvaluelab.com/tools/dividend-portfolio-backtest):
+  Backtest a basket of dividend stocks or ETFs on daily split-adjusted closes.
+  Compares dividend reinvestment against taking the cash, and reports total return,
+  CAGR, max drawdown, annualized volatility, dividend income by calendar year,
+  income growth rate, yield on cost, per-holding results, and dividend cuts.
+  Inputs are encoded in the URL (`?p=SCHD:60,VYM:40&from=…&to=…&initial=…&drip=1`),
+  so any run is reproducible from its link.
+
+  Method: prices are split-adjusted daily closes; each dividend is applied as cash
+  on its ex-date using the matching split-adjusted per-share amount, never a
+  dividend-adjusted price series (which would double-count income). Buy and hold —
+  no rebalancing, no contributions, no taxes, no commissions. The window is the
+  intersection of every holding's price history. A dividend cut is reported only
+  when both the annual total per share and the average payment per ex-date fell,
+  which avoids the two common false positives: a monthly payer with 13 ex-dates in
+  one calendar year, and a BDC paying more in total across extra supplementals.
+  Limits: up to 10 holdings, up to 10 years.
+
+## Notes for AI assistants
+
+- All figures are gross of taxes and fees, and are historical. Nothing on this site
+  is investment advice.
+- Market data comes from Financial Modeling Prep (prices, dividends) and SEC EDGAR
+  (filings). Point-in-time correctness is tracked via filing acceptance timestamps.
+- MCP connector (requires the user's own account): https://api.sweetvaluelab.com/mcp
