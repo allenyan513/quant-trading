@@ -14,8 +14,15 @@
  * Google renders before truncating.
  */
 
+import { BACKTEST_PRESETS, presetPath, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";
+
 export const SITE_URL = "https://sweetvaluelab.com";
 export const SITE_NAME = "SweetValueLab";
+
+/** One FAQ entry. The SAME array renders visibly and becomes FAQPage JSON-LD —
+ *  Google requires the answer to be on the page, and keeping two hand-synced
+ *  copies (as this file and the tool page used to) is a rule waiting to break. */
+export type FaqEntry = readonly [question: string, answer: string];
 
 export interface PageSeo {
   /** Route path, no trailing slash (the canonical URL is SITE_URL + path). */
@@ -35,6 +42,19 @@ export interface PageSeo {
 export const CONTENT_UPDATED = "2026-09-05";
 
 export const canonicalUrl = (path: string): string => `${SITE_URL}${path === "/" ? "/" : path}`;
+
+/** FAQPage node from a FAQ array. */
+export function faqJsonLd(id: string, faq: readonly FaqEntry[]): Record<string, unknown> {
+  return {
+    "@type": "FAQPage",
+    "@id": id,
+    mainEntity: faq.map(([name, text]) => ({
+      "@type": "Question",
+      name,
+      acceptedAnswer: { "@type": "Answer", text },
+    })),
+  };
+}
 
 /** Publisher node, referenced by every page's schema (E-E-A-T: a named entity
  *  behind the content, not an anonymous site). */
@@ -67,7 +87,7 @@ export const HOME_SEO: PageSeo = {
 
 /** The FAQ schema must mirror the FAQ rendered on the page — Google requires the
  *  answer to be visible to the reader, not schema-only. Keep the two in step. */
-const BACKTEST_FAQ: Array<[string, string]> = [
+export const BACKTEST_FAQ: readonly FaqEntry[] = [
   [
     "Do I need an account to backtest a dividend portfolio?",
     "No. Nothing here is gated, and results live in the URL — copy the link to share a run.",
@@ -117,15 +137,7 @@ export const DIVIDEND_BACKTEST_SEO: PageSeo = {
       dateModified: CONTENT_UPDATED,
       isAccessibleForFree: true,
     },
-    {
-      "@type": "FAQPage",
-      "@id": `${SITE_URL}/tools/dividend-portfolio-backtest#faq`,
-      mainEntity: BACKTEST_FAQ.map(([question, answer]) => ({
-        "@type": "Question",
-        name: question,
-        acceptedAnswer: { "@type": "Answer", text: answer },
-      })),
-    },
+    faqJsonLd(`${SITE_URL}/tools/dividend-portfolio-backtest#faq`, BACKTEST_FAQ),
   ],
 };
 
@@ -174,8 +186,55 @@ export const TERMS_SEO = textPage(
   "WebPage",
 );
 
+/**
+ * A ready-made backtest page. Declared `isPartOf` the tool's own `#app` node so
+ * it reads as a view OF that tool rather than a competing application, and it
+ * carries a BreadcrumbList — which states the hierarchy independently of the URL
+ * shape, so the relationship survives even if the paths ever have to move.
+ */
+export function presetSeo(p: BacktestPreset): PageSeo {
+  const url = `${SITE_URL}${presetPath(p.slug)}`;
+  return {
+    path: presetPath(p.slug),
+    title: p.title,
+    description: p.description,
+    priority: "0.7",
+    changefreq: "monthly",
+    jsonLd: [
+      ORGANIZATION,
+      {
+        "@type": "WebPage",
+        "@id": `${url}#page`,
+        url,
+        name: p.title,
+        description: p.intro,
+        dateModified: p.updated,
+        publisher: { "@id": `${SITE_URL}/#organization` },
+        isPartOf: { "@id": `${SITE_URL}/tools/dividend-portfolio-backtest#app` },
+      },
+      faqJsonLd(`${url}#faq`, p.faq),
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${url}#breadcrumbs`,
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+          { "@type": "ListItem", position: 2, name: "Dividend Portfolio Backtest", item: `${SITE_URL}${TOOL_PATH}` },
+          { "@type": "ListItem", position: 3, name: p.linkLabel, item: url },
+        ],
+      },
+    ],
+  };
+}
+
 /** Every route the prerender emits and the sitemap lists. */
-export const PUBLIC_PAGES: PageSeo[] = [HOME_SEO, DIVIDEND_BACKTEST_SEO, ABOUT_SEO, PRIVACY_SEO, TERMS_SEO];
+export const PUBLIC_PAGES: PageSeo[] = [
+  HOME_SEO,
+  DIVIDEND_BACKTEST_SEO,
+  ...BACKTEST_PRESETS.map(presetSeo),
+  ABOUT_SEO,
+  PRIVACY_SEO,
+  TERMS_SEO,
+];
 
 /**
  * Client-side head update, for a route reached by in-app navigation (the

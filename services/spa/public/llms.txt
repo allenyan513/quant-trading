@@ -23,6 +23,16 @@
   one calendar year, and a BDC paying more in total across extra supplementals.
   Limits: up to 10 holdings, up to 10 years.
 
+### Ready-made backtests (same tool, fixed baskets, own URLs)
+
+- [SCHD vs VYM](https://sweetvaluelab.com/tools/dividend-portfolio-backtest/schd-vs-vym):
+  quality-screened dividend index versus market-cap-weighted high yield, 10 years.
+- [JEPI vs SCHD](https://sweetvaluelab.com/tools/dividend-portfolio-backtest/jepi-vs-schd):
+  covered-call option premium versus growing dividends; shows why JEPI's distribution
+  falls when volatility falls.
+- [SCHD](https://sweetvaluelab.com/tools/dividend-portfolio-backtest/schd):
+  single-fund, 10 years, reinvested versus taken as cash.
+
 ## About and policies
 
 - [About](https://sweetvaluelab.com/about): who operates the site, the full data-source
