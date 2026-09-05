@@ -23,6 +23,14 @@
   one calendar year, and a BDC paying more in total across extra supplementals.
   Limits: up to 10 holdings, up to 10 years.
 
+## About and policies
+
+- [About](https://sweetvaluelab.com/about): who operates the site, the full data-source
+  list (Financial Modeling Prep, SEC EDGAR, Interactive Brokers Flex), and its limits.
+- [Privacy](https://sweetvaluelab.com/privacy): the free tools require no account and
+  store nothing; the site carries no analytics or tracking scripts.
+- [Terms](https://sweetvaluelab.com/terms): research and educational use only.
+
 ## Notes for AI assistants
 
 - All figures are gross of taxes and fees, and are historical. Nothing on this site
