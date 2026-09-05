@@ -129,6 +129,11 @@ export default function HomePage() {
         }}
       >
         <span style={{ flex: 1, minWidth: 240 }}>Research &amp; educational tool. Not investment advice. Not a registered investment adviser.</span>
+        {/* Free tools: public, sign-in-free landing surfaces. Plain links — the footer
+            stays static, so this costs no gateway call. */}
+        <Link href="/tools/dividend-portfolio-backtest" style={{ color: "var(--muted)" }}>
+          Dividend portfolio backtest
+        </Link>
         <span>sweetvaluelab.com</span>
       </footer>
     </main>

@@ -5,6 +5,7 @@ import HomePage from "@/pages/page";
 import SignInPage from "@/pages/sign-in/page";
 import SignUpPage from "@/pages/sign-up/page";
 import ConsentPage from "@/pages/oauth/consent/page";
+import DividendBacktestPage from "@/pages/tools/dividend-portfolio-backtest/page";
 
 // Workspace shell + section layouts
 import DashboardLayout from "@/pages/workspace/layout";
@@ -78,6 +79,9 @@ export function AppRoutes() {
       <Route path="/sign-in" element={<SignInPage />} />
       <Route path="/sign-up" element={<SignUpPage />} />
       <Route path="/oauth/consent" element={<ConsentPage />} />
+
+      {/* Public no-login tools (SEO landing surfaces) */}
+      <Route path="/tools/dividend-portfolio-backtest" element={<DividendBacktestPage />} />
 
       <Route path="/workspace" element={<DashboardLayout />}>
         <Route index element={<Navigate to="/workspace/portfolio/paper" replace />} />

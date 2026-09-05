@@ -23,6 +23,9 @@ const RECORD_TTL_MS = 12 * 60 * 60 * 1000;
 // Cap rows fetched/cached per symbol. `grades` returns full history (we keep a
 // deep slice); insider/price-target endpoints take an explicit limit.
 const RECORD_FETCH_LIMIT = 100;
+// Dividends are the exception: the backtest tool walks decades of payouts, and a
+// monthly payer burns 12 rows a year — 100 would silently truncate a 10y window.
+const DIVIDEND_FETCH_LIMIT = 400;
 
 export type RecordDataset = "ratings" | "price_targets" | "dividends";
 
@@ -165,7 +168,7 @@ const RECORD_SOURCES: Record<RecordDataset, RecordSource> = {
   dividends: {
     table: asRec(schema.dividends),
     fetch: async (sym) => {
-      const rows = (await fmpGet<FmpDividend[]>("dividends", { symbol: sym, limit: RECORD_FETCH_LIMIT }, { softFail402: true })) ?? [];
+      const rows = (await fmpGet<FmpDividend[]>("dividends", { symbol: sym, limit: DIVIDEND_FETCH_LIMIT }, { softFail402: true })) ?? [];
       return mapDividendRecords(sym, rows);
     },
   },

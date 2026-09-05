@@ -15,6 +15,15 @@ import { config } from "@qt/shared";
 
 const TIMEOUT_MS = 10_000;
 
+/** Error from a forwarded call, carrying data's envelope code + HTTP status so a
+ *  caller can re-surface a 400 as a 400 instead of flattening it to a 500. */
+export class DataProxyError extends Error {
+  constructor(message: string, readonly code: string | undefined, readonly status: number) {
+    super(message);
+    this.name = "DataProxyError";
+  }
+}
+
 export function dataUrl(): string {
   return config.dataUrl();
 }
@@ -26,7 +35,8 @@ async function unwrap<T>(resp: Response, path: string): Promise<T> {
     const e = json?.error;
     // Fall back to the error code when the message is absent (data's fail(code, msg)).
     const msg = typeof e === "object" ? (e?.message ?? e?.code) : e;
-    throw new Error(msg ?? `data ${path} returned ${resp.status}`);
+    const code = typeof e === "object" ? e?.code : typeof e === "string" ? e : undefined;
+    throw new DataProxyError(msg ?? `data ${path} returned ${resp.status}`, code, resp.status);
   }
   return json.data as T;
 }
