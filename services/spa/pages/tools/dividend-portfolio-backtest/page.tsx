@@ -10,7 +10,7 @@
  * anonymous readers must not cost gateway calls); only a run, or a link that already
  * carries `p`, hits the API.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Link from "@/components/link";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
@@ -94,7 +94,6 @@ export default function DividendBacktestPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const resultsRef = useRef<HTMLDivElement>(null);
 
   // A cold load already carries this route's head tags (the prerender wrote them
   // into its own HTML file); this covers arriving by in-app navigation. The
@@ -158,7 +157,6 @@ export default function DividendBacktestPage() {
   }
 
   const stats = result ? (result.reinvest ? result.drip : result.noDrip) : null;
-  const other = result ? (result.reinvest ? result.noDrip : result.drip) : null;
   const dripEdge = result ? result.drip.endValue - result.noDrip.endValue : 0;
   const points = useMemo(() => result?.series ?? [], [result]);
 
@@ -260,12 +258,13 @@ export default function DividendBacktestPage() {
       </section>
 
       {/* Results */}
-      <section ref={resultsRef} style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "0 clamp(16px, 5vw, 40px)" }}>
+      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "0 clamp(16px, 5vw, 40px)" }}>
         {error && (
-          <div style={{ ...panel, borderColor: "var(--down)", color: "var(--down)", fontSize: 14 }}>{error}</div>
+          // String(): this panel is what blanked the page when a non-string reached it.
+          <div style={{ ...panel, borderColor: "var(--down)", color: "var(--down)", fontSize: 14 }}>{String(error)}</div>
         )}
 
-        {result && stats && other && (
+        {result && stats && (
           <>
             <div style={{ ...panel, display: "grid", gap: 18 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "baseline" }}>
