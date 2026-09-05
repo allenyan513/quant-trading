@@ -121,6 +121,31 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Free tools — the homepage is the site's highest-authority page and until
+          now linked no tool at all. Static links, no request. */}
+      <section style={{ width: "100%", maxWidth: 960, margin: "0 auto", padding: "8px clamp(20px, 5vw, 40px) 40px", textAlign: "center" }}>
+        <h2 style={{ fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, letterSpacing: -0.3, margin: "0 0 6px" }}>
+          Free tools, no account
+        </h2>
+        <p style={{ fontSize: 14, color: "var(--muted)", margin: "0 0 16px" }}>Open one and start typing — nothing is gated.</p>
+        <Link
+          href="/tools/dividend-portfolio-backtest"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            height: 42,
+            padding: "0 22px",
+            borderRadius: 999,
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          Dividend portfolio backtest →
+        </Link>
+      </section>
+
       <PublicFooter />
     </main>
   );

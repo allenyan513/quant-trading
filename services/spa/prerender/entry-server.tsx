@@ -20,6 +20,12 @@ import AboutPage from "@/pages/about/page";
 import PrivacyPage from "@/pages/privacy/page";
 import TermsPage from "@/pages/terms/page";
 import { PUBLIC_PAGES } from "@/lib/seo";
+import { PresetBacktestView } from "@/pages/tools/dividend-portfolio-backtest/preset-view";
+import { BACKTEST_PRESETS, presetPath, assertPresetGraph } from "@/lib/backtest-presets";
+
+// A malformed preset registry (duplicate slug, dangling `related`, empty FAQ) must
+// fail the BUILD rather than ship a dead internal link.
+assertPresetGraph();
 
 const COMPONENTS: Record<string, ComponentType> = {
   "/": HomePage,
@@ -27,6 +33,10 @@ const COMPONENTS: Record<string, ComponentType> = {
   "/about": AboutPage,
   "/privacy": PrivacyPage,
   "/terms": TermsPage,
+  // Same component, same prop as the client route — the preset is passed in, never
+  // read from `useParams()`, which is empty under StaticRouter and would prerender
+  // every preset page blank.
+  ...Object.fromEntries(BACKTEST_PRESETS.map((p) => [presetPath(p.slug), () => <PresetBacktestView preset={p} />])),
 };
 
 /** Render one public route to static HTML. Throws if a route has no component —

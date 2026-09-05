@@ -9,19 +9,27 @@
  * A bare page load makes NO request (same discipline as the landing page — bots and
  * anonymous readers must not cost gateway calls); only a run, or a link that already
  * carries `p`, hits the API.
+ *
+ * This page owns the input form and nothing else. Result rendering, the fetch and
+ * the methodology copy are shared with the preset landing pages
+ * (`components/backtest/*`) so the two surfaces cannot drift apart.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import Link from "@/components/link";
-import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
-import { apiSend } from "@/lib/api-client";
-import { money, fmtPct, fmtNum } from "@/lib/format";
-import { applySeo, DIVIDEND_BACKTEST_SEO } from "@/lib/seo";
-import { PublicFooter } from "@/components/public-chrome";
-import type { DividendBacktestResult } from "@qt/shared/backtest";
-
-const MAX_HOLDINGS = 10;
-const MAX_YEARS = 10;
+import { PublicHeader, PublicFooter } from "@/components/public-chrome";
+import { BacktestResultsSection } from "@/components/backtest/results";
+import { BacktestMethodNotes } from "@/components/backtest/method";
+import { PresetHub } from "@/components/backtest/preset-links";
+import { panel, input, chip, primary, Field, FaqList } from "@/components/backtest/ui";
+import {
+  MAX_HOLDINGS,
+  MAX_YEARS,
+  todayISO,
+  yearsAgoISO,
+  useDividendBacktest,
+  type DividendBacktestRequest,
+} from "@/lib/backtest";
+import { applySeo, DIVIDEND_BACKTEST_SEO, BACKTEST_FAQ } from "@/lib/seo";
 
 interface Row {
   symbol: string;
@@ -52,13 +60,6 @@ const EXAMPLES: Array<{ label: string; rows: Row[] }> = [
   },
 ];
 
-const todayISO = (): string => new Date().toISOString().slice(0, 10);
-const yearsAgoISO = (n: number): string => {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - n);
-  return d.toISOString().slice(0, 10);
-};
-
 /** "SCHD:60,VYM:40" ⇄ rows. Weight is optional (defaults to equal-ish 1). */
 function parseRows(p: string | null): Row[] | null {
   if (!p) return null;
@@ -81,6 +82,20 @@ const serializeRows = (rows: Row[]): string =>
     .map((r) => `${r.symbol.trim().toUpperCase()}:${r.weight.trim() || "1"}`)
     .join(",");
 
+/** The query string IS the run. Null for a bare load, which the hook treats as
+ *  "make no request" — that is what keeps an anonymous landing free of API calls. */
+function requestFromParams(params: URLSearchParams): DividendBacktestRequest | null {
+  const parsed = parseRows(params.get("p"));
+  if (!parsed) return null;
+  return {
+    holdings: parsed.map((r) => ({ symbol: r.symbol, weight: Number(r.weight) || 0 })),
+    from: params.get("from") ?? yearsAgoISO(MAX_YEARS),
+    to: params.get("to") ?? todayISO(),
+    initial: Number(params.get("initial") ?? 10000),
+    reinvest: params.get("drip") !== "0",
+  };
+}
+
 export default function DividendBacktestPage() {
   const [params, setParams] = useSearchParams();
 
@@ -89,11 +104,7 @@ export default function DividendBacktestPage() {
   const [to, setTo] = useState(() => params.get("to") ?? todayISO());
   const [initial, setInitial] = useState(() => params.get("initial") ?? "10000");
   const [reinvest, setReinvest] = useState(() => params.get("drip") !== "0");
-
-  const [result, setResult] = useState<DividendBacktestResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // A cold load already carries this route's head tags (the prerender wrote them
   // into its own HTML file); this covers arriving by in-app navigation. The
@@ -102,46 +113,19 @@ export default function DividendBacktestPage() {
   // separate near-duplicate of this page.
   useEffect(() => applySeo(DIVIDEND_BACKTEST_SEO), []);
 
-  // The query string is the single source of truth for a run: submitting writes to
-  // it, and this effect executes whatever it says — so a pasted link and a fresh
-  // run take exactly the same path.
   const query = params.toString();
-  const run = useCallback(async () => {
-    const p = params.get("p");
-    if (!p) return;
-    const parsed = parseRows(p);
-    if (!parsed) return;
-    setLoading(true);
-    setError(null);
-    const res = await apiSend<DividendBacktestResult>("/api/tools/dividend-backtest", "POST", {
-      holdings: parsed.map((r) => ({ symbol: r.symbol, weight: Number(r.weight) || 0 })),
-      from: params.get("from") ?? yearsAgoISO(MAX_YEARS),
-      to: params.get("to") ?? todayISO(),
-      initial: Number(params.get("initial") ?? 10000),
-      reinvest: params.get("drip") !== "0",
-    });
-    setLoading(false);
-    if (!res.ok || !res.data) {
-      setResult(null);
-      setError(res.error ?? "Backtest failed");
-      return;
-    }
-    setResult(res.data);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
-
-  useEffect(() => {
-    void run();
-  }, [run]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const request = useMemo(() => requestFromParams(params), [query]);
+  const { result, error, loading } = useDividendBacktest(request);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const p = serializeRows(rows);
     if (!p) {
-      setError("Add at least one ticker.");
+      setFormError("Add at least one ticker.");
       return;
     }
-    setCopied(false);
+    setFormError(null);
     setParams({ p, from, to, initial, drip: reinvest ? "1" : "0" });
   }
 
@@ -150,26 +134,9 @@ export default function DividendBacktestPage() {
     setParams({ p: serializeRows(ex.rows), from, to, initial, drip: reinvest ? "1" : "0" });
   }
 
-  async function copyLink() {
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  const stats = result ? (result.reinvest ? result.drip : result.noDrip) : null;
-  const dripEdge = result ? result.drip.endValue - result.noDrip.endValue : 0;
-  const points = useMemo(() => result?.series ?? [], [result]);
-
   return (
     <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px clamp(16px, 5vw, 40px)" }}>
-        <Link href="/" style={{ flex: 1, fontWeight: 800, letterSpacing: 0.3, fontSize: 16, color: "var(--text)" }}>
-          <span style={{ color: "var(--accent)" }}>Sweet</span>ValueLab
-        </Link>
-        <Link href="/sign-in" style={{ fontSize: 14, color: "var(--muted)" }}>
-          Sign in
-        </Link>
-      </header>
+      <PublicHeader />
 
       <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "clamp(16px, 4vw, 40px) clamp(16px, 5vw, 40px) 8px" }}>
         <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
@@ -259,322 +226,21 @@ export default function DividendBacktestPage() {
 
       {/* Results */}
       <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "0 clamp(16px, 5vw, 40px)" }}>
-        {error && (
-          // String(): this panel is what blanked the page when a non-string reached it.
-          <div style={{ ...panel, borderColor: "var(--down)", color: "var(--down)", fontSize: 14 }}>{String(error)}</div>
-        )}
-
-        {result && stats && (
-          <>
-            <div style={{ ...panel, display: "grid", gap: 18 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "baseline" }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
-                  {money(result.initial, "headline")} → {money(stats.endValue, "headline")}
-                </h2>
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                  {result.start} → {result.end} · {fmtNum(result.years, 1)} years · {result.reinvest ? "reinvested" : "dividends as cash"}
-                </span>
-                <button type="button" onClick={copyLink} style={{ ...chip, marginLeft: "auto" }}>
-                  {copied ? "Link copied" : "Copy result link"}
-                </button>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
-                <Kpi label="Total return" value={fmtPct(stats.totalReturnPct)} tone={stats.totalReturnPct >= 0 ? "up" : "down"} />
-                <Kpi label="CAGR" value={fmtPct(stats.cagrPct)} tone={stats.cagrPct >= 0 ? "up" : "down"} />
-                <Kpi label="Max drawdown" value={fmtPct(-stats.maxDrawdownPct)} tone="down" />
-                <Kpi label="Volatility (ann.)" value={`${fmtNum(stats.volatilityPct, 1)}%`} />
-                <Kpi label="Dividends collected" value={money(stats.totalIncome, "headline")} />
-                <Kpi
-                  label="Yield on cost"
-                  value={`${fmtNum(result.yieldOnCostPct, 2)}%`}
-                  sub="last 12m income ÷ initial"
-                />
-              </div>
-
-              <div>
-                <BacktestChartLazy points={points} />
-              </div>
-
-              <div style={{ fontSize: 14, lineHeight: 1.6 }}>
-                Reinvesting ended{" "}
-                <strong style={{ color: dripEdge >= 0 ? "var(--up)" : "var(--down)" }}>
-                  {money(Math.abs(dripEdge), "headline")} {dripEdge >= 0 ? "ahead of" : "behind"}
-                </strong>{" "}
-                taking the dividends as cash ({money(result.drip.endValue, "headline")} vs {money(result.noDrip.endValue, "headline")}, of
-                which {money(result.noDrip.endCash, "headline")} sits as uninvested cash).
-              </div>
-
-              {result.warnings.length > 0 && (
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--warn)" }}>
-                  {result.warnings.map((w) => (
-                    <li key={w}>{w}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Income by year */}
-            <div style={panel}>
-              <h3 style={h3}>Dividend income by year</h3>
-              <p style={sub}>
-                {result.incomeCagrPct == null
-                  ? "Income growth needs two full calendar years in the window."
-                  : `Income grew ${fmtNum(result.incomeCagrPct, 1)}% a year across the full calendar years.`}
-              </p>
-              <div style={{ overflowX: "auto" }}>
-                <table style={table}>
-                  <thead>
-                    <tr>
-                      <Th>Year</Th>
-                      <Th align="right">Income</Th>
-                      <Th align="right">On initial cost</Th>
-                      <Th align="right">vs prior year</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.incomeByYear.map((y) => (
-                      <tr key={y.year}>
-                        <Td>
-                          {y.year}
-                          {y.partial && <span style={{ color: "var(--muted)", fontSize: 11 }}> (partial)</span>}
-                        </Td>
-                        <Td align="right">{money(y.income, "headline")}</Td>
-                        <Td align="right">{fmtNum(y.yieldOnCostPct, 2)}%</Td>
-                        <Td align="right" color={y.growthPct == null ? undefined : y.growthPct >= 0 ? "var(--up)" : "var(--down)"}>
-                          {y.growthPct == null ? "—" : fmtPct(y.growthPct)}
-                        </Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Per holding */}
-            <div style={panel}>
-              <h3 style={h3}>By holding</h3>
-              <div style={{ overflowX: "auto" }}>
-                <table style={table}>
-                  <thead>
-                    <tr>
-                      <Th>Symbol</Th>
-                      <Th align="right">Weight</Th>
-                      <Th align="right">Invested</Th>
-                      <Th align="right">Ended at</Th>
-                      <Th align="right">Total return</Th>
-                      <Th align="right">Dividends</Th>
-                      <Th align="right">Yield on cost</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.holdings.map((h) => (
-                      <tr key={h.symbol}>
-                        <Td>{h.symbol}</Td>
-                        <Td align="right">{fmtNum(h.weightPct, 0)}%</Td>
-                        <Td align="right">{money(h.startValue, "headline")}</Td>
-                        <Td align="right">{money(h.endValue, "headline")}</Td>
-                        <Td align="right" color={h.totalReturnPct >= 0 ? "var(--up)" : "var(--down)"}>
-                          {fmtPct(h.totalReturnPct)}
-                        </Td>
-                        <Td align="right">{money(h.totalIncome, "headline")}</Td>
-                        <Td align="right">{fmtNum(h.perShareYieldOnCostPct, 2)}%</Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p style={{ ...sub, marginTop: 10 }}>
-                Per-holding yield on cost is the last 12 months of dividends per share over the entry price.
-              </p>
-            </div>
-
-            {/* Cuts */}
-            <div style={panel}>
-              <h3 style={h3}>Dividend cuts in this window</h3>
-              {result.dividendCuts.length === 0 ? (
-                <p style={sub}>No holding cut its dividend in any full calendar year of this window.</p>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={table}>
-                    <thead>
-                      <tr>
-                        <Th>Symbol</Th>
-                        <Th>Year</Th>
-                        <Th align="right">Paid / share</Th>
-                        <Th align="right">Prior year</Th>
-                        <Th align="right">Change</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.dividendCuts.map((c) => (
-                        <tr key={`${c.symbol}-${c.year}`}>
-                          <Td>{c.symbol}</Td>
-                          <Td>{c.year}</Td>
-                          <Td align="right">{money(c.perShare, "headline")}</Td>
-                          <Td align="right">{money(c.priorPerShare, "headline")}</Td>
-                          <Td align="right" color="var(--down)">
-                            {fmtPct(c.changePct)}
-                          </Td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </>
-        )}
+        <BacktestResultsSection result={result} loading={loading} error={formError ?? error} shareable />
       </section>
+
+      <PresetHub />
 
       {/* Method + FAQ — static, and the reason a search engine can tell what this page is */}
       <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "24px clamp(16px, 5vw, 40px) 48px" }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "0 0 14px" }}>How this backtest works</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 22 }}>
-          <Note title="Daily bars, not monthly">
-            The portfolio is marked to market every trading day, so drawdowns and volatility reflect what actually happened between
-            month-ends — 252 observations a year instead of 12.
-          </Note>
-          <Note title="Split-adjusted prices, cash dividends">
-            Prices are split-adjusted closes; each dividend is applied as cash on its ex-date at the matching split-adjusted per-share
-            amount. Dividend-adjusted (&ldquo;total return&rdquo;) prices are never used, so income is counted exactly once.
-          </Note>
-          <Note title="Reinvestment at the close">
-            With reinvestment on, each dividend buys fractional shares at that day&apos;s close. With it off, the cash sits idle and earns
-            nothing — the honest floor for the comparison.
-          </Note>
-          <Note title="Buy and hold, no rebalancing">
-            Weights set the opening trade and then drift, which is what a buy-and-hold holder experienced. No contributions, no rebalancing,
-            no taxes, no commissions.
-          </Note>
-          <Note title="Where the data comes from">
-            Prices and dividend history come from Financial Modeling Prep&apos;s end-of-day feed. Nothing on this page is produced by a
-            language model — the same inputs always give the same numbers. See <Link href="/about">About</Link> for the full source list.
-          </Note>
-          <Note title="The window is the overlap">
-            If one holding is younger than the others, the test starts where all of them have prices — and says so, rather than quietly
-            testing different lengths of history.
-          </Note>
-          <Note title="Cuts you actually took">
-            A year counts as a cut only if both the annual total per share and the average payment fell. That keeps the real ones and drops
-            the artifacts — a monthly payer with 13 ex-dates in one calendar year, or a BDC paying more in total across extra supplementals.
-          </Note>
-        </div>
+        <BacktestMethodNotes variant="full" />
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 14px" }}>Questions</h2>
-        <Faq q="Do I need an account to backtest a dividend portfolio?">No. Nothing here is gated, and results live in the URL — copy the link to share a run.</Faq>
-        <Faq q="Which tickers work?">
-          US-listed stocks, ETFs and REITs. If a symbol has no dividend history, it still backtests — it just contributes price return only.
-        </Faq>
-        <Faq q="Why does my start date move?">
-          The test needs every holding to have prices. Add a fund that launched in 2020 and the window starts in 2020, with a note saying so.
-        </Faq>
-        <Faq q="Are taxes and fees included?">
-          No. Returns are gross: no withholding on dividends, no commissions, no fund fees beyond those already inside an ETF&apos;s price.
-        </Faq>
-        <Faq q="How far back can I go?">
-          Ten years, which covers the history most dividend ETFs actually have.
-        </Faq>
+        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 6px" }}>Questions</h2>
+        <FaqList items={BACKTEST_FAQ} />
       </section>
 
       <PublicFooter />
     </main>
-  );
-}
-
-// ───────────────────────── local presentation bits ─────────────────────────
-
-const panel: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  background: "var(--panel)",
-  borderRadius: 14,
-  padding: "18px clamp(14px, 3vw, 22px)",
-  marginBottom: 16,
-};
-
-const input: React.CSSProperties = {
-  height: 38,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "var(--panel-2)",
-  color: "var(--text)",
-  fontSize: 14,
-  fontFamily: "inherit",
-};
-
-const chip: React.CSSProperties = {
-  height: 34,
-  padding: "0 14px",
-  borderRadius: 999,
-  border: "1px solid var(--border)",
-  background: "transparent",
-  color: "var(--text)",
-  fontSize: 13,
-  cursor: "pointer",
-};
-
-const primary: React.CSSProperties = {
-  height: 38,
-  padding: "0 22px",
-  borderRadius: 999,
-  border: "none",
-  background: "var(--accent)",
-  color: "#06223f",
-  fontSize: 14,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const table: React.CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 420 };
-const h3: React.CSSProperties = { fontSize: 15, fontWeight: 700, margin: "0 0 6px" };
-const sub: React.CSSProperties = { fontSize: 13, color: "var(--muted)", margin: "0 0 12px" };
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "grid", gap: 6, fontSize: 12, color: "var(--muted)" }}>
-      {label}
-      {children}
-    </label>
-  );
-}
-
-function Kpi({ label, value, sub: subText, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" }) {
-  return (
-    <div>
-      <div style={{ fontSize: 12, color: "var(--muted)" }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: tone ? `var(--${tone})` : "var(--text)" }}>{value}</div>
-      {subText && <div style={{ fontSize: 11, color: "var(--muted)" }}>{subText}</div>}
-    </div>
-  );
-}
-
-function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return (
-    <th style={{ textAlign: align, padding: "6px 8px", borderBottom: "1px solid var(--border)", color: "var(--muted)", fontWeight: 500 }}>
-      {children}
-    </th>
-  );
-}
-
-function Td({ children, align = "left", color }: { children: React.ReactNode; align?: "left" | "right"; color?: string }) {
-  return <td style={{ textAlign: align, padding: "6px 8px", borderBottom: "1px solid var(--border)", color }}>{children}</td>;
-}
-
-function Note({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>{title}</h3>
-      <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6, margin: 0 }}>{children}</p>
-    </div>
-  );
-}
-
-function Faq({ q, children }: { q: string; children: React.ReactNode }) {
-  return (
-    <div style={{ borderTop: "1px solid var(--border)", padding: "14px 0" }}>
-      <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>{q}</h3>
-      <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6, margin: 0 }}>{children}</p>
-    </div>
   );
 }
