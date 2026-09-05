@@ -16,11 +16,17 @@ import { StaticRouter } from "react-router-dom/server";
 import type { ComponentType } from "react";
 import HomePage from "@/pages/page";
 import DividendBacktestPage from "@/pages/tools/dividend-portfolio-backtest/page";
+import AboutPage from "@/pages/about/page";
+import PrivacyPage from "@/pages/privacy/page";
+import TermsPage from "@/pages/terms/page";
 import { PUBLIC_PAGES } from "@/lib/seo";
 
 const COMPONENTS: Record<string, ComponentType> = {
   "/": HomePage,
   "/tools/dividend-portfolio-backtest": DividendBacktestPage,
+  "/about": AboutPage,
+  "/privacy": PrivacyPage,
+  "/terms": TermsPage,
 };
 
 /** Render one public route to static HTML. Throws if a route has no component —

@@ -83,8 +83,8 @@ ${PUBLIC_PAGES.map(
   (p) => `  <url>
     <loc>${canonical(p.path)}</loc>
     <lastmod>${buildDate}</lastmod>
-    <changefreq>${p.path === "/" ? "weekly" : "monthly"}</changefreq>
-    <priority>${p.path === "/" ? "1.0" : "0.9"}</priority>
+    <changefreq>${p.changefreq ?? "monthly"}</changefreq>
+    <priority>${p.priority ?? "0.9"}</priority>
   </url>`,
 ).join("\n")}
 </urlset>

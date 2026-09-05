@@ -17,6 +17,7 @@ import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { apiSend } from "@/lib/api-client";
 import { money, fmtPct, fmtNum } from "@/lib/format";
 import { applySeo, DIVIDEND_BACKTEST_SEO } from "@/lib/seo";
+import { PublicFooter } from "@/components/public-chrome";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
 
 const MAX_HOLDINGS = 10;
@@ -447,6 +448,10 @@ export default function DividendBacktestPage() {
             Weights set the opening trade and then drift, which is what a buy-and-hold holder experienced. No contributions, no rebalancing,
             no taxes, no commissions.
           </Note>
+          <Note title="Where the data comes from">
+            Prices and dividend history come from Financial Modeling Prep&apos;s end-of-day feed. Nothing on this page is produced by a
+            language model — the same inputs always give the same numbers. See <Link href="/about">About</Link> for the full source list.
+          </Note>
           <Note title="The window is the overlap">
             If one holding is younger than the others, the test starts where all of them have prices — and says so, rather than quietly
             testing different lengths of history.
@@ -473,26 +478,7 @@ export default function DividendBacktestPage() {
         </Faq>
       </section>
 
-      <footer
-        style={{
-          marginTop: "auto",
-          borderTop: "1px solid var(--border)",
-          padding: "16px clamp(20px, 5vw, 40px)",
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
-          color: "var(--muted)",
-          fontSize: 12,
-        }}
-      >
-        <span style={{ flex: 1, minWidth: 240 }}>
-          Past performance says nothing about the future. Research &amp; educational tool. Not investment advice.
-        </span>
-        <Link href="/" style={{ color: "var(--muted)" }}>
-          sweetvaluelab.com
-        </Link>
-      </footer>
+      <PublicFooter />
     </main>
   );
 }

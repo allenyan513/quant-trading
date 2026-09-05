@@ -4,6 +4,7 @@ import Link from "@/components/link";
 import { McpCopyButton } from "@/components/connect-claude";
 import { HeroIllustration } from "@/components/hero-illustration";
 import { applySeo, HOME_SEO } from "@/lib/seo";
+import { PublicFooter } from "@/components/public-chrome";
 
 const REPO_URL = "https://github.com/allenyan513/quant-trading";
 
@@ -120,28 +121,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer
-        style={{
-          marginTop: "auto",
-          borderTop: "1px solid var(--border)",
-          padding: "16px clamp(20px, 5vw, 40px)",
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
-          color: "var(--muted)",
-          fontSize: 12,
-        }}
-      >
-        <span style={{ flex: 1, minWidth: 240 }}>Research &amp; educational tool. Not investment advice. Not a registered investment adviser.</span>
-        {/* Free tools: public, sign-in-free landing surfaces. Plain links — the footer
-            stays static, so this costs no gateway call. */}
-        <Link href="/tools/dividend-portfolio-backtest" style={{ color: "var(--muted)" }}>
-          Dividend portfolio backtest
-        </Link>
-        <span>sweetvaluelab.com</span>
-      </footer>
+      <PublicFooter />
     </main>
   );
 }

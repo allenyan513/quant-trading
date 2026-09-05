@@ -24,7 +24,15 @@ export interface PageSeo {
   description: string;
   /** JSON-LD nodes describing this page (schema.org). */
   jsonLd: Record<string, unknown>[];
+  /** Sitemap hints. Defaults suit a tool page. */
+  priority?: string;
+  changefreq?: string;
 }
+
+/** Last substantive content revision. Feeds `dateModified`, which is how search
+ *  and AI engines judge freshness — a rolling-data tool with no date reads as
+ *  undated and gets cited less. Kept in step with the copy, not the build. */
+export const CONTENT_UPDATED = "2026-09-05";
 
 export const canonicalUrl = (path: string): string => `${SITE_URL}${path === "/" ? "/" : path}`;
 
@@ -43,6 +51,8 @@ export const HOME_SEO: PageSeo = {
   title: "SweetValueLab — equity research your Claude can use",
   description:
     "The facts layer for AI-native equity research. Connect your Claude, research and paper-trade, and review your portfolio — all in one conversation.",
+  priority: "1.0",
+  changefreq: "weekly",
   jsonLd: [
     ORGANIZATION,
     {
@@ -104,6 +114,8 @@ export const DIVIDEND_BACKTEST_SEO: PageSeo = {
         "Shareable result URLs",
       ],
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      dateModified: CONTENT_UPDATED,
+      isAccessibleForFree: true,
     },
     {
       "@type": "FAQPage",
@@ -117,8 +129,53 @@ export const DIVIDEND_BACKTEST_SEO: PageSeo = {
   ],
 };
 
+/** About / Privacy / Terms — verifiable identity behind the tools. Search and AI
+ *  engines treat a site with no reachable operator as lower-trust, and a finance
+ *  tool with no stated limits deserves that reading. */
+const textPage = (path: string, title: string, description: string, type: string): PageSeo => ({
+  path,
+  title,
+  description,
+  priority: "0.3",
+  changefreq: "yearly",
+  jsonLd: [
+    ORGANIZATION,
+    {
+      "@type": type,
+      "@id": `${SITE_URL}${path}#page`,
+      url: `${SITE_URL}${path}`,
+      name: title,
+      description,
+      dateModified: CONTENT_UPDATED,
+      publisher: { "@id": `${SITE_URL}/#organization` },
+      isPartOf: { "@id": `${SITE_URL}/#website` },
+    },
+  ],
+});
+
+export const ABOUT_SEO = textPage(
+  "/about",
+  "About SweetValueLab — who builds these tools",
+  "Who runs SweetValueLab, where its market and filing data comes from, how the tools compute their numbers, and what the site explicitly is not.",
+  "AboutPage",
+);
+
+export const PRIVACY_SEO = textPage(
+  "/privacy",
+  "Privacy Policy — SweetValueLab",
+  "What SweetValueLab stores and what it does not. The free tools need no account and keep nothing; there are no analytics or tracking scripts.",
+  "WebPage",
+);
+
+export const TERMS_SEO = textPage(
+  "/terms",
+  "Terms of Use — SweetValueLab",
+  "Terms for using SweetValueLab: research and educational use only, not investment advice, hypothetical backtests, fair use, and no warranty on data.",
+  "WebPage",
+);
+
 /** Every route the prerender emits and the sitemap lists. */
-export const PUBLIC_PAGES: PageSeo[] = [HOME_SEO, DIVIDEND_BACKTEST_SEO];
+export const PUBLIC_PAGES: PageSeo[] = [HOME_SEO, DIVIDEND_BACKTEST_SEO, ABOUT_SEO, PRIVACY_SEO, TERMS_SEO];
 
 /**
  * Client-side head update, for a route reached by in-app navigation (the
