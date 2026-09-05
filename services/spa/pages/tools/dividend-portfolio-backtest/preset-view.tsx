@@ -62,21 +62,29 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
         <BacktestResultsSection result={result} loading={loading} error={error} />
       </section>
 
-      <article style={{ width: "100%", maxWidth: 760, margin: "0 auto", padding: "8px clamp(16px, 5vw, 40px) 40px" }}>
-        {Copy && <Copy />}
+      {/* Same 1040 container as the H1 and the results above, with the prose column
+          pinned to its LEFT edge (margin-right auto, not `0 auto`). Centering a
+          narrower article inside a wider page steps the copy ~140px to the right of
+          everything above it, which reads as a layout bug even though the measure
+          itself is right. Keep the ~70-character line length; align the left edge. */}
+      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "8px clamp(16px, 5vw, 40px) 8px" }}>
+        <article style={{ maxWidth: 720, marginRight: "auto" }}>
+          {Copy && <Copy />}
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 14px" }}>How this backtest works</h2>
-        <BacktestMethodNotes variant="brief" />
+          <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 14px" }}>How this backtest works</h2>
+          <BacktestMethodNotes variant="brief" />
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 6px" }}>Questions</h2>
-        <FaqList items={preset.faq} />
+          <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 6px" }}>Questions</h2>
+          <FaqList items={preset.faq} />
+        </article>
 
+        {/* Cards, not prose — they get the full content width. */}
         <PresetSiblings current={preset.slug} />
 
-        <p style={{ fontSize: 12, color: "var(--muted)", margin: "28px 0 0" }}>
+        <p style={{ fontSize: 12, color: "var(--muted)", margin: "28px 0 40px" }}>
           Last updated <time dateTime={preset.updated}>{preset.updated}</time>
         </p>
-      </article>
+      </section>
 
       <PublicFooter />
     </main>

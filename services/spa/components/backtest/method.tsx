@@ -19,7 +19,7 @@ export function BacktestMethodNotes({ variant }: { variant: "full" | "brief" }) 
   if (variant === "brief") {
     return (
       <>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
         <Note title="Daily bars, not monthly">
               The portfolio is marked to market every trading day, so drawdowns and volatility reflect what actually happened between
               month-ends — 252 observations a year instead of 12.
