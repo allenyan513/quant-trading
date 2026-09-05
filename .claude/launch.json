@@ -4,15 +4,30 @@
     {
       "name": "spa",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev:spa"],
+      "runtimeArgs": [
+        "dev:spa"
+      ],
       "port": 3001,
       "autoPort": false
     },
     {
       "name": "data",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev:data"],
+      "runtimeArgs": [
+        "dev:data"
+      ],
       "port": 8082
+    },
+    {
+      "name": "spa-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@qt/spa",
+        "preview"
+      ],
+      "port": 3001,
+      "autoPort": false
     }
   ]
 }

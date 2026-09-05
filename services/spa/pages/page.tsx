@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { Github } from "lucide-react";
 import Link from "@/components/link";
 import { McpCopyButton } from "@/components/connect-claude";
 import { HeroIllustration } from "@/components/hero-illustration";
+import { applySeo, HOME_SEO } from "@/lib/seo";
 
 const REPO_URL = "https://github.com/allenyan513/quant-trading";
 
@@ -16,6 +18,10 @@ const REPO_URL = "https://github.com/allenyan513/quant-trading";
  * type (clamp) + flex-wrap keep it responsive with no media queries.
  */
 export default function HomePage() {
+  // Head tags only — no request. A cold load is already prerendered with these;
+  // this covers arriving from a tool page via in-app navigation.
+  useEffect(() => applySeo(HOME_SEO), []);
+
   return (
     <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
