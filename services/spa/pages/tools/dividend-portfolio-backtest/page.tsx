@@ -20,6 +20,7 @@ import type { DividendBacktestResult } from "@qt/shared/backtest";
 
 const MAX_HOLDINGS = 10;
 const MAX_YEARS = 10;
+const CANONICAL = "https://sweetvaluelab.com/tools/dividend-portfolio-backtest";
 const TITLE = "Dividend Portfolio Backtest — reinvested vs. cash, free, no sign-up";
 const DESCRIPTION =
   "Backtest a dividend portfolio on daily prices: total return with and without reinvestment, income by year, yield on cost, and every dividend cut in the window. Free, no account.";
@@ -97,9 +98,18 @@ export default function DividendBacktestPage() {
   const [copied, setCopied] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  // Per-route metadata. A single-document SPA ships one index.html, so the page
+  // that wants its own identity in search results has to write it on mount.
+  // The canonical is deliberately the BARE path: a run encodes its inputs in the
+  // query string, and every shared `?p=…` link would otherwise be indexed as a
+  // separate near-duplicate of this page.
   useEffect(() => {
     document.title = TITLE;
-    document.querySelector('meta[name="description"]')?.setAttribute("content", DESCRIPTION);
+    setMeta('meta[name="description"]', "content", DESCRIPTION);
+    setMeta('link[rel="canonical"]', "href", CANONICAL);
+    setMeta('meta[property="og:title"]', "content", TITLE);
+    setMeta('meta[property="og:description"]', "content", DESCRIPTION);
+    setMeta('meta[property="og:url"]', "content", CANONICAL);
   }, []);
 
   // The query string is the single source of truth for a run: submitting writes to
@@ -495,6 +505,12 @@ export default function DividendBacktestPage() {
       </footer>
     </main>
   );
+}
+
+/** Point an existing <head> tag at a new value, creating nothing — index.html
+ *  declares the full set, so a missing selector means the shell changed. */
+function setMeta(selector: string, attr: string, value: string): void {
+  document.querySelector(selector)?.setAttribute(attr, value);
 }
 
 // ───────────────────────── local presentation bits ─────────────────────────

@@ -1,0 +1,11 @@
+# Crawlable: the marketing homepage and the public /tools/* pages.
+# Everything behind sign-in is app surface — no content to index, and crawling it
+# only burns budget on pages that redirect to `/` for an anonymous visitor.
+User-agent: *
+Allow: /
+Disallow: /workspace
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /oauth
+
+Sitemap: https://sweetvaluelab.com/sitemap.xml
