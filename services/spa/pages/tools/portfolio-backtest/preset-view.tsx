@@ -14,7 +14,7 @@
  */
 import { useEffect, useMemo } from "react";
 import Link from "@/components/link";
-import { PublicHeader, PublicFooter } from "@/components/public-chrome";
+import { PublicPage, PageSection } from "@/components/public-chrome";
 import { BacktestResultsSection } from "@/components/backtest/results";
 import { BacktestMethodNotes } from "@/components/backtest/method";
 import { PresetSiblings } from "@/components/backtest/preset-links";
@@ -53,33 +53,32 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
     : preset.holdings.map((h) => `${h.symbol} ${h.weight}%`).join(" · ");
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PublicHeader />
+    <PublicPage>
 
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "clamp(16px, 4vw, 40px) clamp(16px, 5vw, 40px) 8px" }}>
+      <PageSection pad="top">
         <nav style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
           <Link href={TOOL_PATH} style={{ color: "var(--muted)" }}>
             Dividend Portfolio Backtest
           </Link>
           <span> / {preset.linkLabel}</span>
         </nav>
-        <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
+        <h1 style={{ fontSize: "var(--fs-h1)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
           {preset.h1}
         </h1>
-        <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: 680 }}>
+        <p style={{ fontSize: "var(--fs-lead)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: "var(--w-measure)" }}>
           {preset.intro}
         </p>
         <p style={{ fontSize: 13, color: "var(--muted)", margin: "14px 0 0" }}>
           {basket} · {preset.years} years ·{" "}
           {isComparison ? "dividends reinvested" : `$${preset.initial.toLocaleString("en-US")} · ${preset.reinvest ? "dividends reinvested" : "dividends as cash"}`}
         </p>
-      </section>
+      </PageSection>
 
       {/* Fund facts FIRST. This block is fully static, so it is what a non-JS
           crawler (and the first paint) actually sees — the page opens with a real
           side-by-side answer instead of an empty slot while the backtest loads. */}
       {preset.facts && preset.facts.length > 0 && (
-        <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "16px clamp(16px, 5vw, 40px) 0" }}>
+        <PageSection pad="body" style={{ paddingBottom: 0 }}>
           <div style={panel}>
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>
               {preset.holdings.map((h) => h.symbol).join(" vs ")} at a glance
@@ -116,10 +115,10 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
               Fund facts as of {preset.updated}. Holdings counts change at each index rebalance.
             </p>
           </div>
-        </section>
+        </PageSection>
       )}
 
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "0 clamp(16px, 5vw, 40px)" }}>
+      <PageSection pad="flush">
         {isComparison ? (
           <ComparisonResultsSection
             symbols={preset.holdings.map((h) => h.symbol)}
@@ -132,21 +131,21 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
         ) : (
           <BacktestResultsSection result={single.result} benchmark={bench.result} loading={single.loading} error={single.error} />
         )}
-      </section>
+      </PageSection>
 
       {/* Same 1040 container as the H1 and the results above, with the prose column
           pinned to its LEFT edge (margin-right auto, not `0 auto`). Centering a
           narrower article inside a wider page steps the copy ~140px to the right of
           everything above it, which reads as a layout bug even though the measure
           itself is right. Keep the ~70-character line length; align the left edge. */}
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "8px clamp(16px, 5vw, 40px) 8px" }}>
-        <article style={{ maxWidth: 720, marginRight: "auto" }}>
+      <PageSection pad="body" style={{ paddingTop: 8, paddingBottom: 8 }}>
+        <article style={{ maxWidth: "var(--w-measure)", marginRight: "auto" }}>
           {Copy && <Copy />}
 
           <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 14px" }}>How this backtest works</h2>
           <BacktestMethodNotes variant="brief" />
 
-          <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 6px" }}>Questions</h2>
+          <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 6px" }}>Questions</h2>
           <FaqList items={preset.faq} />
         </article>
 
@@ -156,9 +155,8 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
         <p style={{ fontSize: 12, color: "var(--muted)", margin: "28px 0 40px" }}>
           Last updated <time dateTime={preset.updated}>{preset.updated}</time>
         </p>
-      </section>
+      </PageSection>
 
-      <PublicFooter />
-    </main>
+    </PublicPage>
   );
 }

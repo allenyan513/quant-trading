@@ -11,6 +11,9 @@ import DividendBacktestPage from "@/pages/tools/portfolio-backtest/page";
 import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
 import { BACKTEST_PRESETS, presetPath, TOOL_PATH } from "@/lib/backtest-presets";
 import { TOOLS_PATH } from "@/lib/tools";
+import BlogIndexPage from "@/pages/blog/page";
+import { BlogPostView } from "@/pages/blog/post-view";
+import { BLOG_LANGS, BLOG_POSTS, langPrefix } from "@/lib/blog";
 import AboutPage from "@/pages/about/page";
 import PrivacyPage from "@/pages/privacy/page";
 import TermsPage from "@/pages/terms/page";
@@ -97,6 +100,18 @@ export function AppRoutes() {
           bad URL, instead of rendering an empty page across an infinite URL space. */}
       {BACKTEST_PRESETS.map((p) => (
         <Route key={p.slug} path={presetPath(p)} element={<PresetBacktestView preset={p} />} />
+      ))}
+
+      {/* Blog — one index per language edition, and every post enumerated from the
+          registry (same reasoning as the presets above: an unknown slug falls to the
+          `*` catch-all instead of rendering an empty page across an infinite URL
+          space). `lang` / `post` are passed as props, never read from useParams —
+          the prerender renders these components outside a <Routes> tree. */}
+      {BLOG_LANGS.map((lang) => (
+        <Route key={lang} path={langPrefix(lang)} element={<BlogIndexPage lang={lang} />} />
+      ))}
+      {BLOG_POSTS.map((post) => (
+        <Route key={post.path} path={post.path} element={<BlogPostView post={post} />} />
       ))}
 
       {/* About / Privacy / Terms — public, prerendered */}

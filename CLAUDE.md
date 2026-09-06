@@ -45,7 +45,7 @@ pnpm down
 - `services/alpha` —— **唯一的定价/决策 LLM agent**：事件 → 重定价 → 交易信号（读 data 预热的缓存；参考估值经 `POST {DATA_URL}/internal/valuation` 取）。
 - `services/portfolio` —— **交易账户领域的 owner**，无 LLM，含三个账本：① **Strategy**(信号盘)`portfolio_positions` —— 接收 alpha 信号 → 确定性 sizing 开仓 → `/jobs/track` 按止损/止盈/到期结算平仓;② **Paper**(per-user 纸面)`portfolio_paper_*` —— 页面/MCP 下市价单、按 live quote 成交、现金会计(#174);③ **Live**(真实 IBKR)`portfolio_holdings_*` —— 从 IBKR Flex 同步真账户(`src/holdings/`,`/holdings/sync`+`/jobs/sync-holdings`,**自 data 迁来**:portfolio 拥有自身领域专属外部同步)。`services/spa` 仪表盘经 gateway 只读这三套数据。
 - `services/gateway` —— **Hono API 网关 + 唯一对外公开入口**(部署 Cloud Run,域 `api.*`)。三块:① **Better Auth**(`/auth/*`,basePath `/auth`;email/password + Google;`bearer` 插件供移动端;**OAuth 2.1 AS** —— `mcp()` 插件 + `/.well-known/*` 发现 + DCR/PKCE,login/consent 页在 SPA)。② **OAuth 门禁的 MCP 端点**(`/mcp`,`mcp-handler` + `withMcpAuth`,streamable HTTP)给用户自己的 Claude(Desktop/claude.ai)连;工具:公开 `get_symbol_research` / `list_13f_investors` / `get_13f_investor` / `search_sec_filings`(SEC/公开源)+ **私有 `get_holdings` / `get_watchlist` / `get_paper_account` / paper 下单 / memo / morning brief**(user 取自 **token 的 `extra.userId`**,绝不信客户端入参——租户隔离红线)。③ **全部业务路由**(原 web 的 `/api/*`):直读**只读 DB**(`src/db.ts` neon-http + `src/queries/*`,复用 `@qt/shared/research`、`@qt/shared/thirteenf-read` 等)+ 写操作 **forward 到 data/portfolio**(`src/{data,portfolio}-proxy.ts`)。MCP 全只读 + 写转发,不回调 data。data/alpha/portfolio 为**内部服务**。
-- `services/spa` —— **Vite + React + React Router 纯前端 SPA**(部署 Cloudflare Pages,域 apex)。只调 gateway(`VITE_API_URL`,**cookie 会话**,同站子域),**无任何服务端逻辑**(原 Next 的 `/api/*` + auth + MCP 全迁 gateway)。数据走 `useLive`/SWR 轮询;写经 `lib/api-client`;鉴权 `@/lib/auth-client`(Better Auth react,指 gateway)。
+- `services/spa` —— **Vite + React + React Router 纯前端 SPA**(部署 Cloudflare Pages,域 apex)。公开面(首页 / `/tools/*` / `/blog{,/zh}` / About-Privacy-Terms)构建期预渲染成静态 HTML + sitemap + RSS;**博客文章是 `content/blog/<lang>/*.md`,发文=提 PR**,不进 DB。只调 gateway(`VITE_API_URL`,**cookie 会话**,同站子域),**无任何服务端逻辑**(原 Next 的 `/api/*` + auth + MCP 全迁 gateway)。数据走 `useLive`/SWR 轮询;写经 `lib/api-client`;鉴权 `@/lib/auth-client`(Better Auth react,指 gateway)。
 
 ## 全局铁律（细则见 `.claude/rules/`）
 
@@ -53,7 +53,7 @@ pnpm down
 - **响应 envelope**：每个 HTTP 端点都返回 `ok(data)` / `fail(code, msg)`（`@qt/shared`），不要手写裸 JSON。
 - **config 惰性 getter**：env 通过 `config.xxx()` 读取，缺必填项在调用处 fail-fast；不要在模块顶层读 `process.env`。
 - **服务间通信**：`deliverJson` + DB outbox（at-least-once）。生产者在同一事务里写业务数据 + outbox 行（`pending`），提交后再投递；消费端按 `(source, external_id)` 幂等去重。
-- **全英文文案/注释**：所有**用户可见文案**一律英文（JSX 文本、标签/标题/占位符/按钮/徽章/CTA/aria-label，以及 `discoveryReason` 等会渲染给用户的字符串）——产品对外，不留中文。代码注释也用英文（见 `.claude/rules/typescript.md`）。**例外**：`CLAUDE.md` 与 `.claude/rules/` 等面向开发者的文档保留中文。
+- **全英文文案/注释**：所有**用户可见文案**一律英文（JSX 文本、标签/标题/占位符/按钮/徽章/CTA/aria-label，以及 `discoveryReason` 等会渲染给用户的字符串）——产品对外，不留中文。代码注释也用英文（见 `.claude/rules/typescript.md`）。**例外**：① `CLAUDE.md` 与 `.claude/rules/` 等面向开发者的文档保留中文；② **博客的中文版**（`services/spa/content/blog/zh/*` 及其页面文案）—— 博客是有意的中英双语，见 `.claude/rules/spa.md`；外围 chrome 仍全英文。
 - **PIT 正确性**：金融数据落库时 `known_at = FMP acceptedDate`，绝不用 `now()`。
 - **金额存原始数字**，展示层再格式化；可重放性靠 `code_version` + 不可变快照。
 

@@ -24,12 +24,23 @@ import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view
 import { BACKTEST_PRESETS, presetPath, assertPresetGraph, TOOL_PATH } from "@/lib/backtest-presets";
 import ToolsIndexPage from "@/pages/tools/page";
 import { assertToolGraph, TOOLS_PATH } from "@/lib/tools";
+import BlogIndexPage from "@/pages/blog/page";
+import { BlogPostView } from "@/pages/blog/post-view";
+import { assertBlogGraph, assertBlogLinks, BLOG_LANGS, BLOG_POSTS, langPrefix } from "@/lib/blog";
+import { BLOG_FEEDS } from "@/lib/seo";
 
 // A malformed preset registry (duplicate slug, dangling `related`, empty FAQ) must
 // fail the BUILD rather than ship a dead internal link. Same for the tool registry
 // behind `/tools`, whose entire purpose is to be a page full of working links.
 assertPresetGraph();
 assertToolGraph();
+// Same contract for the blog: a malformed post (bad slug, missing title, HTML in
+// the body, a date that is not a date) fails the build. `assertBlogLinks` then
+// checks every site-internal link in every post against the routes actually being
+// emitted — prose is where dead internal links come from, and a 404 in a post is
+// as expensive as one on the tool hub.
+assertBlogGraph();
+assertBlogLinks(new Set(PUBLIC_PAGES.map((p) => p.path)));
 
 const COMPONENTS: Record<string, ComponentType> = {
   "/": HomePage,
@@ -42,6 +53,8 @@ const COMPONENTS: Record<string, ComponentType> = {
   // read from `useParams()`, which is empty under StaticRouter and would prerender
   // every preset page blank.
   ...Object.fromEntries(BACKTEST_PRESETS.map((p) => [presetPath(p), () => <PresetBacktestView preset={p} />])),
+  ...Object.fromEntries(BLOG_LANGS.map((lang) => [langPrefix(lang), () => <BlogIndexPage lang={lang} />])),
+  ...Object.fromEntries(BLOG_POSTS.map((post) => [post.path, () => <BlogPostView post={post} />])),
 };
 
 /** Render one public route to static HTML. Throws if a route has no component —
@@ -56,4 +69,4 @@ export function renderRoute(path: string): string {
   );
 }
 
-export { PUBLIC_PAGES };
+export { PUBLIC_PAGES, BLOG_FEEDS };

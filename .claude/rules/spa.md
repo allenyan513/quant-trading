@@ -30,6 +30,18 @@ paths:
 - React Router v6 嵌套路由,真源 `src/routes.tsx`;layout 用 `<Outlet/>`(tab/工作台跨页保活靠嵌套路由)。索引重定向页 → `<Navigate to=… replace>`。导航真源 `lib/subsystems.ts`(`NAV_SECTIONS`)。
 - 深链/刷新靠 `public/_redirects`(`/* /index.html 200`,Vite 自动拷进 `dist`)。
 
+## 公开页设计规范(token + `PageSection`,**先看这节再写新页面**)
+
+`src/globals.css` 的 `:root` 早就写着「颜色只在这里出现」并且守住了;**布局/间距/字号以前没有这条纪律**,于是公开面漂成了五个容器宽度(720/760/860/960/1040)、两套 gutter 起点、四种 H1 尺寸 —— 没人决定过,是一页一页攒出来的。现在它们和颜色一样是 token,并且**由 `src/design-system.test.ts` 在 `pnpm test` 里强制**。
+
+- **整个公开面只有一个容器宽度 `--w-page: 1040px`**(首页、`/tools` 及子页、`/blog` 及子页、about/privacy/terms 全都是它)。**没有第二档可选,这是刻意的** —— 只要存在一个「选宽度」的决定,每写一个新页面就会重新拍一次脑袋,五个宽度就是这么来的。手机上它天然是满屏(`width:100%` + max-width),内容左右各留 `--page-gutter` 的下限 16px(文字贴着屏幕边缘没法读)。
+- **`components/public-chrome.tsx` 是唯一写下这些的地方**:`<PublicPage>` 提供 chrome(**无 width 参数**),`<PageSection pad="page|top|body|flush|bottom">` 是居中内容列。**页面不要再手写 `width:100%; maxWidth:N; margin:"0 auto"; padding:clamp(...)`**。
+- **header/footer 也收在同一列里**(不是满宽) —— 这是 logo 左边缘与 H1 对齐的原因,也是「看起来像设计过」性价比最高的一处。
+- **`--w-measure`(720)不是容器**,是「一段长正文的行宽上限」,按排版需要单独套在段落上(工具页/预设页的导语)。**博客正文按站长要求跑满 1040**(约 130 字符一行,是舒适上限的两倍;想改回来就是给正文加一个 `maxWidth: "var(--w-measure)"`)。
+- **字号只从 `--fs-*` 取**:`--fs-display`/`--fs-h1`/`--fs-h2{,-display}`/`--fs-h3`/`--fs-lead{,-display}`/`--fs-body`/`--fs-copy`/`--fs-meta`。`display` 档只属于营销首页,其余页面 H1 全站一个尺寸。
+- **`src/design-system.test.ts` 只禁三件事**(其余自由):① `margin:"0 auto"` 与数字 `maxWidth` 同时出现(= 手写的居中容器);② `padding` 里出现字面量 `clamp(`(gutter 只有一条 ramp);③ 字面量 `clamp()` 字号。**卡住文字行宽或插图的 `maxWidth` 不禁** —— 那是单页排版决策,不是跨页漂移的来源。它还断言 `--w-*` 只有 `--w-page` 与 `--w-measure` 两个,**加第三个容器宽度会直接测试失败**。新增公开页要把文件加进 `PUBLIC_FILES` 列表(显式列表,不 glob:新公开页应当是一次有意的登记)。
+- **作用域只有公开页**。工作台(`pages/workspace/**`)是密集终端式布局,规则本就不同,现在不在检查范围内;要收编它是另一轮改动。
+
 ## 公开页预渲染(SEO,`prerender/`)
 
 `pnpm build` = `vite build` → `vite build --ssr prerender/entry-server.tsx` → `node prerender/prerender.mjs`。**公开可索引的路由必须走这条线**,否则爬虫拿到的是首页的 head(含 `canonical: /`)+ 空 `<div id="root">`,工具页会被判成首页的重复页。
@@ -41,6 +53,19 @@ paths:
 - 输出文件名必须是 **`<path>.html`,不能是 `<path>/index.html`**:CF Pages 对目录索引会先 308 到带斜杠形式,既多一跳、又让 canonical 指向一个会重定向的 URL。同理**不要**给这些路径加 `_redirects` 规则 —— Pages 会把 `.html` 用 308 剥掉,`/tools/x -> /tools/x.html 200` 直接变成重定向死循环(两者都用 `npx wrangler pages dev services/spa/dist` 实测过)。
 - JSON-LD 里的 FAQ 文案必须与页面上**可见**文案逐字一致(Google 的要求),改一处要同步另一处。
 - `index.html` 里的 `<!-- seo:start … seo:end -->` 区块是脚本的替换锚点,别删;它同时是 dev server 的默认 head。
+
+## 博客(`content/blog/` + `lib/blog.ts`)
+
+`/blog`(英文)与 `/blog/zh`(中文)两个语言版本,每版一个索引 + 一个 RSS;文章路径 `/blog/<slug>` 与 `/blog/zh/<slug>`。**文章是仓库里的 Markdown 文件**,不进 DB —— 公开面全靠构建期预渲染才可索引,DB 文章要么客户端渲染(爬虫又拿到空 `<div id="root">`,等于回到预渲染要解决的那个问题)、要么每次改文都要触发重建。**发文 = 提一个 PR**。
+
+- **真源 `content/blog/<lang>/<slug>.md`**,经 `lib/blog.ts` 的 `import.meta.glob(..., "?raw")` 在构建期内联,喂四个消费者:`pages/blog/`(索引与文章页)、`src/routes.tsx`(逐条枚举路由)、`lib/seo.ts` 的 `PUBLIC_PAGES`/sitemap/`BLOG_FEEDS`、footer 链接。**加一篇文章只需要加一个 `.md` 文件**,其余全部派生 —— 不要再去别处登记。
+- frontmatter 只认 `title` / `description` / `date` / `updated` / `tags`,写错 key 直接**构建失败**(拼错的 key = 静默丢失的元数据,比构建失败糟)。`assertBlogGraph()` 还会卡 slug 形态、日期格式、`updated < date`、正文为空、正文里的裸 HTML(渲染器不透传 HTML,写了只会显示成源码),以及**标题/描述长度按语言分档**(en 描述 80–180、zh 40–90 —— 搜索结果按渲染宽度截断,中文字符宽度和信息量都约为拉丁字符两倍,套英文字数会逼出注水句子)。
+- **`assertBlogLinks()` 校验文章里所有站内链接**(`](/...)`)必须命中 `PUBLIC_PAGES` 里真实产出的路径,否则构建失败 —— 长文是死链的主要来源,文章里的 404 和中心页上的一样贵。
+- **中英是两个独立可索引页面,不是客户端语言开关**:各有 canonical、各有 RSS,靠 `hreflang` 互指。`PageSeo` 的 `alternates` **必须包含自己**且双向对齐(Google 会校验对方是否指回来,单向标注直接丢弃);`lang` 同时写进 `<html lang>`(prerender 替换)与 `og:locale`。
+- **英文 slug 不能叫 `zh`** —— `/blog/zh` 是中文索引本身,`assertBlogGraph()` 直接拒。`dist/blog/zh.html` 与 `dist/blog/zh/` 目录共存已用 `npx wrangler pages dev services/spa/dist` 实测:`/blog/zh` 直接 200,不走 308。
+- **这是公开面唯一允许非英文文案的地方**(见 CLAUDE.md 的全英文铁律):`content/blog/zh/*` 与 `lib/seo.ts` 里 `BLOG_INDEX_COPY.zh`、`post-view.tsx` 的 `MORE_COPY.zh` 这几处 UI 串是中文版页面的正文/标签。**外围 chrome(header/footer/about/tools)一律保持英文**,不要跟着中文化。
+- 文章页与索引页 `lang` / `post` **一律走 prop,绝不读 `useParams()`**(同预设页:预渲染在无 `<Routes>` 的 StaticRouter 里直接渲染组件,params 是空的,会把每篇文章渲染成空白)。
+- 正文渲染用 `components/post-markdown.tsx`(阅读排版、站内链接走 `<Link>` 保持客户端跳转),**不要复用 `brief-markdown.tsx`** —— 那个是仪表盘密度、且把所有链接强制 `target="_blank"`,用在站内链接上对读者不友好。
 
 ## 预设回测落地页(`lib/backtest-presets.ts`)
 

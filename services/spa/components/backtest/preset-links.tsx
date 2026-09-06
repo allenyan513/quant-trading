@@ -11,6 +11,7 @@
  * preset pages exist to replace).
  */
 import Link from "@/components/link";
+import { PageSection } from "@/components/public-chrome";
 import { BACKTEST_PRESETS, PRESET_CATEGORIES, presetPath, TOOL_PATH } from "@/lib/backtest-presets";
 
 function LinkCard({ href, label, blurb }: { href: string; label: string; blurb: string }) {
@@ -45,7 +46,7 @@ const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(24
  */
 export function PresetHub() {
   return (
-    <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "8px clamp(16px, 5vw, 40px) 0" }}>
+    <PageSection pad="flush" style={{ paddingTop: 8 }}>
       <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "0 0 6px" }}>Ready-made backtests</h2>
       <p style={{ fontSize: 13.5, color: "var(--muted)", margin: "0 0 4px" }}>
         Common baskets and comparisons, already set up — open one and the numbers are there.
@@ -65,7 +66,7 @@ export function PresetHub() {
           </div>
         );
       })}
-    </section>
+    </PageSection>
   );
 }
 
