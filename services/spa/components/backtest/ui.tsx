@@ -7,6 +7,7 @@
  * the form, but splitting a 90-line style module in two buys nothing.
  */
 import type { CSSProperties, ReactNode } from "react";
+import { Play, SkipForward } from "lucide-react";
 import type { FaqEntry } from "@/lib/seo";
 
 export const panel: CSSProperties = {
@@ -61,9 +62,9 @@ export const subStyle: CSSProperties = { fontSize: 13, color: "var(--muted)", ma
  * The replay control, shared by the single-basket and comparison result panels.
  *
  * Solid rather than an outline chip: the replay is the thing worth doing on this
- * panel, and the previous version — a small pill tucked under the chart legend —
- * was missed entirely. It sits in the headline row, where "Copy result link" used
- * to draw the eye.
+ * panel, and the first version — a small pill under the chart legend — was missed
+ * entirely. One word plus a play glyph; the surrounding panel already says what is
+ * being replayed, so "Replay this backtest" only made the button wide.
  */
 export function ReplayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
   return (
@@ -72,8 +73,11 @@ export function ReplayButton({ playing, onClick }: { playing: boolean; onClick: 
       onClick={onClick}
       aria-label={playing ? "Skip the replay" : "Replay this backtest from the start"}
       style={{
-        height: 34,
-        padding: "0 16px",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        height: 32,
+        padding: "0 14px",
         borderRadius: 999,
         border: "none",
         background: "var(--accent)",
@@ -84,7 +88,8 @@ export function ReplayButton({ playing, onClick }: { playing: boolean; onClick: 
         whiteSpace: "nowrap",
       }}
     >
-      {playing ? "Skip replay" : "▶ Replay this backtest"}
+      {playing ? <SkipForward size={14} strokeWidth={2.5} /> : <Play size={14} strokeWidth={2.5} fill="currentColor" />}
+      {playing ? "Skip" : "Replay"}
     </button>
   );
 }
