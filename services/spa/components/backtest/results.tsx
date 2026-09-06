@@ -13,7 +13,7 @@ import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
 import { panel, chip, h2Style, subStyle, Kpi, Th, Td } from "@/components/backtest/ui";
 import { CutsPanel, IncomeSummaryLine, ResultsGate, ScrollTable, WarningList } from "@/components/backtest/sections";
-import { dividendShare, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
+import { dividendShare, statsThrough, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
 
 export interface BacktestResultsProps {
@@ -27,12 +27,41 @@ export interface BacktestResultsProps {
   shareable?: boolean;
 }
 
+/** Tiles the replay cannot drive. Dimmed, not hidden: the figure is still true
+ *  for the whole window, it just is not the one moving. */
+const DIMMED = { opacity: 0.35, transition: "opacity 200ms" } as const;
+
 export function BacktestResults({ result, benchmark = null, shareable = false }: BacktestResultsProps) {
   const stats = result.reinvest ? result.drip : result.noDrip;
   const dripEdge = result.drip.endValue - result.noDrip.endValue;
   const share = dividendShare(result);
   const dividendLed = share >= DIVIDEND_LEAD_THRESHOLD;
   const benchEdge = benchmark ? stats.cagrPct - benchmark.drip.cagrPct : null;
+
+  /** Replay cursor published by the chart; null whenever it is not replaying. */
+  const [replayAt, setReplayAt] = useState<number | null>(null);
+  const replaying = replayAt !== null;
+
+  // The four value-derived tiles, recomputed over the revealed prefix while the
+  // chart replays and falling back to the server's own figures at rest. At the
+  // final frame the two agree exactly — `statsThrough` runs the engine's formulas.
+  const dripPath = useMemo(() => result.series.map((p) => ({ date: p.date, value: p.drip })), [result]);
+  const live =
+    (replayAt !== null ? statsThrough(dripPath, result.initial, replayAt) : null) ?? {
+      totalReturnPct: stats.totalReturnPct,
+      cagrPct: stats.cagrPct,
+      maxDrawdownPct: stats.maxDrawdownPct,
+      volatilityPct: stats.volatilityPct,
+    };
+
+  const benchPath = useMemo(
+    () => (benchmark ? benchmark.series.map((p) => ({ date: p.date, value: p.drip })) : null),
+    [benchmark],
+  );
+  const liveBenchEdge =
+    replayAt !== null && benchPath
+      ? live.cagrPct - (statsThrough(benchPath, result.initial, replayAt)?.cagrPct ?? 0)
+      : (benchEdge ?? 0);
 
   // Memoised on the data, NOT rebuilt per render. The chart re-feeds its series and
   // snaps back to the full window whenever this array's identity changes, so an
@@ -61,27 +90,35 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
           {shareable && <CopyLinkButton />}
         </div>
 
+        {/* While the chart replays, these move with it — they are the point of
+            watching. The two INCOME tiles cannot follow (see `statsThrough`) and
+            are dimmed rather than left showing a final figure beside four that are
+            still climbing, which would read as the wrong number, not a still one. */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))", gap: 14 }}>
-          <Kpi label="Total return" value={fmtPct(stats.totalReturnPct)} tone={stats.totalReturnPct >= 0 ? "up" : "down"} />
-          <Kpi label="CAGR" value={fmtPct(stats.cagrPct)} tone={stats.cagrPct >= 0 ? "up" : "down"} />
-          <Kpi label="Max drawdown" value={fmtPct(-stats.maxDrawdownPct)} tone="down" />
-          <Kpi label="Volatility (ann.)" value={`${fmtNum(stats.volatilityPct, 1)}%`} />
-          <Kpi label="Dividends collected" value={money(stats.totalIncome, "headline")} />
+          <Kpi label="Total return" value={fmtPct(live.totalReturnPct)} tone={live.totalReturnPct >= 0 ? "up" : "down"} />
+          <Kpi label="CAGR" value={fmtPct(live.cagrPct)} tone={live.cagrPct >= 0 ? "up" : "down"} />
+          <Kpi label="Max drawdown" value={fmtPct(-live.maxDrawdownPct)} tone="down" />
+          <Kpi label="Volatility (ann.)" value={`${fmtNum(live.volatilityPct, 1)}%`} />
+          <div style={replaying ? DIMMED : undefined}>
+            <Kpi label="Dividends collected" value={money(stats.totalIncome, "headline")} />
+          </div>
           {/* The sixth tile is whichever question this basket actually raises. */}
           {dividendLed || benchEdge == null ? (
-            <Kpi label="Yield on cost" value={`${fmtNum(result.yieldOnCostPct, 2)}%`} sub="last 12m income ÷ initial" />
+            <div style={replaying ? DIMMED : undefined}>
+              <Kpi label="Yield on cost" value={`${fmtNum(result.yieldOnCostPct, 2)}%`} sub="last 12m income ÷ initial" />
+            </div>
           ) : (
             <Kpi
               label="vs S&P 500"
-              value={`${benchEdge >= 0 ? "+" : ""}${fmtNum(benchEdge, 1)}%`}
+              value={`${liveBenchEdge >= 0 ? "+" : ""}${fmtNum(liveBenchEdge, 1)}%`}
               sub="CAGR difference"
-              tone={benchEdge >= 0 ? "up" : "down"}
+              tone={liveBenchEdge >= 0 ? "up" : "down"}
             />
           )}
         </div>
 
         <div>
-          <BacktestChartLazy series={chartSeries} />
+          <BacktestChartLazy series={chartSeries} onReplayFrame={setReplayAt} />
         </div>
 
         <div style={{ fontSize: 14, lineHeight: 1.6 }}>

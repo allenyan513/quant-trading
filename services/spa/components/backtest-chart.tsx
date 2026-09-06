@@ -83,14 +83,18 @@ export function fitBarSpacing(plotWidth: number, points: number): number | null 
 // `finish()` and the Skip button both undo.
 // ============================================================
 
-const MIN_REPLAY_MS = 3_500;
-const MAX_REPLAY_MS = 7_000;
+/**
+ * Thirty seconds, flat, whatever the window.
+ *
+ * Long on purpose. This is not a loading flourish — it is the reader watching a
+ * decade happen, and the numbers above the chart moving with it. Scaling it by
+ * point count (an earlier attempt) only made a five-year run feel rushed and a
+ * twenty-year one feel arbitrary; every window deserves the same half minute.
+ */
+export const REPLAY_MS = 30_000;
 
-/** Replay length, scaling gently with the window so a five-year run does not crawl
- *  and a twenty-year one does not blur past. */
 export function replayDurationMs(points: number): number {
-  if (!Number.isFinite(points) || points <= 0) return MIN_REPLAY_MS;
-  return Math.min(MAX_REPLAY_MS, Math.max(MIN_REPLAY_MS, points * 1.4));
+  return points >= 2 ? REPLAY_MS : 0;
 }
 
 /** Elapsed → progress in [0,1]. Time-based, not frame-based, so the replay lasts
@@ -128,7 +132,22 @@ export function revealedIndex(t: number, points: number): number {
   return Math.min(last, Math.round(start + (last - start) * clamped));
 }
 
-export function BacktestChart({ series, height = 340 }: { series: ChartSeries[]; height?: number }) {
+export interface BacktestChartProps {
+  series: ChartSeries[];
+  height?: number;
+  /**
+   * Called on every replay frame with the index the window now reaches, and with
+   * `null` the moment the replay ends.
+   *
+   * This is how the figures ABOVE the chart move with it: the chart owns the clock
+   * (it is the thing being animated) and publishes the cursor; whoever renders the
+   * numbers slices its own data to that index. Nothing about the chart's own
+   * behaviour depends on anyone listening.
+   */
+  onReplayFrame?: (revealed: number | null) => void;
+}
+
+export function BacktestChart({ series, height = 340, onReplayFrame }: BacktestChartProps) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<ISeriesApi<"Line">[]>([]);
@@ -147,6 +166,14 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
    *  presses the button will ever see. */
   const [revealed, setRevealed] = useState<number | null>(null);
   const rafRef = useRef<number | null>(null);
+  // Latest listener, read through a ref so `play`/`finish` stay identity-stable and
+  // a parent that passes an inline arrow cannot restart the machinery each render.
+  const onFrameRef = useRef(onReplayFrame);
+  onFrameRef.current = onReplayFrame;
+  const publish = useCallback((v: number | null) => {
+    setRevealed(v);
+    onFrameRef.current?.(v);
+  }, []);
 
   /**
    * Lower the zoom floor to whatever this chart's data and width actually need,
@@ -184,12 +211,12 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
   const finish = useCallback(() => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
-    setRevealed(null);
+    publish(null);
     const chart = chartRef.current;
     if (!chart) return;
     chart.applyOptions({ handleScroll: true, handleScale: true });
     applyFit({ snap: true });
-  }, [applyFit]);
+  }, [applyFit, publish]);
 
   const play = useCallback(() => {
     const chart = chartRef.current;
@@ -211,7 +238,7 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
         const t = progressAt(now - start, duration);
         const to = revealedIndex(t, total);
         timeScale.setVisibleLogicalRange({ from: 0, to });
-        setRevealed(to);
+        publish(to);
         if (t < 1) {
           rafRef.current = requestAnimationFrame(tick);
           return;
@@ -221,9 +248,9 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
       }
       finish();
     };
-    setRevealed(revealedIndex(0, total));
+    publish(revealedIndex(0, total));
     rafRef.current = requestAnimationFrame(tick);
-  }, [finish]);
+  }, [finish, publish]);
 
   // Stop a replay when the component goes away, whatever started it.
   useEffect(
@@ -325,39 +352,7 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
 
   return (
     <div>
-      <div style={{ position: "relative" }}>
-        <div ref={ref} style={{ width: "100%" }} />
-        {/* Live readout — the number the replay is about. Only while playing: the
-            resting page must look exactly as it did before the replay existed. */}
-        {playing && (
-          <div
-            aria-live="off"
-            style={{
-              position: "absolute",
-              top: 10,
-              left: 12,
-              pointerEvents: "none",
-              fontVariantNumeric: "tabular-nums",
-              lineHeight: 1.25,
-            }}
-          >
-            <div style={{ fontSize: 12, color: MUTED }}>{series[0]?.points[revealed]?.date}</div>
-            {series.map((s, i) => {
-              if (s.benchmark) return null; // the backdrop is not what is being counted
-              const v = s.points[Math.min(revealed, s.points.length - 1)]?.value;
-              if (v == null) return null;
-              return (
-                <div key={s.label} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: i === 0 ? 22 : 15, fontWeight: 700, color: colorAt(series, i) }}>
-                    ${Math.round(v).toLocaleString("en-US")}
-                  </span>
-                  <span style={{ fontSize: 11, color: MUTED }}>{s.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <div ref={ref} style={{ width: "100%" }} />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12, color: "var(--muted)", marginTop: 8, alignItems: "center" }}>
         {series.map((s, i) => (
           <span key={s.label}>
