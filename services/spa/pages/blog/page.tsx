@@ -18,7 +18,7 @@
  */
 import { useEffect } from "react";
 import Link from "@/components/link";
-import { PublicHeader, PublicFooter } from "@/components/public-chrome";
+import { PublicPage, PageSection, pageTitleStyle } from "@/components/public-chrome";
 import { applySeo, blogIndexSeo, BLOG_INDEX_COPY } from "@/lib/seo";
 import { BLOG_LANGS, LANG_LABEL, langPrefix, postsFor, type BlogLang, type BlogPost } from "@/lib/blog";
 
@@ -59,24 +59,20 @@ export default function BlogIndexPage({ lang }: { lang: BlogLang }) {
   useEffect(() => applySeo(seo), [seo]);
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PublicHeader />
-      <div style={{ width: "100%", maxWidth: 760, margin: "0 auto", padding: "clamp(20px, 5vw, 48px) clamp(16px, 5vw, 40px) 48px" }}>
+    <PublicPage width="prose">
+      <PageSection pad="page">
         <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
-          <h1 style={{ flex: 1, fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 800, letterSpacing: -0.6, lineHeight: 1.15, margin: 0 }}>
-            {copy.heading}
-          </h1>
+          <h1 style={{ ...pageTitleStyle, flex: 1 }}>{copy.heading}</h1>
           {/* Both indexes always exist, so the switch never has to disappear here. */}
           <LangSwitch current={lang} pathFor={(l) => langPrefix(l)} />
         </div>
-        <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--muted)", margin: "14px 0 0" }}>{copy.intro}</p>
+        <p style={{ fontSize: "var(--fs-lead)", lineHeight: 1.65, color: "var(--muted)", margin: "14px 0 0" }}>{copy.intro}</p>
 
         {posts.map((post) => (
           <PostEntry key={post.path} post={post} />
         ))}
-      </div>
-      <PublicFooter />
-    </main>
+      </PageSection>
+    </PublicPage>
   );
 }
 
@@ -84,17 +80,17 @@ function PostEntry({ post }: { post: BlogPost }) {
   return (
     <article style={{ marginTop: 32, borderTop: "1px solid var(--border)", paddingTop: 22 }}>
       {/* The heading IS the link — one anchor per post, its title as the text. */}
-      <h2 style={{ fontSize: 21, fontWeight: 800, letterSpacing: -0.3, margin: 0, lineHeight: 1.35 }}>
+      <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: 0, lineHeight: 1.35 }}>
         <Link href={post.path} style={{ color: "var(--accent)" }}>
           {post.title}
         </Link>
       </h2>
-      <p style={{ fontSize: 12, color: "var(--muted)", margin: "8px 0 0" }}>
+      <p style={{ fontSize: "var(--fs-meta)", color: "var(--muted)", margin: "8px 0 0" }}>
         <time dateTime={post.date}>{formatPostDate(post.date, post.lang)}</time>
       </p>
       {/* The description doubles as the blurb: one sentence written once, so the
           index, the meta description and the feed can never disagree. */}
-      <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--muted)", margin: "10px 0 0" }}>{post.description}</p>
+      <p style={{ fontSize: "var(--fs-copy)", lineHeight: 1.7, color: "var(--muted)", margin: "10px 0 0" }}>{post.description}</p>
     </article>
   );
 }

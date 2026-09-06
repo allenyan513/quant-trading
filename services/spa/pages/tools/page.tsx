@@ -15,7 +15,7 @@
  */
 import { useEffect } from "react";
 import Link from "@/components/link";
-import { PublicHeader, PublicFooter } from "@/components/public-chrome";
+import { PublicPage, PageSection, pageTitleStyle } from "@/components/public-chrome";
 import { applySeo, TOOLS_SEO } from "@/lib/seo";
 import { TOOLS, type Tool } from "@/lib/tools";
 
@@ -23,13 +23,12 @@ export default function ToolsIndexPage() {
   useEffect(() => applySeo(TOOLS_SEO), []);
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PublicHeader />
-      <div style={{ width: "100%", maxWidth: 860, margin: "0 auto", padding: "clamp(20px, 5vw, 48px) clamp(16px, 5vw, 40px) 48px" }}>
-        <h1 style={{ fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 800, letterSpacing: -0.6, lineHeight: 1.15, margin: 0 }}>
-          Tools
-        </h1>
-        <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--muted)", margin: "14px 0 0" }}>
+    <PublicPage width="page">
+      <PageSection pad="page">
+        <h1 style={pageTitleStyle}>Tools</h1>
+        {/* Body copy is capped at the reading measure even though the page is a
+            tier wider — the hub used to run past 100 characters a line. */}
+        <p style={{ fontSize: "var(--fs-lead)", lineHeight: 1.65, color: "var(--muted)", margin: "14px 0 0", maxWidth: "var(--w-prose)" }}>
           Free and open to everyone — no account, no sign-up, no trial. Each one computes from primary market data rather than
           summarizing someone&rsquo;s opinion, and shows the numbers it used.
         </p>
@@ -37,9 +36,8 @@ export default function ToolsIndexPage() {
         {TOOLS.map((tool) => (
           <ToolEntry key={tool.path} tool={tool} />
         ))}
-      </div>
-      <PublicFooter />
-    </main>
+      </PageSection>
+    </PublicPage>
   );
 }
 
@@ -48,12 +46,14 @@ function ToolEntry({ tool }: { tool: Tool }) {
     <section style={{ marginTop: 34, borderTop: "1px solid var(--border)", paddingTop: 22 }}>
       {/* The heading IS the link: one anchor per tool, with the tool's name as its
           text, is what a crawler reads as the site's structure. */}
-      <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: 0 }}>
+      <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: 0 }}>
         <Link href={tool.path} style={{ color: "var(--accent)" }}>
           {tool.name}
         </Link>
       </h2>
-      <p style={{ fontSize: 14.5, lineHeight: 1.7, color: "var(--muted)", margin: "8px 0 0" }}>{tool.blurb}</p>
+      <p style={{ fontSize: "var(--fs-copy)", lineHeight: 1.7, color: "var(--muted)", margin: "8px 0 0", maxWidth: "var(--w-prose)" }}>
+        {tool.blurb}
+      </p>
 
       {tool.pages && tool.pages.length > 0 && (
         <>

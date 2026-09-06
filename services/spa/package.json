@@ -7,7 +7,8 @@
     "dev": "vite --port 3001",
     "build": "vite build && vite build --ssr prerender/entry-server.tsx --outDir dist-ssr && node prerender/prerender.mjs",
     "preview": "vite preview --port 3001",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -34,6 +35,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^4.1.7"
   }
 }

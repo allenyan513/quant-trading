@@ -34,6 +34,48 @@
   --up: #3fb950;
   --down: #f85149;
   --warn: #d29922;
+
+  /* ===== Layout, spacing and type — the PUBLIC surface's design tokens =======
+     Same discipline as the colors above, and for the same reason: a value that
+     lives in one place is a value pages can't each re-invent. Before this block
+     the public pages carried five different container widths (720/760/860/960/
+     1040) and two padding ramps, so the logo never lined up with the H1 and the
+     tool hub ran to ~105 characters a line.
+
+     WIDTH — three tiers, chosen by what the page HOLDS, not by feel:
+       --w-prose  reading, one column: blog posts and index, about/privacy/terms
+       --w-page   cards and link grids: the homepage sections, the tool hub
+       --w-wide   data: charts, wide tables — the backtest tool and its presets
+     And one rule that overrides the tier: a paragraph of body copy never exceeds
+     --w-prose, however wide its container. That is what keeps a 1040px data page
+     readable where its prose starts (see the backtest preset pages).
+
+     Enforced by `src/design-system.test.ts` — a literal width or a `clamp()` font
+     size in a public page fails `pnpm test`, rather than waiting to be noticed. */
+  --w-prose: 720px;
+  --w-page: 900px;
+  --w-wide: 1040px;
+
+  /* One gutter ramp for every public page, chrome included — this is what makes
+     the header's logo sit directly above the page's H1. */
+  --page-gutter: clamp(16px, 5vw, 40px);
+  --page-top: clamp(20px, 5vw, 48px);
+  /* The marketing hero breathes more than a content page's first section. */
+  --page-top-hero: clamp(40px, 8vw, 88px);
+  --page-bottom: 48px;
+
+  /* Type scale. `display` variants are the marketing homepage's; every other
+     public page uses the plain step, so an H1 is one size site-wide. */
+  --fs-display: clamp(36px, 7vw, 64px);
+  --fs-h1: clamp(28px, 5vw, 40px);
+  --fs-h2-display: clamp(24px, 3.6vw, 32px);
+  --fs-h2: 22px;
+  --fs-h3: 18px;
+  --fs-lead-display: clamp(16px, 2.4vw, 21px);
+  --fs-lead: clamp(15px, 2vw, 18px);
+  --fs-body: 16.5px;
+  --fs-copy: 15px;
+  --fs-meta: 12.5px;
 }
 
 html,

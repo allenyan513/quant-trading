@@ -4,7 +4,7 @@ import Link from "@/components/link";
 import { McpCopyButton } from "@/components/connect-claude";
 import { HeroIllustration } from "@/components/hero-illustration";
 import { applySeo, HOME_SEO } from "@/lib/seo";
-import { PublicFooter } from "@/components/public-chrome";
+import { PublicFooter, PageSection } from "@/components/public-chrome";
 import { TOOLS, TOOLS_PATH } from "@/lib/tools";
 
 const REPO_URL = "https://github.com/allenyan513/quant-trading";
@@ -33,7 +33,10 @@ export default function HomePage() {
   return (
     <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
-      <header style={{ display: "flex", alignItems: "center", gap: "clamp(12px, 3vw, 18px)", padding: "16px clamp(16px, 5vw, 40px)" }}>
+      <header>
+        {/* The homepage keeps its own header (GitHub link, different CTA) but sits
+            in the same column as every other public page — see public-chrome.tsx. */}
+        <PageSection as="div" pad="flush" style={{ display: "flex", alignItems: "center", gap: "clamp(12px, 3vw, 18px)", paddingTop: 16, paddingBottom: 16 }}>
         <div style={{ flex: 1, fontWeight: 800, letterSpacing: 0.3, fontSize: 16 }}>
           <span style={{ color: "var(--accent)" }}>Sweet</span>ValueLab
         </div>
@@ -66,6 +69,7 @@ export default function HomePage() {
         >
           Workspace
         </Link>
+        </PageSection>
       </header>
 
       {/* Hero */}
@@ -76,14 +80,14 @@ export default function HomePage() {
           flexDirection: "column",
           alignItems: "center",
           textAlign: "center",
-          padding: "clamp(40px, 8vw, 88px) clamp(20px, 5vw, 40px) 48px",
+          padding: "var(--page-top-hero) var(--page-gutter) 48px",
           gap: 22,
         }}
       >
-        <h1 style={{ fontSize: "clamp(36px, 7vw, 64px)", fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, margin: 0, maxWidth: 760 }}>
+        <h1 style={{ fontSize: "var(--fs-display)", fontWeight: 800, lineHeight: 1.05, letterSpacing: -1, margin: 0, maxWidth: 760 }}>
           Turn Claude into your investment agent.
         </h1>
-        <p style={{ fontSize: "clamp(16px, 2.4vw, 21px)", color: "var(--muted)", lineHeight: 1.5, margin: 0, maxWidth: 560 }}>
+        <p style={{ fontSize: "var(--fs-lead-display)", color: "var(--muted)", lineHeight: 1.5, margin: 0, maxWidth: 560 }}>
           Research, paper-trade, and review your portfolio — just by chatting.
         </p>
 
@@ -116,9 +120,9 @@ export default function HomePage() {
       </section>
 
       {/* Three-step flow — Connect → Chat & trade → Review, all in one conversation */}
-      <section style={{ width: "100%", maxWidth: 960, margin: "0 auto", padding: "8px clamp(20px, 5vw, 40px) 24px" }}>
+      <PageSection style={{ paddingTop: 8, paddingBottom: 24 }}>
         <div style={{ textAlign: "center", marginBottom: "clamp(24px, 5vw, 40px)" }}>
-          <h2 style={{ fontSize: "clamp(24px, 3.6vw, 32px)", fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>All in one conversation.</h2>
+          <h2 style={{ fontSize: "var(--fs-h2-display)", fontWeight: 800, letterSpacing: -0.5, margin: 0 }}>All in one conversation.</h2>
           <p style={{ fontSize: 15, color: "var(--muted)", margin: "8px 0 0" }}>No dashboards to manage — just chat with your Claude.</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 28 }}>
@@ -126,7 +130,7 @@ export default function HomePage() {
           <Step n={2} title="Chat & trade" body="Ask Claude to research a name, surface a buy/sell signal, and place a paper trade — right in the chat." />
           <Step n={3} title="Review" body="Have Claude replay and review your trades over time. No dashboard required." />
         </div>
-      </section>
+      </PageSection>
 
       {/* Free tools. Generated from the SAME `TOOLS` registry as `/tools` and the
           footer, so shipping a tool cannot leave the homepage behind — this block
@@ -141,8 +145,8 @@ export default function HomePage() {
 
           Capped, because the homepage is a front door, not a directory; the rest
           are one click away behind "All tools". Static links, no request. */}
-      <section style={{ width: "100%", maxWidth: 960, margin: "0 auto", padding: "8px clamp(20px, 5vw, 40px) 40px", textAlign: "center" }}>
-        <h2 style={{ fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, letterSpacing: -0.3, margin: "0 0 6px" }}>
+      <PageSection style={{ paddingTop: 8, paddingBottom: 40, textAlign: "center" }}>
+        <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: "0 0 6px" }}>
           Free tools, no account
         </h2>
         <p style={{ fontSize: 14, color: "var(--muted)", margin: "0 0 16px" }}>Open one and start typing — nothing is gated.</p>
@@ -174,7 +178,7 @@ export default function HomePage() {
             </Link>
           </p>
         )}
-      </section>
+      </PageSection>
 
       <PublicFooter />
     </main>

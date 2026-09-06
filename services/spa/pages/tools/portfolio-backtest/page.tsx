@@ -16,7 +16,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { PublicHeader, PublicFooter } from "@/components/public-chrome";
+import { PublicPage, PageSection } from "@/components/public-chrome";
 import { BacktestResultsSection } from "@/components/backtest/results";
 import { BacktestMethodNotes } from "@/components/backtest/method";
 import { PresetHub } from "@/components/backtest/preset-links";
@@ -191,22 +191,21 @@ export default function DividendBacktestPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PublicHeader />
+    <PublicPage width="wide">
 
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "clamp(16px, 4vw, 40px) clamp(16px, 5vw, 40px) 8px" }}>
-        <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
+      <PageSection pad="top">
+        <h1 style={{ fontSize: "var(--fs-h1)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
           Portfolio Backtest
         </h1>
-        <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: 660 }}>
+        <p style={{ fontSize: "var(--fs-lead)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: "var(--w-prose)" }}>
           Put any basket of stocks or ETFs through real history on <strong style={{ color: "var(--text)" }}>daily</strong> prices —
           total return, drawdown, and what reinvesting the dividends was actually worth, benchmarked against the S&amp;P 500.
           No account, no paywall.
         </p>
-      </section>
+      </PageSection>
 
       {/* Inputs */}
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "16px clamp(16px, 5vw, 40px)" }}>
+      <PageSection pad="body">
         <form onSubmit={submit} style={panel}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 14 }}>
             <span style={{ fontSize: 12, color: "var(--muted)" }}>Try:</span>
@@ -347,25 +346,24 @@ export default function DividendBacktestPage() {
             Up to {MAX_HOLDINGS} holdings, {MAX_YEARS} years of history. Weights are relative — they don&apos;t have to add up to 100.
           </p>
         </form>
-      </section>
+      </PageSection>
 
       {/* Results */}
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "0 clamp(16px, 5vw, 40px)" }}>
+      <PageSection pad="flush">
         <BacktestResultsSection result={result} loading={loading} error={formError ?? error} shareable />
-      </section>
+      </PageSection>
 
       <PresetHub />
 
       {/* Method + FAQ — static, and the reason a search engine can tell what this page is */}
-      <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "24px clamp(16px, 5vw, 40px) 48px" }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "0 0 14px" }}>How this backtest works</h2>
+      <PageSection pad="bottom">
+        <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: "0 0 14px" }}>How this backtest works</h2>
         <BacktestMethodNotes variant="full" />
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 6px" }}>Questions</h2>
+        <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 6px" }}>Questions</h2>
         <FaqList items={BACKTEST_FAQ} />
-      </section>
+      </PageSection>
 
-      <PublicFooter />
-    </main>
+    </PublicPage>
   );
 }

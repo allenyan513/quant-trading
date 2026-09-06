@@ -26,7 +26,7 @@ const linkStyle = { color: "var(--accent)", textDecoration: "none" } as const;
 
 export function PostMarkdown({ markdown }: { markdown: string }) {
   return (
-    <div style={{ fontSize: 16.5, lineHeight: 1.75, color: "var(--text)", wordBreak: "break-word" }}>
+    <div style={{ fontSize: "var(--fs-body)", lineHeight: 1.75, color: "var(--text)", wordBreak: "break-word" }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -34,13 +34,13 @@ export function PostMarkdown({ markdown }: { markdown: string }) {
           // heading starts at `<h2>` — one h1 per document, and the outline has
           // to stay in order for both screen readers and search.
           h1: ({ children }: { children?: ReactNode }) => (
-            <h2 style={{ fontSize: 23, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 10px" }}>{children}</h2>
+            <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 10px" }}>{children}</h2>
           ),
           h2: ({ children }: { children?: ReactNode }) => (
-            <h2 style={{ fontSize: 23, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 10px" }}>{children}</h2>
+            <h2 style={{ fontSize: "var(--fs-h2)", fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 10px" }}>{children}</h2>
           ),
           h3: ({ children }: { children?: ReactNode }) => (
-            <h3 style={{ fontSize: 18, fontWeight: 700, margin: "26px 0 8px" }}>{children}</h3>
+            <h3 style={{ fontSize: "var(--fs-h3)", fontWeight: 700, margin: "26px 0 8px" }}>{children}</h3>
           ),
           p: ({ children }: { children?: ReactNode }) => <p style={{ margin: "14px 0" }}>{children}</p>,
           ul: ({ children }: { children?: ReactNode }) => (
@@ -65,7 +65,7 @@ export function PostMarkdown({ markdown }: { markdown: string }) {
           ),
           em: ({ children }: { children?: ReactNode }) => <em style={{ fontStyle: "italic" }}>{children}</em>,
           code: ({ children }: { children?: ReactNode }) => (
-            <code style={{ background: "var(--panel-2)", borderRadius: 4, padding: "1px 5px", fontSize: 14.5 }}>
+            <code style={{ background: "var(--panel-2)", borderRadius: 4, padding: "1px 5px", fontSize: "var(--fs-copy)" }}>
               {children}
             </code>
           ),
@@ -84,7 +84,7 @@ export function PostMarkdown({ markdown }: { markdown: string }) {
           ),
           table: ({ children }: { children?: ReactNode }) => (
             <div style={{ overflowX: "auto", margin: "16px 0" }}>
-              <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 14.5 }}>{children}</table>
+              <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "var(--fs-copy)" }}>{children}</table>
             </div>
           ),
           th: ({ children }: { children?: ReactNode }) => (

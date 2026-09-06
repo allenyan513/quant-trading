@@ -30,6 +30,18 @@ paths:
 - React Router v6 嵌套路由,真源 `src/routes.tsx`;layout 用 `<Outlet/>`(tab/工作台跨页保活靠嵌套路由)。索引重定向页 → `<Navigate to=… replace>`。导航真源 `lib/subsystems.ts`(`NAV_SECTIONS`)。
 - 深链/刷新靠 `public/_redirects`(`/* /index.html 200`,Vite 自动拷进 `dist`)。
 
+## 公开页设计规范(token + `PageSection`,**先看这节再写新页面**)
+
+`src/globals.css` 的 `:root` 早就写着「颜色只在这里出现」并且守住了;**布局/间距/字号以前没有这条纪律**,于是公开面漂成了五个容器宽度(720/760/860/960/1040)、两套 gutter 起点、四种 H1 尺寸 —— 没人决定过,是一页一页攒出来的。现在它们和颜色一样是 token,并且**由 `src/design-system.test.ts` 在 `pnpm test` 里强制**。
+
+- **三档宽度,按页面「装什么」选,不按感觉选**:`--w-prose`(720,单列正文:博客文章/索引、about/privacy/terms)、`--w-page`(900,卡片与链接栅格:首页各 section、`/tools`)、`--w-wide`(1040,数据密集:回测工具页与预设页)。
+- **`components/public-chrome.tsx` 是唯一写下这些的地方**:`<PublicPage width="prose|page|wide">` 提供 chrome + 宽度上下文,`<PageSection pad="page|top|body|flush|bottom">` 是居中内容列。**页面不要再手写 `width:100%; maxWidth:N; margin:"0 auto"; padding:clamp(...)`**。
+- **header/footer 也收在同一列里**(不是满宽) —— 这是 logo 左边缘与 H1 对齐的原因,也是「看起来像设计过」性价比最高的一处。宽度经 context 下传,chrome 与正文物理上不可能对不齐。
+- **measure 规则压过宽度档**:一段正文任何时候不超过 `--w-prose`,哪怕容器是 1040(见预设页与 `/tools` 的 `maxWidth: "var(--w-prose)"`)。`/tools` 之前一行 100+ 字符就是漏了这条。
+- **字号只从 `--fs-*` 取**:`--fs-display`/`--fs-h1`/`--fs-h2{,-display}`/`--fs-h3`/`--fs-lead{,-display}`/`--fs-body`/`--fs-copy`/`--fs-meta`。`display` 档只属于营销首页,其余页面 H1 全站一个尺寸。
+- **`src/design-system.test.ts` 只禁三件事**(其余自由):① `margin:"0 auto"` 与数字 `maxWidth` 同时出现(= 手写的居中容器);② `padding` 里出现字面量 `clamp(`(gutter 只有一条 ramp);③ 字面量 `clamp()` 字号。**卡住文字行宽或插图的 `maxWidth` 不禁** —— 那是单页排版决策,不是跨页漂移的来源。新增公开页要把文件加进 `PUBLIC_FILES` 列表(显式列表,不 glob:新公开页应当是一次有意的登记)。
+- **作用域只有公开页**。工作台(`pages/workspace/**`)是密集终端式布局,规则本就不同,现在不在检查范围内;要收编它是另一轮改动。
+
 ## 公开页预渲染(SEO,`prerender/`)
 
 `pnpm build` = `vite build` → `vite build --ssr prerender/entry-server.tsx` → `node prerender/prerender.mjs`。**公开可索引的路由必须走这条线**,否则爬虫拿到的是首页的 head(含 `canonical: /`)+ 空 `<div id="root">`,工具页会被判成首页的重复页。

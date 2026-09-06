@@ -13,7 +13,7 @@
  */
 import { useEffect } from "react";
 import Link from "@/components/link";
-import { PublicHeader, PublicFooter } from "@/components/public-chrome";
+import { PublicPage, PageSection, pageTitleStyle } from "@/components/public-chrome";
 import { PostMarkdown } from "@/components/post-markdown";
 import { formatPostDate, LangSwitch } from "@/pages/blog/page";
 import { applySeo, postSeo, BLOG_INDEX_COPY } from "@/lib/seo";
@@ -34,9 +34,8 @@ export function BlogPostView({ post }: { post: BlogPost }) {
   useEffect(() => applySeo(seo), [seo]);
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PublicHeader />
-      <article style={{ width: "100%", maxWidth: 720, margin: "0 auto", padding: "clamp(20px, 5vw, 40px) clamp(16px, 5vw, 40px) 40px" }}>
+    <PublicPage width="prose">
+      <PageSection as="article" pad="page">
         {/* A visible breadcrumb back to the index, matching the BreadcrumbList in
             this page's JSON-LD — the structured data has to describe something a
             reader can actually see. */}
@@ -52,10 +51,10 @@ export function BlogPostView({ post }: { post: BlogPost }) {
           />
         </div>
 
-        <h1 style={{ fontSize: "clamp(27px, 5vw, 38px)", fontWeight: 800, letterSpacing: -0.6, lineHeight: 1.2, margin: "18px 0 0" }}>
+        <h1 style={{ ...pageTitleStyle, lineHeight: 1.2, margin: "18px 0 0" }}>
           {post.title}
         </h1>
-        <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "12px 0 26px" }}>
+        <p style={{ fontSize: "var(--fs-meta)", color: "var(--muted)", margin: "12px 0 26px" }}>
           <time dateTime={post.date}>{formatPostDate(post.date, post.lang)}</time>
           {post.updated !== post.date && (
             <>
@@ -68,7 +67,7 @@ export function BlogPostView({ post }: { post: BlogPost }) {
         <PostMarkdown markdown={post.body} />
 
         <section style={{ marginTop: 40, borderTop: "1px solid var(--border)", paddingTop: 20 }}>
-          <Link href={TOOL_PATH} style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)" }}>
+          <Link href={TOOL_PATH} style={{ fontSize: "var(--fs-copy)", fontWeight: 700, color: "var(--accent)" }}>
             {copy.tool} →
           </Link>
         </section>
@@ -80,7 +79,7 @@ export function BlogPostView({ post }: { post: BlogPost }) {
             </h2>
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {more.map((p) => (
-                <li key={p.path} style={{ fontSize: 15, lineHeight: 1.9 }}>
+                <li key={p.path} style={{ fontSize: "var(--fs-copy)", lineHeight: 1.9 }}>
                   <Link href={p.path} style={{ color: "var(--text)" }}>
                     {p.title}
                   </Link>
@@ -89,9 +88,8 @@ export function BlogPostView({ post }: { post: BlogPost }) {
             </ul>
           </section>
         )}
-      </article>
-      <PublicFooter />
-    </main>
+      </PageSection>
+    </PublicPage>
   );
 }
 

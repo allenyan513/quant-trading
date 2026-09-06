@@ -233,6 +233,9 @@ importers:
       vite:
         specifier: ^6.0.7
         version: 6.4.3(@types/node@22.19.20)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@22.19.20)(vite@6.4.3(@types/node@22.19.20)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4))
 
 packages:
 
@@ -4148,7 +4151,6 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 6.4.3(@types/node@22.19.20)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)
-    optional: true
 
   '@vitest/mocker@4.1.7(vite@8.0.14(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4))':
     dependencies:
@@ -5829,7 +5831,6 @@ snapshots:
       '@types/node': 22.19.20
     transitivePeerDependencies:
       - msw
-    optional: true
 
   vitest@4.1.7(@types/node@25.9.2)(vite@8.0.14(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)):
     dependencies:
