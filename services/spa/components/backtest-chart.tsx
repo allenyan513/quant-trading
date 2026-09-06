@@ -16,7 +16,7 @@
  * Theme colors are hardcoded hexes (CSS vars don't resolve inside the canvas).
  */
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createChart, LineSeries, ColorType, type IChartApi, type ISeriesApi } from "lightweight-charts";
 
 export interface ChartPoint {
@@ -69,7 +69,100 @@ export function fitBarSpacing(plotWidth: number, points: number): number | null 
   return (plotWidth / points) * FIT_SLACK;
 }
 
-export function BacktestChart({ series, height = 340 }: { series: ChartSeries[]; height?: number }) {
+// ============================================================
+// Replay — the arithmetic, kept pure and beside the component so it can be read
+// without a canvas or a clock.
+//
+// The animation widens the VISIBLE RANGE from a narrow opening window out to the
+// whole series; the data is drawn once and never touched. Two earlier attempts
+// animated the data instead, re-feeding `setData` with a growing prefix each
+// frame, and both shipped the same bug: the chart started EMPTY and only filled
+// in if the animation ran, so a background tab or a throttled frame loop left a
+// blank frame forever. Widening a range cannot do that — the series is already
+// complete, and the worst an interrupted replay leaves is a zoomed-in view, which
+// `finish()` and the Skip button both undo.
+// ============================================================
+
+/**
+ * Thirty seconds, flat, whatever the window.
+ *
+ * Long on purpose. This is not a loading flourish — it is the reader watching a
+ * decade happen, and the numbers above the chart moving with it. Scaling it by
+ * point count (an earlier attempt) only made a five-year run feel rushed and a
+ * twenty-year one feel arbitrary; every window deserves the same half minute.
+ */
+export const REPLAY_MS = 30_000;
+
+export function replayDurationMs(points: number): number {
+  return points >= 2 ? REPLAY_MS : 0;
+}
+
+/** Elapsed → progress in [0,1]. Time-based, not frame-based, so the replay lasts
+ *  the same few seconds on a 144Hz monitor and on a throttled laptop. */
+export function progressAt(elapsedMs: number, durationMs: number): number {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 1;
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return 0;
+  return Math.min(1, elapsedMs / durationMs);
+}
+
+/**
+ * The window the replay opens on — roughly a quarter of trading days, and never
+ * more than a twentieth of the series so a short window still gets an animation.
+ *
+ * Not 1: two points stretched across the plot is a single enormous zigzag, not a
+ * chart.
+ */
+export function openingWindow(points: number): number {
+  if (!Number.isFinite(points) || points < 2) return 0;
+  return Math.max(2, Math.min(60, Math.round(points / 20)));
+}
+
+/**
+ * Right-hand edge of the visible range at progress `t`, as a logical index.
+ *
+ * Linear in the index, so every year of history gets the same amount of screen
+ * time — the alternative (constant zoom rate) spends most of the replay on the
+ * first few months and then races through the recent years.
+ */
+export function revealedIndex(t: number, points: number): number {
+  if (!Number.isFinite(points) || points < 2) return 0;
+  const last = points - 1;
+  const start = openingWindow(points);
+  const clamped = Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 1;
+  return Math.min(last, Math.round(start + (last - start) * clamped));
+}
+
+export interface BacktestChartProps {
+  series: ChartSeries[];
+  height?: number;
+  /**
+   * Called on every replay frame with the index the window now reaches, and with
+   * `null` the moment the replay ends.
+   *
+   * This is how the figures ABOVE the chart move with it: the chart owns the clock
+   * (it is the thing being animated) and publishes the cursor; whoever renders the
+   * numbers slices its own data to that index. Nothing about the chart's own
+   * behaviour depends on anyone listening.
+   */
+  onReplayFrame?: (revealed: number | null) => void;
+  /**
+   * Filled with `{ play, skip }` once the chart is live, so the button can sit
+   * wherever the page wants it rather than under the chart.
+   *
+   * The chart still OWNS the replay — the clock, the frame loop, the range. This
+   * only hands out the two verbs. Paired with `onReplayFrame`, which tells the
+   * page whether a replay is running, a caller has everything it needs to render
+   * its own control without duplicating any of the machinery.
+   */
+  controls?: { current: ReplayControls | null };
+}
+
+export interface ReplayControls {
+  play: () => void;
+  skip: () => void;
+}
+
+export function BacktestChart({ series, height = 340, onReplayFrame, controls }: BacktestChartProps) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<ISeriesApi<"Line">[]>([]);
@@ -82,6 +175,20 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
   // the old one — the floor would then be too high for the new data.
   const pointsRef = useRef(points);
   pointsRef.current = points;
+
+  /** Right edge of the visible range while replaying; `null` when not replaying —
+   *  which is also the resting state, and the only state a visitor who never
+   *  presses the button will ever see. */
+  const [revealed, setRevealed] = useState<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  // Latest listener, read through a ref so `play`/`finish` stay identity-stable and
+  // a parent that passes an inline arrow cannot restart the machinery each render.
+  const onFrameRef = useRef(onReplayFrame);
+  onFrameRef.current = onReplayFrame;
+  const publish = useCallback((v: number | null) => {
+    setRevealed(v);
+    onFrameRef.current?.(v);
+  }, []);
 
   /**
    * Lower the zoom floor to whatever this chart's data and width actually need,
@@ -109,6 +216,70 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
       if (spacing == null) return;
       timeScale.applyOptions({ minBarSpacing: spacing });
       if (opts.snap) timeScale.fitContent();
+    },
+    [],
+  );
+
+  /** End the replay: the whole window, controls back, no leftover frame pending.
+   *  Everything that can stop a replay routes through here, so "stopped" and
+   *  "showing the complete chart" are the same state. */
+  const finish = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    publish(null);
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.applyOptions({ handleScroll: true, handleScale: true });
+    applyFit({ snap: true });
+  }, [applyFit, publish]);
+
+  const play = useCallback(() => {
+    const chart = chartRef.current;
+    const total = pointsRef.current;
+    if (!chart || total < 2) return;
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+
+    const timeScale = chart.timeScale();
+    const duration = replayDurationMs(total);
+    // The reader's wheel and the replay would otherwise fight over the same range.
+    chart.applyOptions({ handleScroll: false, handleScale: false });
+
+    let start = 0;
+    const tick = (now: number) => {
+      try {
+        // Clock starts on the first frame actually delivered, so a throttled tab
+        // cannot burn the whole replay before anyone sees it.
+        if (!start) start = now;
+        const t = progressAt(now - start, duration);
+        const to = revealedIndex(t, total);
+        timeScale.setVisibleLogicalRange({ from: 0, to });
+        publish(to);
+        if (t < 1) {
+          rafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+      } catch {
+        // Never leave the chart parked on a partial range because a frame threw.
+      }
+      finish();
+    };
+    publish(revealedIndex(0, total));
+    rafRef.current = requestAnimationFrame(tick);
+  }, [finish, publish]);
+
+  // Hand the page the two verbs; it renders the button, the chart keeps the clock.
+  useEffect(() => {
+    if (!controls) return;
+    controls.current = { play, skip: finish };
+    return () => {
+      controls.current = null;
+    };
+  }, [controls, play, finish]);
+
+  // Stop a replay when the component goes away, whatever started it.
+  useEffect(
+    () => () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     },
     [],
   );
@@ -204,7 +375,7 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
   return (
     <div>
       <div ref={ref} style={{ width: "100%" }} />
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12, color: "var(--muted)", marginTop: 8, alignItems: "center" }}>
         {series.map((s, i) => (
           <span key={s.label}>
             <span

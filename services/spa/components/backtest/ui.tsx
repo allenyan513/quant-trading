@@ -7,6 +7,7 @@
  * the form, but splitting a 90-line style module in two buys nothing.
  */
 import type { CSSProperties, ReactNode } from "react";
+import { Play, SkipForward } from "lucide-react";
 import type { FaqEntry } from "@/lib/seo";
 
 export const panel: CSSProperties = {
@@ -56,6 +57,42 @@ export const table: CSSProperties = { width: "100%", borderCollapse: "collapse",
  *  the level changed for the document outline, not the visual weight. */
 export const h2Style: CSSProperties = { fontSize: 15, fontWeight: 700, margin: "0 0 6px" };
 export const subStyle: CSSProperties = { fontSize: 13, color: "var(--muted)", margin: "0 0 12px" };
+
+/**
+ * The replay control, shared by the single-basket and comparison result panels.
+ *
+ * Solid rather than an outline chip: the replay is the thing worth doing on this
+ * panel, and the first version — a small pill under the chart legend — was missed
+ * entirely. One word plus a play glyph; the surrounding panel already says what is
+ * being replayed, so "Replay this backtest" only made the button wide.
+ */
+export function ReplayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={playing ? "Skip the replay" : "Replay this backtest from the start"}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        height: 32,
+        padding: "0 14px",
+        borderRadius: 999,
+        border: "none",
+        background: "var(--accent)",
+        color: "#06223f",
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {playing ? <SkipForward size={14} strokeWidth={2.5} /> : <Play size={14} strokeWidth={2.5} fill="currentColor" />}
+      {playing ? "Skip" : "Replay"}
+    </button>
+  );
+}
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (

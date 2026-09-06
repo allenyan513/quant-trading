@@ -9,12 +9,14 @@
  * Every figure is dividends-reinvested. Reinvested-vs-cash is the form tool's and
  * the ticker pages' story, not this page's.
  */
+import { useMemo, useRef, useState } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
-import { panel, table, h2Style, subStyle, Th, Td } from "@/components/backtest/ui";
+import { panel, table, h2Style, subStyle, ReplayButton, Th, Td } from "@/components/backtest/ui";
 import { CutsPanel, ResultsGate, ScrollTable, WarningList } from "@/components/backtest/sections";
 import { dividendShare, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
+import type { ReplayControls } from "@/components/backtest-chart";
 
 export interface ComparisonResultsProps {
   symbols: string[];
@@ -58,6 +60,28 @@ const METRICS: Metric[] = [
 ];
 
 export function ComparisonResults({ symbols, results, initial, benchmark = null }: ComparisonResultsProps) {
+  // Memoised on the data, NOT rebuilt per render. The chart re-feeds its series and
+  // snaps back to the full window whenever this array's identity changes, so an
+  // inline literal would abort a running replay on any unrelated parent re-render.
+  // Sits above the early return below because hooks may not be skipped.
+  const chartSeries = useMemo(
+    () => [
+      ...results.map((r, i) => ({
+        label: symbols[i] ?? `Fund ${i + 1}`,
+        points: r.series.map((p) => ({ date: p.date, value: p.drip })),
+        showLastValue: i === 0,
+      })),
+      ...(benchmark
+        ? [{ label: "S&P 500", points: benchmark.series.map((p) => ({ date: p.date, value: p.drip })), benchmark: true }]
+        : []),
+    ],
+    [results, symbols, benchmark],
+  );
+
+  // Above the early return below: hooks may not be skipped.
+  const [replaying, setReplaying] = useState(false);
+  const replay = useRef<ReplayControls | null>(null);
+
   const first = results[0];
   if (!first) return null;
 
@@ -65,17 +89,6 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
   // income rows and the year-by-year table are noise (SPY vs QQQ), so they go.
   const dividendLed = results.some((r) => dividendShare(r) >= DIVIDEND_LEAD_THRESHOLD);
   const rows = METRICS.filter((m) => dividendLed || !m.dividendOnly);
-
-  const chartSeries = [
-    ...results.map((r, i) => ({
-      label: symbols[i] ?? `Fund ${i + 1}`,
-      points: r.series.map((p) => ({ date: p.date, value: p.drip })),
-      showLastValue: i === 0,
-    })),
-    ...(benchmark
-      ? [{ label: "S&P 500", points: benchmark.series.map((p) => ({ date: p.date, value: p.drip })), benchmark: true }]
-      : []),
-  ];
 
   const warnings = [...new Set(results.flatMap((r) => r.warnings))];
   const cuts = results.flatMap((r) => r.dividendCuts);
@@ -92,10 +105,13 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
           <span style={{ fontSize: 13, color: "var(--muted)" }}>
             {first.start} → {first.end} · dividends reinvested
           </span>
+          <div style={{ marginLeft: "auto" }}>
+            <ReplayButton playing={replaying} onClick={() => (replaying ? replay.current?.skip() : replay.current?.play())} />
+          </div>
         </div>
 
         <div>
-          <BacktestChartLazy series={chartSeries} />
+          <BacktestChartLazy series={chartSeries} controls={replay} onReplayFrame={(at) => setReplaying(at !== null)} />
         </div>
 
         <ScrollTable>

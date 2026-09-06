@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { apiSend, type ApiResult } from "@/lib/api-client";
-import type { DividendBacktestResult } from "@qt/shared/backtest";
+import { annualizedVol, cagr, maxDrawdown, type DividendBacktestResult } from "@qt/shared/backtest";
 
 /** Mirrors the server's limits (`services/data/src/backtest.ts`). */
 export const MAX_HOLDINGS = 10;
@@ -64,6 +64,53 @@ export function dividendShare(r: DividendBacktestResult): number {
 
 /** At or above this, the income tables lead; below it they collapse to one line. */
 export const DIVIDEND_LEAD_THRESHOLD = 0.15;
+
+/**
+ * The headline figures recomputed over a PREFIX of the value path — what the KPI
+ * tiles show while the chart is replaying.
+ *
+ * Reuses the engine's own `cagr` / `maxDrawdown` / `annualizedVol` rather than
+ * restating the formulas here, which is what guarantees the replay's final frame
+ * lands exactly on the numbers the server already sent. A second implementation
+ * that rounded differently would make every replay end on a visible twitch.
+ *
+ * `@qt/shared/backtest` is the pure engine module — no db, no config — so it is
+ * safe in the browser bundle.
+ *
+ * NOTE the two income figures (dividends collected, yield on cost) are absent and
+ * cannot be added here: a series point carries `{date, drip, noDrip}` only, and
+ * `noDrip = price-only path + cumulative income` is one equation in two unknowns.
+ * Animating those needs the engine to emit a per-day income figure.
+ */
+export interface WindowStats {
+  totalReturnPct: number;
+  cagrPct: number;
+  maxDrawdownPct: number;
+  volatilityPct: number;
+}
+
+const DAY_MS = 86_400_000;
+const daysBetween = (a: string, b: string): number =>
+  (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY_MS;
+
+export function statsThrough(
+  series: readonly { date: string; value: number }[],
+  initial: number,
+  through: number,
+): WindowStats | null {
+  const end = Math.min(through, series.length - 1);
+  if (!(initial > 0) || end < 1) return null;
+  const values: number[] = [];
+  for (let i = 0; i <= end; i++) values.push(series[i]!.value);
+  const endValue = values[values.length - 1]!;
+  const days = daysBetween(series[0]!.date, series[end]!.date);
+  return {
+    totalReturnPct: (endValue / initial - 1) * 100,
+    cagrPct: cagr(initial, endValue, days) * 100,
+    maxDrawdownPct: maxDrawdown(values) * 100,
+    volatilityPct: annualizedVol(values) * 100,
+  };
+}
 
 /**
  * In-flight + completed request cache, keyed by the serialized request.
