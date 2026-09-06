@@ -40,11 +40,11 @@ export function PresetHub() {
     <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "8px clamp(16px, 5vw, 40px) 0" }}>
       <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "0 0 6px" }}>Ready-made backtests</h2>
       <p style={{ fontSize: 13.5, color: "var(--muted)", margin: "0 0 14px" }}>
-        Common dividend baskets, already set up — open one and the numbers are there.
+        Common baskets and comparisons, already set up — open one and the numbers are there.
       </p>
       <div style={grid}>
         {BACKTEST_PRESETS.map((p) => (
-          <LinkCard key={p.slug} href={presetPath(p.slug)} label={p.linkLabel} blurb={p.linkBlurb} />
+          <LinkCard key={p.slug} href={presetPath(p)} label={p.linkLabel} blurb={p.linkBlurb} />
         ))}
       </div>
     </section>
@@ -60,7 +60,7 @@ export function PresetSiblings({ current }: { current: string }) {
       <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "0 0 14px" }}>Related backtests</h2>
       <div style={grid}>
         {siblings.map((p) => (
-          <LinkCard key={p!.slug} href={presetPath(p!.slug)} label={p!.linkLabel} blurb={p!.linkBlurb} />
+          <LinkCard key={p!.slug} href={presetPath(p!)} label={p!.linkLabel} blurb={p!.linkBlurb} />
         ))}
         <LinkCard
           href={TOOL_PATH}

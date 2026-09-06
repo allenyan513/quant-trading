@@ -11,14 +11,26 @@
  * internal link lists (`components/backtest/preset-links.tsx`).
  *
  * Pure data — no JSX. Each page's editorial body lives beside the page component
- * in `pages/tools/dividend-portfolio-backtest/presets/<slug>.tsx`.
+ * in `pages/tools/portfolio-backtest/presets/<slug>.tsx`.
  */
 import type { FaqEntry } from "@/lib/seo";
 import type { DividendBacktestRequest } from "@/lib/backtest";
 import { MAX_HOLDINGS, MAX_YEARS, todayISO, yearsAgoISO } from "@/lib/backtest";
 
-export const TOOL_PATH = "/tools/dividend-portfolio-backtest";
-export const presetPath = (slug: string): string => `${TOOL_PATH}/${slug}`;
+export const TOOL_PATH = "/tools/portfolio-backtest";
+
+/**
+ * Slug → path. THE only place this conversion happens, which is why changing the
+ * URL shape is a one-function edit: routes, the prerender's COMPONENTS map,
+ * PUBLIC_PAGES/sitemap and every internal link all read through here.
+ *
+ * Comparisons live under `/compare/` so a ticker slug and a comparison slug can
+ * never collide — and the slug itself stays flat (`schd-vs-vym`), because
+ * `assertPresetGraph`'s slug rule forbids a slash and a path segment is not the
+ * preset's identity.
+ */
+export const presetPath = (p: BacktestPreset): string =>
+  p.kind === "comparison" ? `${TOOL_PATH}/compare/${p.slug}` : `${TOOL_PATH}/${p.slug}`;
 
 export interface PresetHolding {
   symbol: string;
@@ -37,7 +49,7 @@ export interface BacktestPreset {
   /** URL segment: lowercase, hyphens. Frozen once published — a live URL is a
    *  promise to everyone who linked it. */
   readonly slug: string;
-  readonly kind: "comparison" | "single";
+  readonly kind: "comparison" | "basket";
   readonly holdings: readonly PresetHolding[];
   /** TRAILING window, resolved at view time. Never absolute dates: a frozen
    *  window quietly goes stale and starts contradicting the copy. */
@@ -66,6 +78,11 @@ export interface BacktestPreset {
    *  the part of the page a non-JS crawler can actually read. */
   readonly facts?: readonly PresetFact[];
 
+  /** Reference line, default `"SPY"`. Set `null` to suppress it — and it is
+   *  skipped automatically when the benchmark is already one of the holdings, so
+   *  the SPY page does not get compared against itself. */
+  readonly benchmark?: string | null;
+
   /** Sibling slugs to link. Validated by `assertPresetGraph()`. */
   readonly related: readonly string[];
   /** Anchor text in the hub and sibling lists. */
@@ -79,6 +96,169 @@ export interface BacktestPreset {
 }
 
 export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
+  {
+    slug: "dividend",
+    kind: "basket",
+    holdings: [{ symbol: "SCHD", weight: 60 }, { symbol: "VYM", weight: 40 }],
+    years: 10,
+    initial: 10_000,
+    reinvest: true,
+    title: "Dividend Portfolio Backtest — Free, No Sign-Up",
+    description:
+      "Backtest a dividend portfolio on daily prices: total return with and without reinvestment, income every year, yield on cost, and dividend cuts.",
+    h1: "Dividend portfolio backtest",
+    intro:
+      "A dividend basket run through ten years of real history — not just what it returned, but what it paid out each year, and whether that payment grew.",
+    faq: [
+      [
+        "What does a dividend portfolio backtest tell me that a return chart doesn't?",
+        "The income. A return chart collapses everything into one number; the year-by-year table below shows what the basket actually paid on your starting amount each year, which is the thing an income investor is building toward.",
+      ],
+      [
+        "Should I reinvest the dividends?",
+        "The chart plots both, and the gap between the lines is the answer for this particular basket over this particular window. Reinvested shares collect the next dividend, which buys more shares — over a decade that compounding is usually the larger part of the difference.",
+      ],
+      [
+        "What is yield on cost?",
+        "The last twelve months of income measured against what you originally invested, rather than against today's price. With dividends reinvested it also carries the shares you accumulated, so it runs well ahead of any fund's quoted yield.",
+      ],
+      [
+        "Can I use my own tickers?",
+        "Yes — this page is a ready-made basket, but the full tool takes any tickers and weights you like, over any window up to ten years.",
+      ],
+    ],
+    related: ["schd", "schd-vs-vym"],
+    linkLabel: "Dividend basket",
+    linkBlurb: "A dividend portfolio over ten years, income and all.",
+    updated: "2026-09-06",
+  },
+  {
+    slug: "spy",
+    kind: "basket",
+    holdings: [{ symbol: "SPY", weight: 100 }],
+    years: 10,
+    initial: 10_000,
+    reinvest: true,
+    // SPY is the benchmark; comparing it with itself is a flat line at zero.
+    benchmark: null,
+    title: "SPY Backtest: 10 Years, Dividends Reinvested",
+    description:
+      "Backtest SPY over ten years on daily prices: total return, CAGR, the deepest drawdown you had to sit through, and what reinvesting the dividends was worth.",
+    h1: "SPY backtest: ten years of the S&P 500",
+    intro:
+      "What $10,000 in the SPDR S&P 500 ETF did over the last decade, measured on daily closes — including the part most summaries leave out: how much of it came from dividends.",
+    faq: [
+      [
+        "How much of SPY's return comes from dividends?",
+        "Less than most people assume, but not nothing — the summary below states it as a share of the total gain for this window. The S&P 500's yield is low, yet reinvested over a decade it still compounds into a meaningful slice of the ending balance.",
+      ],
+      [
+        "Why is the drawdown here bigger than the one I see elsewhere?",
+        "It is measured on daily closes, so it is the real peak-to-trough you lived through. Month-end data smooths away the worst days and reports a smaller number. Conversely, since-inception drawdowns quoted elsewhere cover 1993 onward and include crashes outside this ten-year window.",
+      ],
+      [
+        "Does this include the fund's fee?",
+        "SPY's 0.09% expense ratio is already inside its price, so yes. Taxes and commissions are not — returns here are gross.",
+      ],
+    ],
+    facts: [
+      { label: "Index tracked", values: ["S&P 500"] },
+      { label: "What it holds", values: ["The 500 largest US companies, weighted by market cap"] },
+      { label: "Holdings", values: ["505"] },
+      { label: "Expense ratio", values: ["0.09%"] },
+      { label: "Pays", values: ["Quarterly"] },
+      { label: "Launched", values: ["January 1993"] },
+    ],
+    related: ["qqq", "spy-vs-qqq"],
+    linkLabel: "SPY on its own",
+    linkBlurb: "Ten years of the S&P 500, dividends included.",
+    updated: "2026-09-06",
+  },
+  {
+    slug: "qqq",
+    kind: "basket",
+    holdings: [{ symbol: "QQQ", weight: 100 }],
+    years: 10,
+    initial: 10_000,
+    reinvest: true,
+    title: "QQQ Backtest: 10 Years vs the S&P 500",
+    description:
+      "Backtest QQQ over ten years on daily prices: total return, CAGR, maximum drawdown, and how far it ran ahead of or behind the S&P 500.",
+    h1: "QQQ backtest: ten years, against the S&P 500",
+    intro:
+      "What $10,000 in the Invesco QQQ Trust did over the last decade — and, because the number only means something in context, the same $10,000 in the S&P 500 alongside it.",
+    faq: [
+      [
+        "Did QQQ beat the S&P 500?",
+        "Over this window, yes — the \u201cvs S&P 500\u201d figure below is the annualized difference. What that figure cannot tell you is whether the next decade rhymes: QQQ is a concentrated bet on one exchange's largest listings, and its lead comes and goes with that concentration.",
+      ],
+      [
+        "How much extra risk did that come with?",
+        "Compare the maximum drawdown and the annualized volatility rows against the benchmark. Both are computed on daily closes, so the drawdown is the real peak-to-trough rather than the gentler month-end version.",
+      ],
+      [
+        "Does QQQ pay a dividend?",
+        "A small one. It is reported here as a share of the total gain rather than as a full income table, because on a fund yielding well under one percent an eleven-row income breakdown would be small change dressed up as a finding.",
+      ],
+    ],
+    facts: [
+      { label: "Index tracked", values: ["NASDAQ 100"] },
+      { label: "What it holds", values: ["The 100 largest non-financial companies listed on Nasdaq"] },
+      { label: "Holdings", values: ["105"] },
+      { label: "Expense ratio", values: ["0.18%"] },
+      { label: "Pays", values: ["Quarterly"] },
+      { label: "Launched", values: ["March 1999"] },
+    ],
+    related: ["spy", "spy-vs-qqq"],
+    linkLabel: "QQQ on its own",
+    linkBlurb: "Ten years of the Nasdaq 100, against the S&P.",
+    updated: "2026-09-06",
+  },
+  {
+    slug: "spy-vs-qqq",
+    kind: "comparison",
+    holdings: [{ symbol: "SPY", weight: 50 }, { symbol: "QQQ", weight: 50 }],
+    years: 10,
+    initial: 10_000,
+    reinvest: true,
+    // One of the subjects IS the S&P 500, so the benchmark leg would duplicate it.
+    benchmark: null,
+    title: "SPY vs QQQ: 10-Year Backtest",
+    description:
+      "SPY vs QQQ over ten years with dividends reinvested: total return, CAGR, the drawdown each one put you through, and why the window you pick changes the answer.",
+    h1: "SPY vs QQQ: a 10-year backtest",
+    intro:
+      "The broadest US index fund against the most concentrated large-cap one, run side by side through the same decade on daily prices.",
+    faq: [
+      [
+        "Which has performed better, SPY or QQQ?",
+        "Over the last ten years QQQ, by a wide margin — the table below gives the exact figures. But that decade was unusually kind to large-cap technology, which is most of what QQQ owns, so the result is as much a statement about the window as about the funds.",
+      ],
+      [
+        "Why do other sites quote much bigger drawdowns?",
+        "Because they measure since inception. QQQ launched in 1999 and fell more than 80% in the dot-com bust; SPY dates to 1993. Over the last ten years both fell far less. Neither number is wrong — they answer different questions, which is exactly why the window matters.",
+      ],
+      [
+        "Should I hold both?",
+        "They overlap heavily: QQQ's largest holdings are also SPY's largest holdings. Holding both mostly increases your weight in the same handful of companies rather than diversifying you. Run each on its own above and see whether the blend actually changes anything.",
+      ],
+    ],
+    facts: [
+      { label: "Index tracked", values: ["S&P 500", "NASDAQ 100"] },
+      {
+        label: "What it holds",
+        values: ["The 500 largest US companies, weighted by market cap", "The 100 largest non-financial Nasdaq listings"],
+      },
+      { label: "Holdings", values: ["505", "105"] },
+      { label: "Expense ratio", values: ["0.09%", "0.18%"] },
+      { label: "Pays", values: ["Quarterly", "Quarterly"] },
+      { label: "Launched", values: ["January 1993", "March 1999"] },
+    ],
+    related: ["spy", "qqq"],
+    linkLabel: "SPY vs QQQ",
+    linkBlurb: "The whole market against the Nasdaq 100.",
+    updated: "2026-09-06",
+  },
   {
     slug: "schd-vs-vym",
     kind: "comparison",
@@ -121,7 +301,7 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
       { label: "Pays", values: ["Quarterly", "Quarterly"] },
       { label: "Launched", values: ["October 2011", "November 2006"] },
     ],
-    related: ["schd", "jepi-vs-schd"],
+    related: ["schd", "jepi-vs-schd", "dividend"],
     linkLabel: "SCHD vs VYM",
     linkBlurb: "Quality screen versus pure high yield, over ten years.",
     updated: "2026-09-05",
@@ -179,7 +359,7 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
   },
   {
     slug: "schd",
-    kind: "single",
+    kind: "basket",
     holdings: [{ symbol: "SCHD", weight: 100 }],
     years: 10,
     initial: 10_000,
@@ -222,7 +402,7 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
       { label: "Pays", values: ["Quarterly"] },
       { label: "Launched", values: ["October 2011"] },
     ],
-    related: ["schd-vs-vym", "jepi-vs-schd"],
+    related: ["schd-vs-vym", "jepi-vs-schd", "spy"],
     linkLabel: "SCHD on its own",
     linkBlurb: "Ten years of the most-held US dividend ETF.",
     updated: "2026-09-05",
@@ -232,6 +412,19 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
 export const PRESET_BY_SLUG: Record<string, BacktestPreset> = Object.fromEntries(
   BACKTEST_PRESETS.map((p) => [p.slug, p]),
 );
+
+export const DEFAULT_BENCHMARK = "SPY";
+
+/**
+ * The benchmark request for a preset, or null when it would be redundant.
+ * Same window and amount as the subject, so the lines are comparable.
+ */
+export function presetBenchmarkRequest(p: BacktestPreset): DividendBacktestRequest | null {
+  const symbol = p.benchmark === undefined ? DEFAULT_BENCHMARK : p.benchmark;
+  if (!symbol) return null;
+  if (p.holdings.some((h) => h.symbol.toUpperCase() === symbol.toUpperCase())) return null;
+  return { ...presetRequest(p), holdings: [{ symbol, weight: 100 }] };
+}
 
 /** One request per holding, each at 100% weight — what a comparison page needs:
  *  a curve for EACH fund, not one curve for a blend of them. */

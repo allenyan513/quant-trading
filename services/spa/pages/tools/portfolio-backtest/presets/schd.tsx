@@ -1,5 +1,5 @@
 /**
- * Editorial body for /tools/dividend-portfolio-backtest/schd.
+ * Editorial body for /tools/portfolio-backtest/schd.
  *
  * Single-fund shape. The risk here is writing something an ETF data site already
  * says better, so this page stays on what the BACKTEST shows — reinvested versus
@@ -53,11 +53,11 @@ export default function SchdCopy() {
         </P>
         <P>
           Compare it against something:{" "}
-          <Link href="/tools/dividend-portfolio-backtest/schd-vs-vym" style={{ color: "var(--accent)" }}>
+          <Link href="/tools/portfolio-backtest/compare/schd-vs-vym" style={{ color: "var(--accent)" }}>
             SCHD vs VYM
           </Link>{" "}
           or{" "}
-          <Link href="/tools/dividend-portfolio-backtest/jepi-vs-schd" style={{ color: "var(--accent)" }}>
+          <Link href="/tools/portfolio-backtest/compare/jepi-vs-schd" style={{ color: "var(--accent)" }}>
             JEPI vs SCHD
           </Link>
           .

@@ -408,6 +408,20 @@ export function runDividendBacktest(input: DividendBacktestInput): DividendBackt
 }
 
 /**
+ * How far a payout must fall before it counts as a cut.
+ *
+ * 1% was too tight: a broad-market ETF's annual distribution wobbles a couple of
+ * percent for reasons that have nothing to do with any company cutting anything
+ * (constituent turnover, ex-date timing, a rounding of the quarterly rate). QQQ
+ * was being flagged for 2021 (-2.3%) and 2025 (-1.8%) — reported on a growth page
+ * as "QQQ cut its dividend twice", which is a false signal in the worst place.
+ *
+ * 5% keeps every real one with room to spare (AT&T 2022 -35%, JEPI 2023 -27%,
+ * JEPI 2024 -8.7%) and drops the noise.
+ */
+const CUT_THRESHOLD = 0.05;
+
+/**
  * Dividend cuts per FULL calendar year, per symbol.
  *
  * A year is a cut only when BOTH the annual total per share AND the average
@@ -449,7 +463,7 @@ export function findDividendCuts(
       }
       const totalChange = cur.total / prior.total - 1;
       const avgChange = cur.total / cur.count / (prior.total / prior.count) - 1;
-      if (totalChange < -0.01 && avgChange < -0.01) {
+      if (totalChange < -CUT_THRESHOLD && avgChange < -CUT_THRESHOLD) {
         cuts.push({ symbol: h.symbol, year: y, perShare: cur.total, priorPerShare: prior.total, changePct: pct(totalChange) });
       }
     }

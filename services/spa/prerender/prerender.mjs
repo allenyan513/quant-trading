@@ -2,7 +2,7 @@
  * Post-build prerender: turn each public route into a real HTML file.
  *
  * Cloudflare Pages serves a matching static asset before it consults `_redirects`,
- * so `dist/tools/dividend-portfolio-backtest/index.html` answers that path directly
+ * so `dist/tools/portfolio-backtest/index.html` answers that path directly
  * and the SPA fallback (`/* /index.html 200`) still covers every other route.
  *
  * What a crawler gets afterwards: the route's own title/description/canonical/og,

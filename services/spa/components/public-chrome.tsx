@@ -49,8 +49,8 @@ export function PublicFooter() {
       <span style={{ flex: 1, minWidth: 240 }}>
         Research &amp; educational tool. Not investment advice. Not a registered investment adviser.
       </span>
-      <Link href="/tools/dividend-portfolio-backtest" style={{ color: "var(--muted)" }}>
-        Dividend backtest
+      <Link href="/tools/portfolio-backtest" style={{ color: "var(--muted)" }}>
+        Portfolio backtest
       </Link>
       <Link href="/about" style={{ color: "var(--muted)" }}>
         About

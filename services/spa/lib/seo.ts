@@ -89,7 +89,7 @@ export const HOME_SEO: PageSeo = {
  *  answer to be visible to the reader, not schema-only. Keep the two in step. */
 export const BACKTEST_FAQ: readonly FaqEntry[] = [
   [
-    "Do I need an account to backtest a dividend portfolio?",
+    "Do I need an account to backtest a portfolio?",
     "No. Nothing here is gated, and results live in the URL — copy the link to share a run.",
   ],
   [
@@ -107,29 +107,30 @@ export const BACKTEST_FAQ: readonly FaqEntry[] = [
   ["How far back can I go?", "Ten years, which covers the history most dividend ETFs actually have."],
 ];
 
-export const DIVIDEND_BACKTEST_SEO: PageSeo = {
-  path: "/tools/dividend-portfolio-backtest",
-  title: "Dividend Portfolio Backtest — Free, No Sign-Up",
+export const BACKTEST_TOOL_SEO: PageSeo = {
+  path: TOOL_PATH,
+  title: "Portfolio Backtest — Free, No Sign-Up",
   description:
-    "Backtest a dividend portfolio on daily prices: total return with and without reinvestment, income by year, yield on cost, and dividend cuts.",
+    "Backtest any portfolio of stocks or ETFs on daily prices: total return, CAGR, drawdown, dividends reinvested versus taken as cash, and income by year.",
   jsonLd: [
     ORGANIZATION,
     {
       "@type": "WebApplication",
-      "@id": `${SITE_URL}/tools/dividend-portfolio-backtest#app`,
-      name: "Dividend Portfolio Backtest",
-      url: `${SITE_URL}/tools/dividend-portfolio-backtest`,
+      "@id": `${SITE_URL}${TOOL_PATH}#app`,
+      name: "Portfolio Backtest",
+      url: `${SITE_URL}${TOOL_PATH}`,
       applicationCategory: "FinanceApplication",
       operatingSystem: "Any (web browser)",
       browserRequirements: "Requires JavaScript",
       publisher: { "@id": `${SITE_URL}/#organization` },
       description:
-        "Backtest a basket of dividend stocks or ETFs on daily split-adjusted prices, comparing dividend reinvestment against taking the cash.",
+        "Backtest a basket of stocks or ETFs on daily split-adjusted prices, with dividends reinvested or taken as cash, benchmarked against the S&P 500.",
       featureList: [
+        "Total return, CAGR, drawdown and volatility on daily bars",
+        "Benchmarked against the S&P 500",
         "Total return with and without dividend reinvestment",
         "Dividend income by calendar year and income growth rate",
         "Yield on cost",
-        "Maximum drawdown and annualized volatility on daily bars",
         "Dividend cuts by holding",
         "Shareable result URLs",
       ],
@@ -137,7 +138,7 @@ export const DIVIDEND_BACKTEST_SEO: PageSeo = {
       dateModified: CONTENT_UPDATED,
       isAccessibleForFree: true,
     },
-    faqJsonLd(`${SITE_URL}/tools/dividend-portfolio-backtest#faq`, BACKTEST_FAQ),
+    faqJsonLd(`${SITE_URL}${TOOL_PATH}#faq`, BACKTEST_FAQ),
   ],
 };
 
@@ -193,9 +194,9 @@ export const TERMS_SEO = textPage(
  * shape, so the relationship survives even if the paths ever have to move.
  */
 export function presetSeo(p: BacktestPreset): PageSeo {
-  const url = `${SITE_URL}${presetPath(p.slug)}`;
+  const url = `${SITE_URL}${presetPath(p)}`;
   return {
-    path: presetPath(p.slug),
+    path: presetPath(p),
     title: p.title,
     description: p.description,
     priority: "0.7",
@@ -210,7 +211,7 @@ export function presetSeo(p: BacktestPreset): PageSeo {
         description: p.intro,
         dateModified: p.updated,
         publisher: { "@id": `${SITE_URL}/#organization` },
-        isPartOf: { "@id": `${SITE_URL}/tools/dividend-portfolio-backtest#app` },
+        isPartOf: { "@id": `${SITE_URL}${TOOL_PATH}#app` },
       },
       faqJsonLd(`${url}#faq`, p.faq),
       {
@@ -218,7 +219,7 @@ export function presetSeo(p: BacktestPreset): PageSeo {
         "@id": `${url}#breadcrumbs`,
         itemListElement: [
           { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
-          { "@type": "ListItem", position: 2, name: "Dividend Portfolio Backtest", item: `${SITE_URL}${TOOL_PATH}` },
+          { "@type": "ListItem", position: 2, name: "Portfolio Backtest", item: `${SITE_URL}${TOOL_PATH}` },
           { "@type": "ListItem", position: 3, name: p.linkLabel, item: url },
         ],
       },
@@ -229,7 +230,7 @@ export function presetSeo(p: BacktestPreset): PageSeo {
 /** Every route the prerender emits and the sitemap lists. */
 export const PUBLIC_PAGES: PageSeo[] = [
   HOME_SEO,
-  DIVIDEND_BACKTEST_SEO,
+  BACKTEST_TOOL_SEO,
   ...BACKTEST_PRESETS.map(presetSeo),
   ABOUT_SEO,
   PRIVACY_SEO,

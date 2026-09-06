@@ -678,7 +678,7 @@ app.post(
   }),
 );
 
-// Public dividend-portfolio backtest (the SPA tool at /tools/dividend-portfolio-backtest,
+// Public dividend-portfolio backtest (the SPA tool at /tools/portfolio-backtest,
 // reached through the gateway). Read-through market data + the pure engine in
 // @qt/shared/backtest; nothing is persisted beyond the marketdata caches it warms.
 app.post(
