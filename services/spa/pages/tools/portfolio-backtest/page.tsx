@@ -191,13 +191,13 @@ export default function DividendBacktestPage() {
   }
 
   return (
-    <PublicPage width="wide">
+    <PublicPage>
 
       <PageSection pad="top">
         <h1 style={{ fontSize: "var(--fs-h1)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
           Portfolio Backtest
         </h1>
-        <p style={{ fontSize: "var(--fs-lead)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: "var(--w-prose)" }}>
+        <p style={{ fontSize: "var(--fs-lead)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: "var(--w-measure)" }}>
           Put any basket of stocks or ETFs through real history on <strong style={{ color: "var(--text)" }}>daily</strong> prices —
           total return, drawdown, and what reinvesting the dividends was actually worth, benchmarked against the S&amp;P 500.
           No account, no paywall.

@@ -53,7 +53,7 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
     : preset.holdings.map((h) => `${h.symbol} ${h.weight}%`).join(" · ");
 
   return (
-    <PublicPage width="wide">
+    <PublicPage>
 
       <PageSection pad="top">
         <nav style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
@@ -65,7 +65,7 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
         <h1 style={{ fontSize: "var(--fs-h1)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
           {preset.h1}
         </h1>
-        <p style={{ fontSize: "var(--fs-lead)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: "var(--w-prose)" }}>
+        <p style={{ fontSize: "var(--fs-lead)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: "var(--w-measure)" }}>
           {preset.intro}
         </p>
         <p style={{ fontSize: 13, color: "var(--muted)", margin: "14px 0 0" }}>
@@ -139,7 +139,7 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
           everything above it, which reads as a layout bug even though the measure
           itself is right. Keep the ~70-character line length; align the left edge. */}
       <PageSection pad="body" style={{ paddingTop: 8, paddingBottom: 8 }}>
-        <article style={{ maxWidth: 720, marginRight: "auto" }}>
+        <article style={{ maxWidth: "var(--w-measure)", marginRight: "auto" }}>
           {Copy && <Copy />}
 
           <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, margin: "34px 0 14px" }}>How this backtest works</h2>

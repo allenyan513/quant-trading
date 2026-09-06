@@ -18,13 +18,13 @@
  *   3. A literal `clamp()` font size — type steps come from `--fs-*`.
  *
  * WHAT IS NOT BANNED: a `maxWidth` that caps a line of text or an illustration
- * inside a composition (a hero headline's wrap, an image's natural size). Those
- * are per-composition decisions and were never the problem; the prose-measure
- * rule for body copy uses `var(--w-prose)` and is a convention, not a check.
+ * inside a composition (a hero headline's wrap, an image's natural size, the
+ * `var(--w-measure)` cap on a long intro paragraph). Those are per-composition
+ * decisions and were never the problem — the page CONTAINER is.
  *
  * SCOPE is the public surface only. The workspace is a dense terminal-style app
- * whose layout rules are genuinely different, and sweeping it into these three
- * tiers would be a much larger change with no reader-facing payoff yet — see
+ * whose layout rules are genuinely different, and sweeping it into this one
+ * container would be a much larger change with no reader-facing payoff yet — see
  * `.claude/rules/spa.md`. Adding those files here later is how that scope grows.
  */
 import { readFileSync } from "node:fs";
@@ -74,7 +74,7 @@ describe("public surface design tokens", () => {
     // The drift pattern is a self-centering box with a hand-typed width. Both
     // halves have to be present: a bare `maxWidth` capping a headline is fine.
     const offenders = findLines(source, (line) => /margin:\s*"0 auto"/.test(line) && /maxWidth:\s*\d/.test(line));
-    expect(offenders, `use <PageSection> (width tier) instead of a literal container width:\n${offenders.join("\n")}`).toEqual(
+    expect(offenders, `use <PageSection> instead of a literal container width:\n${offenders.join("\n")}`).toEqual(
       [],
     );
   });
@@ -99,9 +99,8 @@ describe("token definitions", () => {
   const css = read("src/globals.css");
 
   it.each([
-    "--w-prose",
     "--w-page",
-    "--w-wide",
+    "--w-measure",
     "--page-gutter",
     "--page-top",
     "--page-bottom",
@@ -117,9 +116,17 @@ describe("token definitions", () => {
     expect(css).toContain(`${token}:`);
   });
 
-  it("keeps the width tiers distinct and ordered", () => {
-    const width = (name: string) => Number(/(\d+)px/.exec(new RegExp(`${name}:\\s*([^;]+);`).exec(css)?.[1] ?? "")?.[1]);
-    expect(width("--w-prose")).toBeLessThan(width("--w-page"));
-    expect(width("--w-page")).toBeLessThan(width("--w-wide"));
+  it("defines exactly one container width", () => {
+    // A second container tier is how the surface drifted the first time: every
+    // new page then has a width DECISION to get wrong. Inner text measures are
+    // `--w-measure`, which is not a container and is applied per composition.
+    const containerTokens = [...css.matchAll(/--w-[a-z-]+:/g)].map((m) => m[0]);
+    expect(containerTokens.sort()).toEqual(["--w-measure:", "--w-page:"]);
+  });
+
+  it("keeps the public container at 1040 and the text measure below it", () => {
+    const px = (name: string) => Number(new RegExp(`${name}:\\s*(\\d+)px`).exec(css)?.[1]);
+    expect(px("--w-page")).toBe(1040);
+    expect(px("--w-measure")).toBeLessThan(px("--w-page"));
   });
 });

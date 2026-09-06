@@ -23,12 +23,12 @@ export default function ToolsIndexPage() {
   useEffect(() => applySeo(TOOLS_SEO), []);
 
   return (
-    <PublicPage width="page">
+    <PublicPage>
       <PageSection pad="page">
         <h1 style={pageTitleStyle}>Tools</h1>
         {/* Body copy is capped at the reading measure even though the page is a
             tier wider — the hub used to run past 100 characters a line. */}
-        <p style={{ fontSize: "var(--fs-lead)", lineHeight: 1.65, color: "var(--muted)", margin: "14px 0 0", maxWidth: "var(--w-prose)" }}>
+        <p style={{ fontSize: "var(--fs-lead)", lineHeight: 1.65, color: "var(--muted)", margin: "14px 0 0", maxWidth: "var(--w-measure)" }}>
           Free and open to everyone — no account, no sign-up, no trial. Each one computes from primary market data rather than
           summarizing someone&rsquo;s opinion, and shows the numbers it used.
         </p>
@@ -51,7 +51,7 @@ function ToolEntry({ tool }: { tool: Tool }) {
           {tool.name}
         </Link>
       </h2>
-      <p style={{ fontSize: "var(--fs-copy)", lineHeight: 1.7, color: "var(--muted)", margin: "8px 0 0", maxWidth: "var(--w-prose)" }}>
+      <p style={{ fontSize: "var(--fs-copy)", lineHeight: 1.7, color: "var(--muted)", margin: "8px 0 0", maxWidth: "var(--w-measure)" }}>
         {tool.blurb}
       </p>
 

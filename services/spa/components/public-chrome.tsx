@@ -3,9 +3,9 @@
  * the free tools, the blog, and the About/Privacy/Terms pages.
  *
  * `PublicPage` + `PageSection` are the only place a public page's container width,
- * gutter and vertical rhythm are written down (values in `src/globals.css`). A
- * page picks a width TIER and never a number — see the token block there for why,
- * and `src/design-system.test.ts` for what stops it drifting again.
+ * gutter and vertical rhythm are written down (values in `src/globals.css`), and
+ * there is exactly one width for the whole surface — see the token block there
+ * for why, and `src/design-system.test.ts` for what stops it drifting again.
  *
  * Everything here is static markup — no session check, no fetch. That is a hard
  * rule for `/` (anonymous and bot traffic must never touch the billed gateway,
@@ -16,7 +16,7 @@
  * same internal links — search engines read those links as the site's structure,
  * and a legal/contact link missing from half the pages reads as a trust gap.
  */
-import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "@/components/link";
 
 export const CONTACT_EMAIL = "hello@sweetvaluelab.com";
@@ -24,25 +24,15 @@ export const CONTACT_EMAIL = "hello@sweetvaluelab.com";
 export const LEGAL_UPDATED = "2026-09-05";
 
 /**
- * The three container widths (see the token block in `src/globals.css`). Pages
- * pick a tier by what they HOLD — reading column, card grid, or wide data — and
- * never a number: five hand-typed widths is how the public surface ended up with
- * a header that lined up with nothing.
+ * ONE container width for the whole public surface — the homepage, the tools and
+ * their sub-pages, the blog and its posts (`--w-page`, see `src/globals.css`).
+ *
+ * There is no `width` prop and no menu of tiers on purpose. Every knob here is a
+ * decision someone has to make again on every new page, and five such decisions
+ * is exactly how this surface ended up with five widths and a header that lined
+ * up with nothing. On a phone the container is simply the screen, less the
+ * gutter, because it is `width: 100%` with a max-width.
  */
-export type PageWidth = "prose" | "page" | "wide";
-
-const WIDTH_VAR: Record<PageWidth, string> = {
-  prose: "var(--w-prose)",
-  page: "var(--w-page)",
-  wide: "var(--w-wide)",
-};
-
-/** Set once by `<PublicPage>` and read by the header, the footer and every
- *  section, so the chrome and the content physically cannot disagree about where
- *  the column edge is. */
-const PageWidthContext = createContext<PageWidth>("page");
-
-export const usePageWidth = (): PageWidth => useContext(PageWidthContext);
 
 /** Vertical padding presets. Named rather than free-form: the horizontal gutter
  *  is fixed by the token, and these cover every position a section can occupy. */
@@ -69,39 +59,29 @@ export type PagePad = keyof typeof PAD;
 export function PageSection({
   pad = "body",
   as: Tag = "section",
-  width,
   style,
   children,
 }: {
   pad?: PagePad;
   as?: "section" | "div" | "article";
-  /** Overrides the page's tier for one section — for a prose block inside a wide
-   *  data page, which is the measure rule in the token block. */
-  width?: PageWidth;
   style?: CSSProperties;
   children: ReactNode;
 }) {
-  // Unconditional: `width ?? useContext(...)` would short-circuit the hook away
-  // whenever the prop is set, and a hook that sometimes runs breaks hook order.
-  const pageTier = useContext(PageWidthContext);
-  const tier = width ?? pageTier;
   return (
-    <Tag style={{ width: "100%", maxWidth: WIDTH_VAR[tier], margin: "0 auto", padding: PAD[pad], ...style }}>
+    <Tag style={{ width: "100%", maxWidth: "var(--w-page)", margin: "0 auto", padding: PAD[pad], ...style }}>
       {children}
     </Tag>
   );
 }
 
-/** Chrome + the page's width tier, for every public (signed-out) page. */
-export function PublicPage({ width, children }: { width: PageWidth; children: ReactNode }) {
+/** Chrome + the page column, for every public (signed-out) page. */
+export function PublicPage({ children }: { children: ReactNode }) {
   return (
-    <PageWidthContext.Provider value={width}>
-      <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <PublicHeader />
-        {children}
-        <PublicFooter />
-      </main>
-    </PageWidthContext.Provider>
+    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <PublicHeader />
+      {children}
+      <PublicFooter />
+    </main>
   );
 }
 
@@ -183,7 +163,7 @@ export const pageTitleStyle: CSSProperties = {
 /** Header + a readable prose column + footer. For the text pages only. */
 export function ProsePage({ title, intro, children }: { title: string; intro?: ReactNode; children: ReactNode }) {
   return (
-    <PublicPage width="prose">
+    <PublicPage>
       <PageSection as="article" pad="page">
         <h1 style={pageTitleStyle}>{title}</h1>
         <p style={{ fontSize: "var(--fs-meta)", color: "var(--muted)", margin: "10px 0 0" }}>

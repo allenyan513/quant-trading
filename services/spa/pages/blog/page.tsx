@@ -59,7 +59,7 @@ export default function BlogIndexPage({ lang }: { lang: BlogLang }) {
   useEffect(() => applySeo(seo), [seo]);
 
   return (
-    <PublicPage width="prose">
+    <PublicPage>
       <PageSection pad="page">
         <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
           <h1 style={{ ...pageTitleStyle, flex: 1 }}>{copy.heading}</h1>

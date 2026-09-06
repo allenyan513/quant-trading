@@ -34,12 +34,12 @@ paths:
 
 `src/globals.css` 的 `:root` 早就写着「颜色只在这里出现」并且守住了;**布局/间距/字号以前没有这条纪律**,于是公开面漂成了五个容器宽度(720/760/860/960/1040)、两套 gutter 起点、四种 H1 尺寸 —— 没人决定过,是一页一页攒出来的。现在它们和颜色一样是 token,并且**由 `src/design-system.test.ts` 在 `pnpm test` 里强制**。
 
-- **三档宽度,按页面「装什么」选,不按感觉选**:`--w-prose`(720,单列正文:博客文章/索引、about/privacy/terms)、`--w-page`(900,卡片与链接栅格:首页各 section、`/tools`)、`--w-wide`(1040,数据密集:回测工具页与预设页)。
-- **`components/public-chrome.tsx` 是唯一写下这些的地方**:`<PublicPage width="prose|page|wide">` 提供 chrome + 宽度上下文,`<PageSection pad="page|top|body|flush|bottom">` 是居中内容列。**页面不要再手写 `width:100%; maxWidth:N; margin:"0 auto"; padding:clamp(...)`**。
-- **header/footer 也收在同一列里**(不是满宽) —— 这是 logo 左边缘与 H1 对齐的原因,也是「看起来像设计过」性价比最高的一处。宽度经 context 下传,chrome 与正文物理上不可能对不齐。
-- **measure 规则压过宽度档**:一段正文任何时候不超过 `--w-prose`,哪怕容器是 1040(见预设页与 `/tools` 的 `maxWidth: "var(--w-prose)"`)。`/tools` 之前一行 100+ 字符就是漏了这条。
+- **整个公开面只有一个容器宽度 `--w-page: 1040px`**(首页、`/tools` 及子页、`/blog` 及子页、about/privacy/terms 全都是它)。**没有第二档可选,这是刻意的** —— 只要存在一个「选宽度」的决定,每写一个新页面就会重新拍一次脑袋,五个宽度就是这么来的。手机上它天然是满屏(`width:100%` + max-width),内容左右各留 `--page-gutter` 的下限 16px(文字贴着屏幕边缘没法读)。
+- **`components/public-chrome.tsx` 是唯一写下这些的地方**:`<PublicPage>` 提供 chrome(**无 width 参数**),`<PageSection pad="page|top|body|flush|bottom">` 是居中内容列。**页面不要再手写 `width:100%; maxWidth:N; margin:"0 auto"; padding:clamp(...)`**。
+- **header/footer 也收在同一列里**(不是满宽) —— 这是 logo 左边缘与 H1 对齐的原因,也是「看起来像设计过」性价比最高的一处。
+- **`--w-measure`(720)不是容器**,是「一段长正文的行宽上限」,按排版需要单独套在段落上(工具页/预设页的导语)。**博客正文按站长要求跑满 1040**(约 130 字符一行,是舒适上限的两倍;想改回来就是给正文加一个 `maxWidth: "var(--w-measure)"`)。
 - **字号只从 `--fs-*` 取**:`--fs-display`/`--fs-h1`/`--fs-h2{,-display}`/`--fs-h3`/`--fs-lead{,-display}`/`--fs-body`/`--fs-copy`/`--fs-meta`。`display` 档只属于营销首页,其余页面 H1 全站一个尺寸。
-- **`src/design-system.test.ts` 只禁三件事**(其余自由):① `margin:"0 auto"` 与数字 `maxWidth` 同时出现(= 手写的居中容器);② `padding` 里出现字面量 `clamp(`(gutter 只有一条 ramp);③ 字面量 `clamp()` 字号。**卡住文字行宽或插图的 `maxWidth` 不禁** —— 那是单页排版决策,不是跨页漂移的来源。新增公开页要把文件加进 `PUBLIC_FILES` 列表(显式列表,不 glob:新公开页应当是一次有意的登记)。
+- **`src/design-system.test.ts` 只禁三件事**(其余自由):① `margin:"0 auto"` 与数字 `maxWidth` 同时出现(= 手写的居中容器);② `padding` 里出现字面量 `clamp(`(gutter 只有一条 ramp);③ 字面量 `clamp()` 字号。**卡住文字行宽或插图的 `maxWidth` 不禁** —— 那是单页排版决策,不是跨页漂移的来源。它还断言 `--w-*` 只有 `--w-page` 与 `--w-measure` 两个,**加第三个容器宽度会直接测试失败**。新增公开页要把文件加进 `PUBLIC_FILES` 列表(显式列表,不 glob:新公开页应当是一次有意的登记)。
 - **作用域只有公开页**。工作台(`pages/workspace/**`)是密集终端式布局,规则本就不同,现在不在检查范围内;要收编它是另一轮改动。
 
 ## 公开页预渲染(SEO,`prerender/`)

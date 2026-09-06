@@ -34,7 +34,7 @@ export function BlogPostView({ post }: { post: BlogPost }) {
   useEffect(() => applySeo(seo), [seo]);
 
   return (
-    <PublicPage width="prose">
+    <PublicPage>
       <PageSection as="article" pad="page">
         {/* A visible breadcrumb back to the index, matching the BreadcrumbList in
             this page's JSON-LD — the structured data has to describe something a

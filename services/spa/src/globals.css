@@ -42,23 +42,28 @@
      1040) and two padding ramps, so the logo never lined up with the H1 and the
      tool hub ran to ~105 characters a line.
 
-     WIDTH — three tiers, chosen by what the page HOLDS, not by feel:
-       --w-prose  reading, one column: blog posts and index, about/privacy/terms
-       --w-page   cards and link grids: the homepage sections, the tool hub
-       --w-wide   data: charts, wide tables — the backtest tool and its presets
-     And one rule that overrides the tier: a paragraph of body copy never exceeds
-     --w-prose, however wide its container. That is what keeps a 1040px data page
-     readable where its prose starts (see the backtest preset pages).
+     WIDTH — ONE container for the whole public surface. The homepage, the tools
+     and their sub-pages, and the blog and its posts are all --w-page wide on a
+     desktop, and full width (minus the gutter) on a phone, because `width: 100%`
+     with a max-width is what --w-page means. There is deliberately no second
+     tier to choose from: a menu of widths is what produced the five-width mess.
+
+     --w-measure is NOT a container. It caps a long paragraph inside the page
+     where a full-width line would be a wall of text (the tool pages' intros).
+     Body copy at 1040px runs to roughly 130 characters a line, about double the
+     comfortable maximum — the site owner's explicit call, and reversible by
+     applying this cap to a page's prose.
 
      Enforced by `src/design-system.test.ts` — a literal width or a `clamp()` font
      size in a public page fails `pnpm test`, rather than waiting to be noticed. */
-  --w-prose: 720px;
-  --w-page: 900px;
-  --w-wide: 1040px;
+  --w-page: 1040px;
+  --w-measure: 720px;
 
   /* One gutter ramp for every public page, chrome included — this is what makes
-     the header's logo sit directly above the page's H1. */
-  --page-gutter: clamp(16px, 5vw, 40px);
+     the header's logo sit directly above the page's H1. The 16px floor is what
+     "full width on a phone" means in practice: the container is already 100% of
+     the screen, and a line of text starting at the bezel is unreadable. */
+  --page-gutter: clamp(16px, 4vw, 40px);
   --page-top: clamp(20px, 5vw, 48px);
   /* The marketing hero breathes more than a content page's first section. */
   --page-top-hero: clamp(40px, 8vw, 88px);
