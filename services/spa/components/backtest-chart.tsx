@@ -145,9 +145,24 @@ export interface BacktestChartProps {
    * behaviour depends on anyone listening.
    */
   onReplayFrame?: (revealed: number | null) => void;
+  /**
+   * Filled with `{ play, skip }` once the chart is live, so the button can sit
+   * wherever the page wants it rather than under the chart.
+   *
+   * The chart still OWNS the replay — the clock, the frame loop, the range. This
+   * only hands out the two verbs. Paired with `onReplayFrame`, which tells the
+   * page whether a replay is running, a caller has everything it needs to render
+   * its own control without duplicating any of the machinery.
+   */
+  controls?: { current: ReplayControls | null };
 }
 
-export function BacktestChart({ series, height = 340, onReplayFrame }: BacktestChartProps) {
+export interface ReplayControls {
+  play: () => void;
+  skip: () => void;
+}
+
+export function BacktestChart({ series, height = 340, onReplayFrame, controls }: BacktestChartProps) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<ISeriesApi<"Line">[]>([]);
@@ -252,6 +267,15 @@ export function BacktestChart({ series, height = 340, onReplayFrame }: BacktestC
     rafRef.current = requestAnimationFrame(tick);
   }, [finish, publish]);
 
+  // Hand the page the two verbs; it renders the button, the chart keeps the clock.
+  useEffect(() => {
+    if (!controls) return;
+    controls.current = { play, skip: finish };
+    return () => {
+      controls.current = null;
+    };
+  }, [controls, play, finish]);
+
   // Stop a replay when the component goes away, whatever started it.
   useEffect(
     () => () => {
@@ -348,8 +372,6 @@ export function BacktestChart({ series, height = 340, onReplayFrame }: BacktestC
     applyFit({ snap: true });
   }, [series, applyFit]);
 
-  const playing = revealed !== null;
-
   return (
     <div>
       <div ref={ref} style={{ width: "100%" }} />
@@ -369,32 +391,13 @@ export function BacktestChart({ series, height = 340, onReplayFrame }: BacktestC
             {s.label}
           </span>
         ))}
-        {points >= 2 && (
-          <button
-            type="button"
-            onClick={playing ? finish : play}
-            style={{
-              marginLeft: "auto",
-              height: 26,
-              padding: "0 10px",
-              borderRadius: 999,
-              border: "1px solid var(--border)",
-              background: "transparent",
-              color: "var(--text)",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            {playing ? "Skip" : "▶ Replay"}
-          </button>
-        )}
         {/* Attribution required by lightweight-charts' licence, in place of its
             injected logo — and unlike that logo, this one carries a `rel`. */}
         <a
           href="https://www.tradingview.com/"
           target="_blank"
           rel="noopener nofollow"
-          style={{ marginLeft: points >= 2 ? undefined : "auto", color: "var(--muted)" }}
+          style={{ marginLeft: "auto", color: "var(--muted)" }}
         >
           Charts by TradingView
         </a>

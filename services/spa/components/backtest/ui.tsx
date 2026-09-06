@@ -57,6 +57,38 @@ export const table: CSSProperties = { width: "100%", borderCollapse: "collapse",
 export const h2Style: CSSProperties = { fontSize: 15, fontWeight: 700, margin: "0 0 6px" };
 export const subStyle: CSSProperties = { fontSize: 13, color: "var(--muted)", margin: "0 0 12px" };
 
+/**
+ * The replay control, shared by the single-basket and comparison result panels.
+ *
+ * Solid rather than an outline chip: the replay is the thing worth doing on this
+ * panel, and the previous version — a small pill tucked under the chart legend —
+ * was missed entirely. It sits in the headline row, where "Copy result link" used
+ * to draw the eye.
+ */
+export function ReplayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={playing ? "Skip the replay" : "Replay this backtest from the start"}
+      style={{
+        height: 34,
+        padding: "0 16px",
+        borderRadius: 999,
+        border: "none",
+        background: "var(--accent)",
+        color: "#06223f",
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {playing ? "Skip replay" : "▶ Replay this backtest"}
+    </button>
+  );
+}
+
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label style={{ display: "grid", gap: 6, fontSize: 12, color: "var(--muted)" }}>

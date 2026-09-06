@@ -8,13 +8,14 @@
  * the income tables get their own panels or collapse to one sentence, so a user
  * typing QQQ into the form gets the same correct emphasis as a preset page.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
-import { panel, chip, h2Style, subStyle, Kpi, Th, Td } from "@/components/backtest/ui";
+import { panel, h2Style, subStyle, Kpi, ReplayButton, Th, Td } from "@/components/backtest/ui";
 import { CutsPanel, IncomeSummaryLine, ResultsGate, ScrollTable, WarningList } from "@/components/backtest/sections";
 import { dividendShare, statsThrough, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
+import type { ReplayControls } from "@/components/backtest-chart";
 
 export interface BacktestResultsProps {
   result: DividendBacktestResult;
@@ -40,6 +41,8 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
 
   /** Replay cursor published by the chart; null whenever it is not replaying. */
   const [replayAt, setReplayAt] = useState<number | null>(null);
+  /** The chart's own play/skip, so the button can live up in the headline row. */
+  const replay = useRef<ReplayControls | null>(null);
   const replaying = replayAt !== null;
 
   // The four value-derived tiles, recomputed over the revealed prefix while the
@@ -87,7 +90,10 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
           <span style={{ fontSize: 13, color: "var(--muted)" }}>
             {result.start} → {result.end} · {fmtNum(result.years, 1)} years · {result.reinvest ? "reinvested" : "dividends as cash"}
           </span>
-          {shareable && <CopyLinkButton />}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+            <ReplayButton playing={replaying} onClick={() => (replaying ? replay.current?.skip() : replay.current?.play())} />
+            {shareable && <CopyLinkButton />}
+          </div>
         </div>
 
         {/* While the chart replays, these move with it — they are the point of
@@ -118,7 +124,7 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
         </div>
 
         <div>
-          <BacktestChartLazy series={chartSeries} onReplayFrame={setReplayAt} />
+          <BacktestChartLazy series={chartSeries} onReplayFrame={setReplayAt} controls={replay} />
         </div>
 
         <div style={{ fontSize: 14, lineHeight: 1.6 }}>
@@ -230,7 +236,18 @@ function CopyLinkButton() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      style={{ ...chip, marginLeft: "auto" }}
+      // Deliberately quiet: a bare text button beside the solid Replay. Sharing a
+      // run matters, but not more than seeing it.
+      style={{
+        background: "none",
+        border: "none",
+        padding: 0,
+        color: "var(--muted)",
+        fontSize: 13,
+        cursor: "pointer",
+        textDecoration: "underline",
+        textUnderlineOffset: 3,
+      }}
     >
       {copied ? "Link copied" : "Copy result link"}
     </button>

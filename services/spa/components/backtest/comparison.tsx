@@ -9,13 +9,14 @@
  * Every figure is dividends-reinvested. Reinvested-vs-cash is the form tool's and
  * the ticker pages' story, not this page's.
  */
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
-import { panel, table, h2Style, subStyle, Th, Td } from "@/components/backtest/ui";
+import { panel, table, h2Style, subStyle, ReplayButton, Th, Td } from "@/components/backtest/ui";
 import { CutsPanel, ResultsGate, ScrollTable, WarningList } from "@/components/backtest/sections";
 import { dividendShare, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
+import type { ReplayControls } from "@/components/backtest-chart";
 
 export interface ComparisonResultsProps {
   symbols: string[];
@@ -77,6 +78,10 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
     [results, symbols, benchmark],
   );
 
+  // Above the early return below: hooks may not be skipped.
+  const [replaying, setReplaying] = useState(false);
+  const replay = useRef<ReplayControls | null>(null);
+
   const first = results[0];
   if (!first) return null;
 
@@ -100,10 +105,13 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
           <span style={{ fontSize: 13, color: "var(--muted)" }}>
             {first.start} → {first.end} · dividends reinvested
           </span>
+          <div style={{ marginLeft: "auto" }}>
+            <ReplayButton playing={replaying} onClick={() => (replaying ? replay.current?.skip() : replay.current?.play())} />
+          </div>
         </div>
 
         <div>
-          <BacktestChartLazy series={chartSeries} />
+          <BacktestChartLazy series={chartSeries} controls={replay} onReplayFrame={(at) => setReplaying(at !== null)} />
         </div>
 
         <ScrollTable>
