@@ -60,6 +60,9 @@ paths:
 ## 组件 / 构建
 
 - **图表 lightweight-charts 经 `*.lazy.tsx`(`React.lazy` + `Suspense`)懒加载**(包大、碰 DOM);canvas 内颜色**硬编码 hex**(CSS 变量不解析)。参考 `components/{price,nav}-chart{,.lazy}.tsx`。
+- **日线序列必须按数据量设置 `minBarSpacing`,否则 `fitContent()` 会被静默钳制。** 该选项默认 **0.5 像素/根**,而 `fitContent()` 压不过它:十年日线约 2,500 根,在 800px 绘图区只有 0.32px/根、手机 308px 只有 0.12px/根 —— 全部低于下限,于是最早的年份被挤出左边,且**无法缩小**拉回来(实测手机上「十年回测」只显示 2.4 年)。桌面端只丢约 3 年,看起来仍像一张正常的图,所以这个 bug 很能藏。
+- 正确做法见 `backtest-chart.tsx` 的 `applyFit()`:**把下限动态设成「刚好装下全部数据」的比例**(绘图区宽 ÷ 点数,取自 `timeScale().width()`),而不是写死一个极小值 —— 写死能修好默认视图,但读者可以滚轮把整张图缩成一条细缝且没有重置按钮;设成 fit 比例则「缩到最小」恰好等于「整个窗口」。数据变化时重算并 `fitContent()`;**resize 时只重算下限、不要 `fitContent()`**(配合 `lockVisibleTimeRangeOnResize` 保住读者已有的缩放)。另配 `fixLeftEdge`/`fixRightEdge` 防止拖进空白区。
+- **`price-chart.tsx` / `nav-chart.tsx` 尚未做这件事**(见 issue):前者最多 2,600 根、「10Y」按钮实际只显示约 6.3 年;后者点数无上限、每年 +252。三个图表目前是近似复制品,共享配置未抽出。
 - **`@qt/shared` 只 `import type`** 或纯客户端子路径(如 `market-hours`、`valuation-model-names`)——绝不把 `db`/`config` 等服务端模块拉进浏览器 bundle。
 - 复用既有原件:`components/ui.tsx`、`components/live.tsx`、`lib/format.ts`。样式 Tailwind v4(`@import "tailwindcss"`)+ `:root` token,暗色硬编码;字体 Geist 经 `@font-face`(`public/fonts/`)。
 - **用户可见文案一律英文**(同原 web:JSX 文本/标签/占位符/按钮/CTA/aria-label)。代码注释英文(见 typescript.md)。
