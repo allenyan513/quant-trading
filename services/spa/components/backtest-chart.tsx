@@ -19,7 +19,8 @@
  *    and the picture would jitter instead of advance.
  *  - progress is time-based, not frame-based, so a 10-year window plays in the
  *    same few seconds on any machine.
- * Honours `prefers-reduced-motion` (no auto-play, Replay stays available).
+ * Auto-play waits until the chart is on screen (it lives below the fold on preset
+ * pages) and honours `prefers-reduced-motion` (no auto-play, Replay stays available).
  *
  * Like nav-chart/price-chart, this is the only module importing lightweight-charts
  * for this view and must be reached through backtest-chart.lazy.tsx (the lib is
@@ -131,11 +132,14 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
     stop();
     if (prepared.total < 2) return finish();
     const duration = replayMs(prepared.total);
-    const start = performance.now();
+    let start = 0;
     setPhase("playing");
     paint(1);
     setCursor(0);
     const tick = (now: number) => {
+      // Clock starts on the first frame actually delivered, not on play(): a
+      // throttled or hidden tab must not burn the whole replay before it is seen.
+      if (!start) start = now;
       const t = Math.min(1, (now - start) / duration);
       const idx = Math.max(1, Math.floor(t * prepared.total));
       paint(idx);
@@ -224,9 +228,72 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
     chart.timeScale().fitContent();
 
     const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) finish();
-    else play();
-    return stop;
+    if (reduced) {
+      finish();
+      return stop;
+    }
+
+    // Auto-play only once the chart is actually on screen. On the preset pages it
+    // sits below the H1, the lede, the facts table and the KPI row — a replay that
+    // fires the moment data arrives has finished before the reader scrolls to it,
+    // and all they ever see is a finished chart. The pinned, empty frame waits.
+    //
+    // Deliberately NOT IntersectionObserver: its callbacks ride the rendering
+    // loop and can simply never arrive (hidden or zero-height embeds), and the
+    // failure mode is an empty chart forever. A synchronous rect check plus a
+    // passive scroll listener is boring, deterministic, and detaches itself.
+    const el = ref.current;
+    // "In view" means the tab is in the foreground AND enough of the chart is in
+    // the viewport. A background tab gets no animation frames, so starting the
+    // clock there would make the replay "finish" the instant the tab is shown.
+    const inView = () => {
+      if (document.visibilityState === "hidden") return false;
+      if (!el) return true;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (!vh) return true; // no usable viewport — don't hold the replay hostage
+      const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+      return visible >= Math.min(r.height, 120);
+    };
+    let armed = true;
+    let fallback = 0;
+    const detach = () => {
+      window.clearTimeout(fallback);
+      window.removeEventListener("scroll", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+    const fire = () => {
+      if (!armed) return;
+      armed = false;
+      detach();
+      play();
+    };
+    const check = () => {
+      if (inView()) fire();
+    };
+    // Fail-safe: never leave an empty frame on the page — worse than no animation.
+    // A hidden tab only re-arms: finishing there would hand the reader a static
+    // chart the moment they switch over, which is the original complaint.
+    const arm = () => {
+      fallback = window.setTimeout(() => {
+        if (!armed) return;
+        if (document.visibilityState === "hidden") return arm();
+        armed = false;
+        detach();
+        finish();
+      }, 10_000);
+    };
+    if (inView()) fire();
+    else {
+      window.addEventListener("scroll", check, { passive: true });
+      document.addEventListener("visibilitychange", check);
+      arm();
+    }
+    return () => {
+      armed = false;
+      detach();
+      stop();
+    };
   }, [series, prepared, paint, play, finish, stop]);
 
   const cursorDate = series[0]?.points[cursor]?.date ?? series[0]?.points.at(-1)?.date;
