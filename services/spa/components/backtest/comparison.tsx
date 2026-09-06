@@ -9,6 +9,7 @@
  * Every figure is dividends-reinvested. Reinvested-vs-cash is the form tool's and
  * the ticker pages' story, not this page's.
  */
+import { useMemo } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
 import { panel, table, h2Style, subStyle, Th, Td } from "@/components/backtest/ui";
@@ -66,7 +67,8 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
   const dividendLed = results.some((r) => dividendShare(r) >= DIVIDEND_LEAD_THRESHOLD);
   const rows = METRICS.filter((m) => dividendLed || !m.dividendOnly);
 
-  const chartSeries = [
+  const chartSeries = useMemo(
+    () => [
     ...results.map((r, i) => ({
       label: symbols[i] ?? `Fund ${i + 1}`,
       points: r.series.map((p) => ({ date: p.date, value: p.drip })),
@@ -75,7 +77,9 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
     ...(benchmark
       ? [{ label: "S&P 500", points: benchmark.series.map((p) => ({ date: p.date, value: p.drip })), benchmark: true }]
       : []),
-  ];
+    ],
+    [results, symbols, benchmark],
+  );
 
   const warnings = [...new Set(results.flatMap((r) => r.warnings))];
   const cuts = results.flatMap((r) => r.dividendCuts);

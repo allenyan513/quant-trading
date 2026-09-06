@@ -48,6 +48,7 @@ paths:
 - **路径由 `presetPath(preset)` 按 `kind` 生成**:`comparison` → `/compare/<slug>`,`basket` → `/<slug>`。**slug 保持扁平、不要写斜杠** —— `assertPresetGraph` 的 slug 正则拒绝 `/`,而且路径段不是预设的身份。`presetPath` 是唯一把 slug 变成路径的地方,改 URL 形态就改这一个函数(`prerender.mjs` 一行都不用动)。
 - **排版重点由数据决定,不由页面声明**:`dividendShare(result) >= DIVIDEND_LEAD_THRESHOLD`(15%)才让逐年收入/收益率成本/砍息成为主区块,否则收成一行摘要。实测分界很干净(SCHD 26% / VYM 24% vs SPY 9.7% / QQQ 3.2%),而且这样自由工具里手打 QQQ 也能得到正确排布 —— **不要退回成给预设打 `focus` 标签**。
 - **基准线(SPY)**:`preset.benchmark` 默认 `"SPY"`,基准已在持仓里时自动跳过;`ChartSeries.benchmark` 让它渲染成灰色细线(对齐 `nav-chart.tsx` 的 NAV-vs-SPY 约定),且不占用调色板槽位。
+- **图表复盘动画(`backtest-chart.tsx`)**:数据到达后线从左往右「跑」出来,带日期/数值实时读数。两条硬约束 —— ① **两轴必须先钉死再画**:用 whitespace 点把整段日期铺满建立 x 轴,用 `autoscaleInfoProvider` 把 y 轴锁到完整数据范围;否则轴会逐帧缩放,画面是在抖不是在跑。② **进度按时间不按帧**(`replayMs` 随点数缓变,3–8 秒),不同机器上时长一致。逐帧用 `setData(前缀 + 空白后缀)`,不要用 `update()`(它只能改最后一根)。尊重 `prefers-reduced-motion`(不自动播,Replay 仍可点)。**父组件传入的 `series` 必须 `useMemo`** —— 数组身份一变动画就重启,内联构造会让任何父级重渲染都从头播。
 - **`lib/backtest.ts` 的请求去重缓存不要拿掉**:网关限流 20 次/分钟/IP,而对比页 + 基准 = 3 次请求,连点几个预设页就会撞 429。缓存按序列化 request 做键,失败不缓存。
 - **路由按 registry 逐条枚举,不要用 `:slug`**:未知子路径落到既有的 `*` catch-all(和其它坏 URL 一致),不会在无限 URL 空间上渲染软 404;而且客户端路由与预渲染用**同一个组件 + 同一个 prop**。`PresetBacktestView` 接 `preset` prop,**绝不读 `useParams()`** —— 预渲染在无 `<Routes>` 的 StaticRouter 里直接渲染组件,`useParams()` 是空的,每页都会预渲染成空白。
 - **窗口用 `years` 相对值,不写死日期**;文案里**不要出现具体收益率数字**(会过期,还会和上方实时表格自相矛盾),只写不动的基金事实(指数规则、费率、持仓数量级)。
