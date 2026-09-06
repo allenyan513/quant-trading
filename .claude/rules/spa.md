@@ -35,6 +35,8 @@ paths:
 `pnpm build` = `vite build` → `vite build --ssr prerender/entry-server.tsx` → `node prerender/prerender.mjs`。**公开可索引的路由必须走这条线**,否则爬虫拿到的是首页的 head(含 `canonical: /`)+ 空 `<div id="root">`,工具页会被判成首页的重复页。
 
 - **真源 `lib/seo.ts` 的 `PUBLIC_PAGES`**(path/title/description/JSON-LD)。加一个公开页 = 往这里加一条 + 在 `prerender/entry-server.tsx` 的 `COMPONENTS` 里登记组件(没登记会**构建失败**,不会静默漏掉);sitemap.xml 由脚本从同一份列表生成。title ≤60 字符、description 140–160。
+- **`/tools` 是工具中心页,真源 `lib/tools.ts` 的 `TOOLS`**。**新增一个工具必须往 `TOOLS` 加一条** —— 中心页、`TOOLS_SEO` 的 `ItemList`、footer 全从它生成。漏加 = 中心页不列它 = 没有任何内链指向它 = 爬虫发现不了这个工具(预渲染出来也没用)。`assertToolGraph()` 在预渲染时跑,路径不在 `/tools/` 下、重复、缺 name/blurb、子页面不在父路径下,都**构建失败**。
+- **中心页的每个工具名本身就是 `<a>`**(`<h2><Link href></Link></h2>`),子页面是裸路径 `<a>` 列表 —— 爬虫只跟 anchor,button/onClick 一律不算。**footer 只链 `/tools`,不要再逐个链具体工具**:footer 在每个公开页上,链一个会随工具增长而失控的列表就是自找维护;中心页负责往下分发,任何页面到任何工具最多两跳。
 - `entry-server.tsx` **只直接 import 公开页**,不碰 `src/routes.tsx`(那会把 auth/SWR/图表整个工作台拉进 Node)。用 `renderToStaticMarkup`,客户端仍是 `createRoot` **不做 hydration** —— 工具页的默认日期是「今天 / 十年前」,构建期与访问期不同,hydrate 必然 mismatch。
 - 输出文件名必须是 **`<path>.html`,不能是 `<path>/index.html`**:CF Pages 对目录索引会先 308 到带斜杠形式,既多一跳、又让 canonical 指向一个会重定向的 URL。同理**不要**给这些路径加 `_redirects` 规则 —— Pages 会把 `.html` 用 308 剥掉,`/tools/x -> /tools/x.html 200` 直接变成重定向死循环(两者都用 `npx wrangler pages dev services/spa/dist` 实测过)。
 - JSON-LD 里的 FAQ 文案必须与页面上**可见**文案逐字一致(Google 的要求),改一处要同步另一处。

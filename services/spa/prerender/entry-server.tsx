@@ -22,13 +22,18 @@ import TermsPage from "@/pages/terms/page";
 import { PUBLIC_PAGES } from "@/lib/seo";
 import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
 import { BACKTEST_PRESETS, presetPath, assertPresetGraph, TOOL_PATH } from "@/lib/backtest-presets";
+import ToolsIndexPage from "@/pages/tools/page";
+import { assertToolGraph, TOOLS_PATH } from "@/lib/tools";
 
 // A malformed preset registry (duplicate slug, dangling `related`, empty FAQ) must
-// fail the BUILD rather than ship a dead internal link.
+// fail the BUILD rather than ship a dead internal link. Same for the tool registry
+// behind `/tools`, whose entire purpose is to be a page full of working links.
 assertPresetGraph();
+assertToolGraph();
 
 const COMPONENTS: Record<string, ComponentType> = {
   "/": HomePage,
+  [TOOLS_PATH]: ToolsIndexPage,
   [TOOL_PATH]: DividendBacktestPage,
   "/about": AboutPage,
   "/privacy": PrivacyPage,

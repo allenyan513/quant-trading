@@ -15,6 +15,7 @@
  */
 
 import { BACKTEST_PRESETS, presetPath, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";
+import { TOOLS, TOOLS_PATH } from "@/lib/tools";
 
 export const SITE_URL = "https://sweetvaluelab.com";
 export const SITE_NAME = "SweetValueLab";
@@ -227,9 +228,52 @@ export function presetSeo(p: BacktestPreset): PageSeo {
   };
 }
 
+/**
+ * `/tools` — the hub. An `ItemList` built from the SAME registry the page renders
+ * from, so the structured data and the visible links can never disagree; Google
+ * discards `ItemList` entries it cannot find on the page.
+ *
+ * `priority` sits above the presets and below the tool itself: it is the entry
+ * point to the whole free surface, but it is a directory, not the thing people
+ * came for.
+ */
+export const TOOLS_SEO: PageSeo = {
+  path: TOOLS_PATH,
+  title: "Free Investing Tools — No Sign-Up",
+  description:
+    "Every free SweetValueLab tool in one place: backtest a portfolio of stocks or ETFs on ten years of daily prices, with dividends reinvested or taken as cash.",
+  priority: "0.8",
+  changefreq: "weekly",
+  jsonLd: [
+    ORGANIZATION,
+    {
+      "@type": "CollectionPage",
+      "@id": `${SITE_URL}${TOOLS_PATH}#page`,
+      url: `${SITE_URL}${TOOLS_PATH}`,
+      name: "Free investing tools",
+      description: "Free, no-sign-up tools that compute from primary market data.",
+      dateModified: CONTENT_UPDATED,
+      publisher: { "@id": `${SITE_URL}/#organization` },
+      isPartOf: { "@id": `${SITE_URL}/#website` },
+    },
+    {
+      "@type": "ItemList",
+      "@id": `${SITE_URL}${TOOLS_PATH}#list`,
+      itemListElement: TOOLS.map((t, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: t.name,
+        description: t.blurb,
+        url: `${SITE_URL}${t.path}`,
+      })),
+    },
+  ],
+};
+
 /** Every route the prerender emits and the sitemap lists. */
 export const PUBLIC_PAGES: PageSeo[] = [
   HOME_SEO,
+  TOOLS_SEO,
   BACKTEST_TOOL_SEO,
   ...BACKTEST_PRESETS.map(presetSeo),
   ABOUT_SEO,
