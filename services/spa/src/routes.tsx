@@ -5,6 +5,7 @@ import HomePage from "@/pages/page";
 import SignInPage from "@/pages/sign-in/page";
 import SignUpPage from "@/pages/sign-up/page";
 import ConsentPage from "@/pages/oauth/consent/page";
+import GamePage from "@/pages/game/page";
 import ToolsIndexPage from "@/pages/tools/page";
 import DividendBacktestPage from "@/pages/tools/portfolio-backtest/page";
 import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
@@ -86,6 +87,7 @@ export function AppRoutes() {
       <Route path="/sign-in" element={<SignInPage />} />
       <Route path="/sign-up" element={<SignUpPage />} />
       <Route path="/oauth/consent" element={<ConsentPage />} />
+      <Route path="/game" element={<GamePage />} />
 
       {/* Public no-login tools (SEO landing surfaces) */}
       <Route path={TOOLS_PATH} element={<ToolsIndexPage />} />

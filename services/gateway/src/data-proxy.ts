@@ -41,9 +41,10 @@ async function unwrap<T>(resp: Response, path: string): Promise<T> {
   return json.data as T;
 }
 
-/** GET a data endpoint and return its unwrapped `data`. */
-export async function dataGet<T>(path: string): Promise<T> {
-  const resp = await fetch(`${dataUrl()}${path}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+/** GET a data endpoint and return its unwrapped `data`. `timeoutMs` overrides the
+ *  default for the rare endpoint that fans out to several upstreams on a cold cache. */
+export async function dataGet<T>(path: string, timeoutMs = TIMEOUT_MS): Promise<T> {
+  const resp = await fetch(`${dataUrl()}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
   return unwrap<T>(resp, path);
 }
 
