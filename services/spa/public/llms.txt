@@ -5,6 +5,9 @@
 
 ## Free tools (no account, no paywall)
 
+Index of every free tool: https://sweetvaluelab.com/tools — start there; it links to
+each tool and to every ready-made run beneath it.
+
 - [Portfolio Backtest](https://sweetvaluelab.com/tools/portfolio-backtest):
   Backtest a basket of dividend stocks or ETFs on daily split-adjusted closes.
   Compares dividend reinvestment against taking the cash, and reports total return,

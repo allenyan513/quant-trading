@@ -49,8 +49,11 @@ export function PublicFooter() {
       <span style={{ flex: 1, minWidth: 240 }}>
         Research &amp; educational tool. Not investment advice. Not a registered investment adviser.
       </span>
-      <Link href="/tools/portfolio-backtest" style={{ color: "var(--muted)" }}>
-        Portfolio backtest
+      {/* The hub, not one tool: the footer is on every public page, so this is the
+          link that has to keep working as tools are added. `/tools` then carries
+          the anchors to each of them — one hop from anywhere. */}
+      <Link href="/tools" style={{ color: "var(--muted)" }}>
+        Tools
       </Link>
       <Link href="/about" style={{ color: "var(--muted)" }}>
         About

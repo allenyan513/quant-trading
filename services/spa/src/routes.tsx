@@ -5,9 +5,11 @@ import HomePage from "@/pages/page";
 import SignInPage from "@/pages/sign-in/page";
 import SignUpPage from "@/pages/sign-up/page";
 import ConsentPage from "@/pages/oauth/consent/page";
+import ToolsIndexPage from "@/pages/tools/page";
 import DividendBacktestPage from "@/pages/tools/portfolio-backtest/page";
 import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
 import { BACKTEST_PRESETS, presetPath, TOOL_PATH } from "@/lib/backtest-presets";
+import { TOOLS_PATH } from "@/lib/tools";
 import AboutPage from "@/pages/about/page";
 import PrivacyPage from "@/pages/privacy/page";
 import TermsPage from "@/pages/terms/page";
@@ -86,6 +88,7 @@ export function AppRoutes() {
       <Route path="/oauth/consent" element={<ConsentPage />} />
 
       {/* Public no-login tools (SEO landing surfaces) */}
+      <Route path={TOOLS_PATH} element={<ToolsIndexPage />} />
       <Route path={TOOL_PATH} element={<DividendBacktestPage />} />
       {/* Ready-made backtests. Enumerated from the registry rather than a `:slug`
           param: an unrecognized child then falls to the `*` catch-all like any other
