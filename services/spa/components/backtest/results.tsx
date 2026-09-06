@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
-import { panel, chip, table, h3Style, subStyle, Kpi, Th, Td } from "@/components/backtest/ui";
+import { panel, chip, table, h2Style, subStyle, Kpi, Th, Td } from "@/components/backtest/ui";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
 
 export interface BacktestResultsProps {
@@ -27,16 +27,16 @@ export function BacktestResults({ result, shareable = false }: BacktestResultsPr
       <>
         <div style={{ ...panel, display: "grid", gap: 18 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "baseline" }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>
               {money(result.initial, "headline")} → {money(stats.endValue, "headline")}
-            </h2>
+            </div>
             <span style={{ fontSize: 13, color: "var(--muted)" }}>
               {result.start} → {result.end} · {fmtNum(result.years, 1)} years · {result.reinvest ? "reinvested" : "dividends as cash"}
             </span>
             {shareable && <CopyLinkButton />}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))", gap: 14 }}>
             <Kpi label="Total return" value={fmtPct(stats.totalReturnPct)} tone={stats.totalReturnPct >= 0 ? "up" : "down"} />
             <Kpi label="CAGR" value={fmtPct(stats.cagrPct)} tone={stats.cagrPct >= 0 ? "up" : "down"} />
             <Kpi label="Max drawdown" value={fmtPct(-stats.maxDrawdownPct)} tone="down" />
@@ -73,7 +73,7 @@ export function BacktestResults({ result, shareable = false }: BacktestResultsPr
 
         {/* Income by year */}
         <div style={panel}>
-          <h3 style={h3Style}>Dividend income by year</h3>
+          <h2 style={h2Style}>Dividend income by year</h2>
           <p style={subStyle}>
             {result.incomeCagrPct == null
               ? "Income growth needs two full calendar years in the window."
@@ -110,7 +110,7 @@ export function BacktestResults({ result, shareable = false }: BacktestResultsPr
 
         {/* Per holding */}
         <div style={panel}>
-          <h3 style={h3Style}>By holding</h3>
+          <h2 style={h2Style}>By holding</h2>
           <div style={{ overflowX: "auto" }}>
             <table style={table}>
               <thead>
@@ -148,7 +148,7 @@ export function BacktestResults({ result, shareable = false }: BacktestResultsPr
 
         {/* Cuts */}
         <div style={panel}>
-          <h3 style={h3Style}>Dividend cuts in this window</h3>
+          <h2 style={h2Style}>Dividend cuts in this window</h2>
           {result.dividendCuts.length === 0 ? (
             <p style={subStyle}>No holding cut its dividend in any full calendar year of this window.</p>
           ) : (

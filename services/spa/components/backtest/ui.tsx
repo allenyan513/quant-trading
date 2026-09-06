@@ -52,7 +52,9 @@ export const primary: CSSProperties = {
 };
 
 export const table: CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 420 };
-export const h3Style: CSSProperties = { fontSize: 15, fontWeight: 700, margin: "0 0 6px" };
+/** Section heading inside a results panel. Sized like the old h3 it replaced —
+ *  the level changed for the document outline, not the visual weight. */
+export const h2Style: CSSProperties = { fontSize: 15, fontWeight: 700, margin: "0 0 6px" };
 export const subStyle: CSSProperties = { fontSize: 13, color: "var(--muted)", margin: "0 0 12px" };
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
