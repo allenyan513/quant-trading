@@ -129,7 +129,7 @@ export default function HomePage() {
         </h2>
         <p style={{ fontSize: 14, color: "var(--muted)", margin: "0 0 16px" }}>Open one and start typing — nothing is gated.</p>
         <Link
-          href="/tools/dividend-portfolio-backtest"
+          href="/tools/portfolio-backtest"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -142,7 +142,7 @@ export default function HomePage() {
             fontWeight: 600,
           }}
         >
-          Dividend portfolio backtest →
+          Portfolio backtest →
         </Link>
       </section>
 

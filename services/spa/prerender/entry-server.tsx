@@ -15,13 +15,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server";
 import type { ComponentType } from "react";
 import HomePage from "@/pages/page";
-import DividendBacktestPage from "@/pages/tools/dividend-portfolio-backtest/page";
+import DividendBacktestPage from "@/pages/tools/portfolio-backtest/page";
 import AboutPage from "@/pages/about/page";
 import PrivacyPage from "@/pages/privacy/page";
 import TermsPage from "@/pages/terms/page";
 import { PUBLIC_PAGES } from "@/lib/seo";
-import { PresetBacktestView } from "@/pages/tools/dividend-portfolio-backtest/preset-view";
-import { BACKTEST_PRESETS, presetPath, assertPresetGraph } from "@/lib/backtest-presets";
+import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
+import { BACKTEST_PRESETS, presetPath, assertPresetGraph, TOOL_PATH } from "@/lib/backtest-presets";
 
 // A malformed preset registry (duplicate slug, dangling `related`, empty FAQ) must
 // fail the BUILD rather than ship a dead internal link.
@@ -29,14 +29,14 @@ assertPresetGraph();
 
 const COMPONENTS: Record<string, ComponentType> = {
   "/": HomePage,
-  "/tools/dividend-portfolio-backtest": DividendBacktestPage,
+  [TOOL_PATH]: DividendBacktestPage,
   "/about": AboutPage,
   "/privacy": PrivacyPage,
   "/terms": TermsPage,
   // Same component, same prop as the client route — the preset is passed in, never
   // read from `useParams()`, which is empty under StaticRouter and would prerender
   // every preset page blank.
-  ...Object.fromEntries(BACKTEST_PRESETS.map((p) => [presetPath(p.slug), () => <PresetBacktestView preset={p} />])),
+  ...Object.fromEntries(BACKTEST_PRESETS.map((p) => [presetPath(p), () => <PresetBacktestView preset={p} />])),
 };
 
 /** Render one public route to static HTML. Throws if a route has no component —

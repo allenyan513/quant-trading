@@ -5,7 +5,7 @@
 
 ## Free tools (no account, no paywall)
 
-- [Dividend Portfolio Backtest](https://sweetvaluelab.com/tools/dividend-portfolio-backtest):
+- [Portfolio Backtest](https://sweetvaluelab.com/tools/portfolio-backtest):
   Backtest a basket of dividend stocks or ETFs on daily split-adjusted closes.
   Compares dividend reinvestment against taking the cash, and reports total return,
   CAGR, max drawdown, annualized volatility, dividend income by calendar year,
@@ -25,12 +25,12 @@
 
 ### Ready-made backtests (same tool, fixed baskets, own URLs)
 
-- [SCHD vs VYM](https://sweetvaluelab.com/tools/dividend-portfolio-backtest/schd-vs-vym):
+- [SCHD vs VYM](https://sweetvaluelab.com/tools/portfolio-backtest/compare/schd-vs-vym):
   quality-screened dividend index versus market-cap-weighted high yield, 10 years.
-- [JEPI vs SCHD](https://sweetvaluelab.com/tools/dividend-portfolio-backtest/jepi-vs-schd):
+- [JEPI vs SCHD](https://sweetvaluelab.com/tools/portfolio-backtest/compare/jepi-vs-schd):
   covered-call option premium versus growing dividends; shows why JEPI's distribution
   falls when volatility falls.
-- [SCHD](https://sweetvaluelab.com/tools/dividend-portfolio-backtest/schd):
+- [SCHD](https://sweetvaluelab.com/tools/portfolio-backtest/schd):
   single-fund, 10 years, reinvested versus taken as cash.
 
 ## About and policies

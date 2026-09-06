@@ -30,13 +30,25 @@ export interface ChartSeries {
   /** Show this line's end-of-line price tag. Tags collide where curves converge,
    *  so only the line the reader is anchoring on should carry one. */
   showLastValue?: boolean;
+  /** A reference line (the S&P 500), not a subject. Rendered muted and thinner so
+   *  it reads as the backdrop — same convention as the workspace NAV-vs-SPY chart. */
+  benchmark?: boolean;
 }
 
 /** Line colors in order. Stays inside the palette's meaning-free slots (accent,
  *  muted, warn) rather than inventing a categorical scheme. */
-const LINE_COLORS = ["#58a6ff", "#8a97ab", "#d29922", "#3fb950"];
+const LINE_COLORS = ["#58a6ff", "#d29922", "#3fb950", "#a371f7"];
+const BENCHMARK = "#8a97ab"; // muted — the backdrop, never a subject
 const MUTED = "#8a97ab";
 const BORDER = "#232c3d";
+
+/** Subjects take palette colors in order; a benchmark is always the muted one and
+ *  never consumes a palette slot. */
+function colorAt(series: ChartSeries[], i: number): string {
+  if (series[i]?.benchmark) return BENCHMARK;
+  const subjectIndex = series.slice(0, i).filter((s) => !s.benchmark).length;
+  return LINE_COLORS[subjectIndex % LINE_COLORS.length] as string;
+}
 
 export function BacktestChart({ series, height = 340 }: { series: ChartSeries[]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -75,8 +87,8 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
     chartRef.current = chart;
     seriesRefs.current = Array.from({ length: count }, (_, i) =>
       chart.addSeries(LineSeries, {
-        color: LINE_COLORS[i % LINE_COLORS.length],
-        lineWidth: 2,
+        color: colorAt(series, i),
+        lineWidth: series[i]?.benchmark ? 1 : 2,
         priceLineVisible: false,
         lastValueVisible: false,
       }),
@@ -119,7 +131,7 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
                 display: "inline-block",
                 width: 10,
                 height: 2,
-                background: LINE_COLORS[i % LINE_COLORS.length],
+                background: colorAt(series, i),
                 verticalAlign: "middle",
                 marginRight: 6,
               }}

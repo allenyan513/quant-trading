@@ -2,14 +2,14 @@
  * Shared plumbing for the public dividend backtester: the request shape, the
  * window helpers, and the one hook that talks to the API.
  *
- * Two surfaces consume this — the form tool (`/tools/dividend-portfolio-backtest`,
+ * Two surfaces consume this — the form tool (`/tools/portfolio-backtest`,
  * which drives everything off the query string) and the preset landing pages
  * (fixed baskets, fetched on mount). Keeping the fetch in ONE hook is what stops
  * those two from drifting into lookalike implementations with different retry,
  * error and race behaviour.
  */
 import { useEffect, useRef, useState } from "react";
-import { apiSend } from "@/lib/api-client";
+import { apiSend, type ApiResult } from "@/lib/api-client";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
 
 /** Mirrors the server's limits (`services/data/src/backtest.ts`). */
@@ -30,6 +30,49 @@ export interface DividendBacktestRequest {
   to: string;
   initial: number;
   reinvest: boolean;
+}
+
+/**
+ * How much of the total gain came from dividends, 0–1.
+ *
+ * Uses the NO-DRIP path deliberately: on the DRIP path the income is already
+ * inside `endValue`, so dividing one by the other double-counts it.
+ *
+ * This is the signal that decides whether a page leads with income or with
+ * growth — measured, not declared. Real spread at a 10-year window:
+ * SCHD 26% / VYM 24% versus SPY 9.7% / QQQ 3.2%, with nothing in between.
+ */
+export function dividendShare(r: DividendBacktestResult): number {
+  const gain = r.noDrip.endValue - r.initial;
+  if (gain <= 0) return 0;
+  return r.noDrip.totalIncome / gain;
+}
+
+/** At or above this, the income tables lead; below it they collapse to one line. */
+export const DIVIDEND_LEAD_THRESHOLD = 0.15;
+
+/**
+ * In-flight + completed request cache, keyed by the serialized request.
+ *
+ * Preset pages now fire one leg per holding PLUS a benchmark leg, so a visitor
+ * clicking through a few of them would otherwise burn through the gateway's
+ * 20-requests-per-minute-per-IP budget on work we already did — the SPY benchmark
+ * for a 10-year window is byte-identical across every page that uses it.
+ * Session-scoped and deliberately unbounded-but-small: a session cannot generate
+ * many distinct windows.
+ */
+const cache = new Map<string, Promise<ApiResult<DividendBacktestResult>>>();
+
+function runCached(key: string, request: DividendBacktestRequest): Promise<ApiResult<DividendBacktestResult>> {
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const p = apiSend<DividendBacktestResult>("/api/tools/dividend-backtest", "POST", request);
+  cache.set(key, p);
+  // A failure must not be cached — the next attempt (or a retry) should really retry.
+  void p.then((r) => {
+    if (!r.ok) cache.delete(key);
+  });
+  return p;
 }
 
 export interface BacktestState {
@@ -67,7 +110,7 @@ export function useDividendBacktest(
 
     void (async () => {
       for (let attempt = 0; ; attempt++) {
-        const res = await apiSend<DividendBacktestResult>("/api/tools/dividend-backtest", "POST", request);
+        const res = await runCached(key, request);
         if (latest.current !== id) return; // superseded — drop it
         if (res.ok && res.data) {
           setState({ result: res.data, error: null, loading: false });
@@ -120,7 +163,7 @@ export function useDividendBacktests(
     void (async () => {
       const runOne = async (req: DividendBacktestRequest) => {
         for (let attempt = 0; ; attempt++) {
-          const res = await apiSend<DividendBacktestResult>("/api/tools/dividend-backtest", "POST", req);
+          const res = await runCached(JSON.stringify(req), req);
           if (res.ok && res.data) return { ok: true as const, data: res.data };
           if (attempt < retry) {
             await sleep(RETRY_DELAY_MS);

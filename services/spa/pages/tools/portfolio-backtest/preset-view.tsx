@@ -21,7 +21,7 @@ import { PresetSiblings } from "@/components/backtest/preset-links";
 import { FaqList, panel, table, Th, Td } from "@/components/backtest/ui";
 import { ComparisonResultsSection } from "@/components/backtest/comparison";
 import { useDividendBacktest, useDividendBacktests } from "@/lib/backtest";
-import { presetRequest, presetRequestPerHolding, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";
+import { presetRequest, presetRequestPerHolding, presetBenchmarkRequest, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";
 import { applySeo, presetSeo } from "@/lib/seo";
 import { PRESET_COPY } from "./presets";
 
@@ -36,8 +36,12 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
   // backtest would chart a 50/50 basket, which is not what "SCHD vs VYM" asks.
   const request = useMemo(() => (isComparison ? null : presetRequest(preset)), [preset, isComparison]);
   const requests = useMemo(() => (isComparison ? presetRequestPerHolding(preset) : null), [preset, isComparison]);
+  // The S&P 500 backdrop. Its own leg, and deduped across pages by the request
+  // cache in lib/backtest.ts — the same 10-year SPY run serves every page.
+  const benchRequest = useMemo(() => presetBenchmarkRequest(preset), [preset]);
   const single = useDividendBacktest(request, { retry: 1 });
   const multi = useDividendBacktests(requests, { retry: 1 });
+  const bench = useDividendBacktest(benchRequest, { retry: 1 });
   const Copy = PRESET_COPY[preset.slug];
 
   useEffect(() => applySeo(presetSeo(preset)), [preset]);
@@ -121,11 +125,12 @@ export function PresetBacktestView({ preset }: { preset: BacktestPreset }) {
             symbols={preset.holdings.map((h) => h.symbol)}
             results={multi.results}
             initial={preset.initial}
+            benchmark={bench.result}
             loading={multi.loading}
             error={multi.error}
           />
         ) : (
-          <BacktestResultsSection result={single.result} loading={single.loading} error={single.error} />
+          <BacktestResultsSection result={single.result} benchmark={bench.result} loading={single.loading} error={single.error} />
         )}
       </section>
 

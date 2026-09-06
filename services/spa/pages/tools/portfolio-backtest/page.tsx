@@ -1,5 +1,5 @@
 /**
- * Public dividend-portfolio backtester — /tools/dividend-portfolio-backtest.
+ * Public portfolio backtester — /tools/portfolio-backtest.
  *
  * Deliberately sign-in-free and single-purpose: type tickers + weights, get the
  * reinvested-vs-cash outcome, the income each year, and the dividend cuts you sat
@@ -29,7 +29,7 @@ import {
   useDividendBacktest,
   type DividendBacktestRequest,
 } from "@/lib/backtest";
-import { applySeo, DIVIDEND_BACKTEST_SEO, BACKTEST_FAQ } from "@/lib/seo";
+import { applySeo, BACKTEST_TOOL_SEO, BACKTEST_FAQ } from "@/lib/seo";
 
 interface Row {
   symbol: string;
@@ -111,7 +111,7 @@ export default function DividendBacktestPage() {
   // canonical is deliberately the BARE path — a run encodes its inputs in the
   // query string, and every shared `?p=…` link would otherwise be indexed as a
   // separate near-duplicate of this page.
-  useEffect(() => applySeo(DIVIDEND_BACKTEST_SEO), []);
+  useEffect(() => applySeo(BACKTEST_TOOL_SEO), []);
 
   const query = params.toString();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,11 +140,11 @@ export default function DividendBacktestPage() {
 
       <section style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "clamp(16px, 4vw, 40px) clamp(16px, 5vw, 40px) 8px" }}>
         <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.1, margin: 0 }}>
-          Dividend Portfolio Backtest
+          Portfolio Backtest
         </h1>
         <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "var(--muted)", lineHeight: 1.55, margin: "12px 0 0", maxWidth: 660 }}>
-          Put a basket of dividend stocks or ETFs through real history on <strong style={{ color: "var(--text)" }}>daily</strong> prices.
-          See what reinvesting actually earned you, what the income did year by year, and which holdings cut their dividend along the way.
+          Put any basket of stocks or ETFs through real history on <strong style={{ color: "var(--text)" }}>daily</strong> prices —
+          total return, drawdown, and what reinvesting the dividends was actually worth, benchmarked against the S&amp;P 500.
           No account, no paywall.
         </p>
       </section>

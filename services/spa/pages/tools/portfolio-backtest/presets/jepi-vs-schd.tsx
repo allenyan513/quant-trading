@@ -1,5 +1,5 @@
 /**
- * Editorial body for /tools/dividend-portfolio-backtest/jepi-vs-schd.
+ * Editorial body for /tools/portfolio-backtest/jepi-vs-schd.
  *
  * The angle this page exists for: JEPI's payout is option premium, not dividends,
  * so it falls when volatility falls. The income-by-year and dividend-cuts tables
@@ -65,7 +65,7 @@ export default function JepiVsSchdCopy() {
         </P>
         <P>
           To test a blend, or either one against something else, use{" "}
-          <Link href="/tools/dividend-portfolio-backtest" style={{ color: "var(--accent)" }}>
+          <Link href="/tools/portfolio-backtest" style={{ color: "var(--accent)" }}>
             the full backtest tool
           </Link>
           .

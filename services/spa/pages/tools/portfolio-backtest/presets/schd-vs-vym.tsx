@@ -1,5 +1,5 @@
 /**
- * Editorial body for /tools/dividend-portfolio-backtest/schd-vs-vym.
+ * Editorial body for /tools/portfolio-backtest/schd-vs-vym.
  *
  * Written to stand on its own: the backtest numbers arrive client-side, so this
  * copy IS the page as far as a crawler is concerned. Deliberately qualitative —

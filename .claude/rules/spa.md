@@ -42,9 +42,13 @@ paths:
 
 ## 预设回测落地页(`lib/backtest-presets.ts`)
 
-`/tools/dividend-portfolio-backtest/<slug>` 每条是一个独立可索引页面(`?p=` 参数页永远排不上 —— 它们全部 canonical 回裸路径,在索引里不作为页面存在)。
+`/tools/portfolio-backtest/<slug>`(对比页在 `/compare/<slug>`) 每条是一个独立可索引页面(`?p=` 参数页永远排不上 —— 它们全部 canonical 回裸路径,在索引里不作为页面存在)。
 
 - **真源是 `BACKTEST_PRESETS`**,喂四个消费者:`src/routes.tsx` 的路由、`prerender/entry-server.tsx` 的 `COMPONENTS`、`lib/seo.ts` 的 `PUBLIC_PAGES`/sitemap、`components/backtest/preset-links.tsx` 的内链。加一页 = 往 `BACKTEST_PRESETS` 加一条 + 在 `presets/index.ts` 的 `PRESET_COPY` 注册文案组件。`assertPresetGraph()` 在预渲染时跑,slug 重复/`related` 悬空/FAQ 为空都会**构建失败**。
+- **路径由 `presetPath(preset)` 按 `kind` 生成**:`comparison` → `/compare/<slug>`,`basket` → `/<slug>`。**slug 保持扁平、不要写斜杠** —— `assertPresetGraph` 的 slug 正则拒绝 `/`,而且路径段不是预设的身份。`presetPath` 是唯一把 slug 变成路径的地方,改 URL 形态就改这一个函数(`prerender.mjs` 一行都不用动)。
+- **排版重点由数据决定,不由页面声明**:`dividendShare(result) >= DIVIDEND_LEAD_THRESHOLD`(15%)才让逐年收入/收益率成本/砍息成为主区块,否则收成一行摘要。实测分界很干净(SCHD 26% / VYM 24% vs SPY 9.7% / QQQ 3.2%),而且这样自由工具里手打 QQQ 也能得到正确排布 —— **不要退回成给预设打 `focus` 标签**。
+- **基准线(SPY)**:`preset.benchmark` 默认 `"SPY"`,基准已在持仓里时自动跳过;`ChartSeries.benchmark` 让它渲染成灰色细线(对齐 `nav-chart.tsx` 的 NAV-vs-SPY 约定),且不占用调色板槽位。
+- **`lib/backtest.ts` 的请求去重缓存不要拿掉**:网关限流 20 次/分钟/IP,而对比页 + 基准 = 3 次请求,连点几个预设页就会撞 429。缓存按序列化 request 做键,失败不缓存。
 - **路由按 registry 逐条枚举,不要用 `:slug`**:未知子路径落到既有的 `*` catch-all(和其它坏 URL 一致),不会在无限 URL 空间上渲染软 404;而且客户端路由与预渲染用**同一个组件 + 同一个 prop**。`PresetBacktestView` 接 `preset` prop,**绝不读 `useParams()`** —— 预渲染在无 `<Routes>` 的 StaticRouter 里直接渲染组件,`useParams()` 是空的,每页都会预渲染成空白。
 - **窗口用 `years` 相对值,不写死日期**;文案里**不要出现具体收益率数字**(会过期,还会和上方实时表格自相矛盾),只写不动的基金事实(指数规则、费率、持仓数量级)。
 - **预设页只用 `<BacktestMethodNotes variant="brief" />`**(三张卡 + 链回工具页),不要复制主工具页那七张 —— 四个页面挂同一段文字就是自己制造的重复内容,样板占比过高正是批量页被过滤的原因。

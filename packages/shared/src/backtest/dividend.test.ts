@@ -295,6 +295,28 @@ describe("findDividendCuts", () => {
     expect(findDividendCuts([{ symbol: "BDC", dividends }], "2021-01-01", "2022-12-31")).toEqual([]);
   });
 
+  it("ignores a broad-market ETF's couple-of-percent wobble", () => {
+    // QQQ's real shape: 2020 paid 1.737/share, 2021 paid 1.697 — a 2.3% dip with
+    // no company having cut anything. Reported on a growth page as a dividend cut,
+    // that is a false signal in the worst possible place.
+    const dividends = [
+      ...["03", "06", "09", "12"].map((m) => ({ exDate: `2020-${m}-20`, amount: 1.737 / 4 })),
+      ...["03", "06", "09", "12"].map((m) => ({ exDate: `2021-${m}-20`, amount: 1.697 / 4 })),
+    ];
+    expect(findDividendCuts([{ symbol: "QQQ", dividends }], "2020-01-01", "2021-12-31")).toEqual([]);
+  });
+
+  it("still flags a real cut just past the threshold", () => {
+    // JEPI 2024 fell 8.7% — comfortably above the 5% floor, and genuinely less cash.
+    const dividends = [
+      ...["03", "06", "09", "12"].map((m) => ({ exDate: `2020-${m}-20`, amount: 1.0 })),
+      ...["03", "06", "09", "12"].map((m) => ({ exDate: `2021-${m}-20`, amount: 0.913 })),
+    ];
+    const cuts = findDividendCuts([{ symbol: "REAL", dividends }], "2020-01-01", "2021-12-31");
+    expect(cuts).toHaveLength(1);
+    expect(cuts[0]!.changePct).toBeCloseTo(-8.7, 1);
+  });
+
   it("flags a suspension — a full year with no payment at all", () => {
     const cuts = findDividendCuts(
       [{ symbol: "STOPPED", dividends: [{ exDate: "2020-06-01", amount: 1 }] }],
