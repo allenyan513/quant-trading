@@ -8,7 +8,7 @@
  * the income tables get their own panels or collapse to one sentence, so a user
  * typing QQQ into the form gets the same correct emphasis as a preset page.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
 import { panel, chip, h2Style, subStyle, Kpi, Th, Td } from "@/components/backtest/ui";
@@ -34,13 +34,19 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
   const dividendLed = share >= DIVIDEND_LEAD_THRESHOLD;
   const benchEdge = benchmark ? stats.cagrPct - benchmark.drip.cagrPct : null;
 
-  const chartSeries = [
-    { label: "Dividends reinvested", points: result.series.map((p) => ({ date: p.date, value: p.drip })), showLastValue: true },
-    { label: "Dividends taken as cash", points: result.series.map((p) => ({ date: p.date, value: p.noDrip })) },
-    ...(benchmark
-      ? [{ label: "S&P 500", points: benchmark.series.map((p) => ({ date: p.date, value: p.drip })), benchmark: true }]
-      : []),
-  ];
+  // Memoised on the data, NOT rebuilt per render. The chart re-feeds its series and
+  // snaps back to the full window whenever this array's identity changes, so an
+  // inline literal would abort a running replay on any unrelated parent re-render.
+  const chartSeries = useMemo(
+    () => [
+      { label: "Dividends reinvested", points: result.series.map((p) => ({ date: p.date, value: p.drip })), showLastValue: true },
+      { label: "Dividends taken as cash", points: result.series.map((p) => ({ date: p.date, value: p.noDrip })) },
+      ...(benchmark
+        ? [{ label: "S&P 500", points: benchmark.series.map((p) => ({ date: p.date, value: p.drip })), benchmark: true }]
+        : []),
+    ],
+    [result, benchmark],
+  );
 
   return (
     <>

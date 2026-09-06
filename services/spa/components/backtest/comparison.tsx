@@ -9,6 +9,7 @@
  * Every figure is dividends-reinvested. Reinvested-vs-cash is the form tool's and
  * the ticker pages' story, not this page's.
  */
+import { useMemo } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
 import { panel, table, h2Style, subStyle, Th, Td } from "@/components/backtest/ui";
@@ -58,6 +59,24 @@ const METRICS: Metric[] = [
 ];
 
 export function ComparisonResults({ symbols, results, initial, benchmark = null }: ComparisonResultsProps) {
+  // Memoised on the data, NOT rebuilt per render. The chart re-feeds its series and
+  // snaps back to the full window whenever this array's identity changes, so an
+  // inline literal would abort a running replay on any unrelated parent re-render.
+  // Sits above the early return below because hooks may not be skipped.
+  const chartSeries = useMemo(
+    () => [
+      ...results.map((r, i) => ({
+        label: symbols[i] ?? `Fund ${i + 1}`,
+        points: r.series.map((p) => ({ date: p.date, value: p.drip })),
+        showLastValue: i === 0,
+      })),
+      ...(benchmark
+        ? [{ label: "S&P 500", points: benchmark.series.map((p) => ({ date: p.date, value: p.drip })), benchmark: true }]
+        : []),
+    ],
+    [results, symbols, benchmark],
+  );
+
   const first = results[0];
   if (!first) return null;
 
@@ -65,17 +84,6 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
   // income rows and the year-by-year table are noise (SPY vs QQQ), so they go.
   const dividendLed = results.some((r) => dividendShare(r) >= DIVIDEND_LEAD_THRESHOLD);
   const rows = METRICS.filter((m) => dividendLed || !m.dividendOnly);
-
-  const chartSeries = [
-    ...results.map((r, i) => ({
-      label: symbols[i] ?? `Fund ${i + 1}`,
-      points: r.series.map((p) => ({ date: p.date, value: p.drip })),
-      showLastValue: i === 0,
-    })),
-    ...(benchmark
-      ? [{ label: "S&P 500", points: benchmark.series.map((p) => ({ date: p.date, value: p.drip })), benchmark: true }]
-      : []),
-  ];
 
   const warnings = [...new Set(results.flatMap((r) => r.warnings))];
   const cuts = results.flatMap((r) => r.dividendCuts);

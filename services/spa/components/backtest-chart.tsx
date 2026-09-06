@@ -16,7 +16,7 @@
  * Theme colors are hardcoded hexes (CSS vars don't resolve inside the canvas).
  */
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createChart, LineSeries, ColorType, type IChartApi, type ISeriesApi } from "lightweight-charts";
 
 export interface ChartPoint {
@@ -69,6 +69,65 @@ export function fitBarSpacing(plotWidth: number, points: number): number | null 
   return (plotWidth / points) * FIT_SLACK;
 }
 
+// ============================================================
+// Replay — the arithmetic, kept pure and beside the component so it can be read
+// without a canvas or a clock.
+//
+// The animation widens the VISIBLE RANGE from a narrow opening window out to the
+// whole series; the data is drawn once and never touched. Two earlier attempts
+// animated the data instead, re-feeding `setData` with a growing prefix each
+// frame, and both shipped the same bug: the chart started EMPTY and only filled
+// in if the animation ran, so a background tab or a throttled frame loop left a
+// blank frame forever. Widening a range cannot do that — the series is already
+// complete, and the worst an interrupted replay leaves is a zoomed-in view, which
+// `finish()` and the Skip button both undo.
+// ============================================================
+
+const MIN_REPLAY_MS = 3_500;
+const MAX_REPLAY_MS = 7_000;
+
+/** Replay length, scaling gently with the window so a five-year run does not crawl
+ *  and a twenty-year one does not blur past. */
+export function replayDurationMs(points: number): number {
+  if (!Number.isFinite(points) || points <= 0) return MIN_REPLAY_MS;
+  return Math.min(MAX_REPLAY_MS, Math.max(MIN_REPLAY_MS, points * 1.4));
+}
+
+/** Elapsed → progress in [0,1]. Time-based, not frame-based, so the replay lasts
+ *  the same few seconds on a 144Hz monitor and on a throttled laptop. */
+export function progressAt(elapsedMs: number, durationMs: number): number {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 1;
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return 0;
+  return Math.min(1, elapsedMs / durationMs);
+}
+
+/**
+ * The window the replay opens on — roughly a quarter of trading days, and never
+ * more than a twentieth of the series so a short window still gets an animation.
+ *
+ * Not 1: two points stretched across the plot is a single enormous zigzag, not a
+ * chart.
+ */
+export function openingWindow(points: number): number {
+  if (!Number.isFinite(points) || points < 2) return 0;
+  return Math.max(2, Math.min(60, Math.round(points / 20)));
+}
+
+/**
+ * Right-hand edge of the visible range at progress `t`, as a logical index.
+ *
+ * Linear in the index, so every year of history gets the same amount of screen
+ * time — the alternative (constant zoom rate) spends most of the replay on the
+ * first few months and then races through the recent years.
+ */
+export function revealedIndex(t: number, points: number): number {
+  if (!Number.isFinite(points) || points < 2) return 0;
+  const last = points - 1;
+  const start = openingWindow(points);
+  const clamped = Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 1;
+  return Math.min(last, Math.round(start + (last - start) * clamped));
+}
+
 export function BacktestChart({ series, height = 340 }: { series: ChartSeries[]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -82,6 +141,12 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
   // the old one — the floor would then be too high for the new data.
   const pointsRef = useRef(points);
   pointsRef.current = points;
+
+  /** Right edge of the visible range while replaying; `null` when not replaying —
+   *  which is also the resting state, and the only state a visitor who never
+   *  presses the button will ever see. */
+  const [revealed, setRevealed] = useState<number | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   /**
    * Lower the zoom floor to whatever this chart's data and width actually need,
@@ -109,6 +174,61 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
       if (spacing == null) return;
       timeScale.applyOptions({ minBarSpacing: spacing });
       if (opts.snap) timeScale.fitContent();
+    },
+    [],
+  );
+
+  /** End the replay: the whole window, controls back, no leftover frame pending.
+   *  Everything that can stop a replay routes through here, so "stopped" and
+   *  "showing the complete chart" are the same state. */
+  const finish = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    setRevealed(null);
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.applyOptions({ handleScroll: true, handleScale: true });
+    applyFit({ snap: true });
+  }, [applyFit]);
+
+  const play = useCallback(() => {
+    const chart = chartRef.current;
+    const total = pointsRef.current;
+    if (!chart || total < 2) return;
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+
+    const timeScale = chart.timeScale();
+    const duration = replayDurationMs(total);
+    // The reader's wheel and the replay would otherwise fight over the same range.
+    chart.applyOptions({ handleScroll: false, handleScale: false });
+
+    let start = 0;
+    const tick = (now: number) => {
+      try {
+        // Clock starts on the first frame actually delivered, so a throttled tab
+        // cannot burn the whole replay before anyone sees it.
+        if (!start) start = now;
+        const t = progressAt(now - start, duration);
+        const to = revealedIndex(t, total);
+        timeScale.setVisibleLogicalRange({ from: 0, to });
+        setRevealed(to);
+        if (t < 1) {
+          rafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+      } catch {
+        // Never leave the chart parked on a partial range because a frame threw.
+      }
+      finish();
+    };
+    setRevealed(revealedIndex(0, total));
+    rafRef.current = requestAnimationFrame(tick);
+  }, [finish]);
+
+  // Stop a replay when the component goes away, whatever started it.
+  useEffect(
+    () => () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     },
     [],
   );
@@ -201,10 +321,44 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
     applyFit({ snap: true });
   }, [series, applyFit]);
 
+  const playing = revealed !== null;
+
   return (
     <div>
-      <div ref={ref} style={{ width: "100%" }} />
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+      <div style={{ position: "relative" }}>
+        <div ref={ref} style={{ width: "100%" }} />
+        {/* Live readout — the number the replay is about. Only while playing: the
+            resting page must look exactly as it did before the replay existed. */}
+        {playing && (
+          <div
+            aria-live="off"
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 12,
+              pointerEvents: "none",
+              fontVariantNumeric: "tabular-nums",
+              lineHeight: 1.25,
+            }}
+          >
+            <div style={{ fontSize: 12, color: MUTED }}>{series[0]?.points[revealed]?.date}</div>
+            {series.map((s, i) => {
+              if (s.benchmark) return null; // the backdrop is not what is being counted
+              const v = s.points[Math.min(revealed, s.points.length - 1)]?.value;
+              if (v == null) return null;
+              return (
+                <div key={s.label} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: i === 0 ? 22 : 15, fontWeight: 700, color: colorAt(series, i) }}>
+                    ${Math.round(v).toLocaleString("en-US")}
+                  </span>
+                  <span style={{ fontSize: 11, color: MUTED }}>{s.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12, color: "var(--muted)", marginTop: 8, alignItems: "center" }}>
         {series.map((s, i) => (
           <span key={s.label}>
             <span
@@ -220,13 +374,32 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
             {s.label}
           </span>
         ))}
+        {points >= 2 && (
+          <button
+            type="button"
+            onClick={playing ? finish : play}
+            style={{
+              marginLeft: "auto",
+              height: 26,
+              padding: "0 10px",
+              borderRadius: 999,
+              border: "1px solid var(--border)",
+              background: "transparent",
+              color: "var(--text)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            {playing ? "Skip" : "▶ Replay"}
+          </button>
+        )}
         {/* Attribution required by lightweight-charts' licence, in place of its
             injected logo — and unlike that logo, this one carries a `rel`. */}
         <a
           href="https://www.tradingview.com/"
           target="_blank"
           rel="noopener nofollow"
-          style={{ marginLeft: "auto", color: "var(--muted)" }}
+          style={{ marginLeft: points >= 2 ? undefined : "auto", color: "var(--muted)" }}
         >
           Charts by TradingView
         </a>
