@@ -63,6 +63,35 @@ export const fmtMoney = (v: number | null | undefined): string => money(v, "cell
 /** Watchlist market cap — uniform billions, bare (4663269130000 → "4,663.27B"). */
 export const fmtBillions = (v: number | null | undefined): string => money(v, "billions");
 
+// ============================================================
+// Money INPUT — the inverse of `money()`: an amount a person TYPES, rather than
+// one we render. It lives beside the display policy above so the "$ and thousands
+// separators" convention has one home instead of being reinvented in every form.
+// ============================================================
+
+/** A raw field value reduced to its digits. Tolerates a pasted "$1,000,000" and
+ *  drops any decimal part — a starting stake is a whole number of dollars, and a
+ *  stray "." in one is far more often a typo than an intent. Capped in length so
+ *  a leaned-on keyboard can't produce a figure past double precision. */
+export function moneyInputDigits(raw: string): string {
+  // TRUNCATE at the decimal point, never strip it: deleting the "." from "12.99"
+  // would splice the cents onto the dollars and quietly hundred-fold the stake.
+  // Commas are left to the digit filter below — they group, they don't divide.
+  const whole = raw.split(".")[0] ?? "";
+  return whole
+    .replace(/\D/g, "")
+    .replace(/^0+(?=\d)/, "") // "007" → "7", but a lone "0" survives
+    .slice(0, 12);
+}
+
+/** Digits → what the field shows: grouped, and WITHOUT a currency symbol. The
+ *  field renders its own "$" as an adornment instead, so the caret never has to
+ *  step over it. Empty stays empty — the user must be able to clear the box. */
+export function moneyInputDisplay(raw: string): string {
+  const digits = moneyInputDigits(raw);
+  return digits ? Number(digits).toLocaleString("en-US") : "";
+}
+
 function toDate(ts: string | Date | null | undefined): Date | null {
   if (!ts) return null;
   const d = typeof ts === "string" ? new Date(ts) : ts;

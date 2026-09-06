@@ -7,13 +7,14 @@ import { config } from "./config.js";
 
 /**
  * Guard for cron/job endpoints: true when the request's `Authorization` bearer
- * matches `JOB_TOKEN`. When `JOB_TOKEN` is unset (local dev), returns true so the
- * endpoints stay open locally; set the secret in prod so only the cron can fire.
+ * matches `JOB_TOKEN`. An unset `JOB_TOKEN` keeps the endpoints open locally, but
+ * fails CLOSED in production: there, an unset secret means a misconfigured deploy,
+ * and defaulting to open silently exposes every /jobs/* endpoint to the internet.
  * Framework-agnostic — services wrap it in a tiny Hono middleware.
  */
 export function isAuthorizedJob(authHeader: string | null | undefined): boolean {
   const token = config.jobToken();
-  if (!token) return true; // no secret configured → open (local/dev)
+  if (!token) return !config.isProduction();
   return authHeader === `Bearer ${token}`;
 }
 

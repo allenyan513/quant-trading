@@ -6,6 +6,14 @@ import SignInPage from "@/pages/sign-in/page";
 import SignUpPage from "@/pages/sign-up/page";
 import ConsentPage from "@/pages/oauth/consent/page";
 import GamePage from "@/pages/game/page";
+import ToolsIndexPage from "@/pages/tools/page";
+import DividendBacktestPage from "@/pages/tools/portfolio-backtest/page";
+import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
+import { BACKTEST_PRESETS, presetPath, TOOL_PATH } from "@/lib/backtest-presets";
+import { TOOLS_PATH } from "@/lib/tools";
+import AboutPage from "@/pages/about/page";
+import PrivacyPage from "@/pages/privacy/page";
+import TermsPage from "@/pages/terms/page";
 
 // Workspace shell + section layouts
 import DashboardLayout from "@/pages/workspace/layout";
@@ -80,6 +88,21 @@ export function AppRoutes() {
       <Route path="/sign-up" element={<SignUpPage />} />
       <Route path="/oauth/consent" element={<ConsentPage />} />
       <Route path="/game" element={<GamePage />} />
+
+      {/* Public no-login tools (SEO landing surfaces) */}
+      <Route path={TOOLS_PATH} element={<ToolsIndexPage />} />
+      <Route path={TOOL_PATH} element={<DividendBacktestPage />} />
+      {/* Ready-made backtests. Enumerated from the registry rather than a `:slug`
+          param: an unrecognized child then falls to the `*` catch-all like any other
+          bad URL, instead of rendering an empty page across an infinite URL space. */}
+      {BACKTEST_PRESETS.map((p) => (
+        <Route key={p.slug} path={presetPath(p)} element={<PresetBacktestView preset={p} />} />
+      ))}
+
+      {/* About / Privacy / Terms — public, prerendered */}
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
 
       <Route path="/workspace" element={<DashboardLayout />}>
         <Route index element={<Navigate to="/workspace/portfolio/paper" replace />} />

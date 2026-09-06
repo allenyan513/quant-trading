@@ -7,7 +7,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
-import { ok, fail, config, isAuthorizedJob, INCOME_CONCEPTS, marketdata } from "@qt/shared";
+import { ok, fail, config, isAuthorizedJob, INCOME_CONCEPTS, marketdata, BacktestError } from "@qt/shared";
 import { priorYear, settledPeriod } from "@qt/shared/xbrl-frames";
 import { redeliverPending } from "./deliver.js";
 import { scanEarnings } from "./scan/earnings.js";
@@ -15,6 +15,7 @@ import { scanFundamentals } from "./scan/fundamentals.js";
 import { pullNewsFeed, NEWS_CATEGORIES, type NewsCategory } from "./pull/news-feed.js";
 import { stageNews, notifyNews } from "./news.js";
 import { triageNewsItems } from "./triage.js";
+import { runBacktest } from "./backtest.js";
 import { dismissCandidate } from "./candidates.js";
 import { addWatchlist, removeWatchlist } from "./watchlist.js";
 import { createList, renameList, deleteList, assignToList, reorderLists, ensureDefaultList } from "./watchlist-lists.js";
@@ -691,6 +692,23 @@ app.post(
     if (!symbol) return c.json(fail("bad_request", "symbol required"), 400);
     const forceRefresh = body.forceRefresh !== false; // default true (caller just warmed)
     return computeReferenceValuation(symbol, { forceRefresh });
+  }),
+);
+
+// Public dividend-portfolio backtest (the SPA tool at /tools/portfolio-backtest,
+// reached through the gateway). Read-through market data + the pure engine in
+// @qt/shared/backtest; nothing is persisted beyond the marketdata caches it warms.
+app.post(
+  "/tools/dividend-backtest",
+  route("backtest.dividend", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    try {
+      return await runBacktest(body as Record<string, unknown>);
+    } catch (err) {
+      // A BacktestError is the caller's problem (bad symbol, empty window) → 400.
+      if (err instanceof BacktestError) return c.json(fail("bad_request", err.message), 400);
+      throw err;
+    }
   }),
 );
 

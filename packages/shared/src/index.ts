@@ -80,3 +80,18 @@ export {
 export { settleDecision, type SettleInput, type SettleDecision } from "./portfolio/settle.js";
 export { reviewHolding, type HoldingAction } from "./portfolio/redecision.js";
 export { isOutOfSample } from "./validation.js";
+export {
+  runDividendBacktest,
+  findDividendCuts,
+  BacktestError,
+  type BacktestBar,
+  type BacktestDividend,
+  type BacktestHoldingInput,
+  type DividendBacktestInput,
+  type DividendBacktestResult,
+  type PathStats,
+  type SeriesPoint,
+  type YearIncome,
+  type HoldingResult,
+  type DividendCut,
+} from "./backtest/dividend.js";

@@ -1,1 +1,15 @@
+# Old dividend-only namespace → the general one (2026-09-06). These four were live
+# and in the submitted sitemap, so they 301 rather than 404 — a redirect passes the
+# link equity on, a 404 throws it away.
+#
+# Safe because the prerender no longer emits any `dividend-portfolio-backtest.html`:
+# a `_redirects` source that DOES resolve to a `.html` asset collides with Pages'
+# `.html`-stripping 308 and loops (we burned that once — see prerender.mjs).
+# Rules are matched top-down, so these must stay above the catch-all.
+/tools/dividend-portfolio-backtest              /tools/portfolio-backtest/dividend               301
+/tools/dividend-portfolio-backtest/schd         /tools/portfolio-backtest/schd                   301
+/tools/dividend-portfolio-backtest/schd-vs-vym  /tools/portfolio-backtest/compare/schd-vs-vym    301
+/tools/dividend-portfolio-backtest/jepi-vs-schd /tools/portfolio-backtest/compare/jepi-vs-schd   301
+
+# Everything else is client-routed.
 /*    /index.html   200

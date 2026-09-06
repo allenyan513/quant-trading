@@ -193,12 +193,19 @@ async function runHoldingsSync(c: Context) {
   }
 }
 
-// Cron (JOB_TOKEN): sync EVERY connected account. Per-account failure is skipped.
+// Cron (JOB_TOKEN): sync EVERY connected account. A per-account failure is collected
+// rather than thrown, so one bad account can't strand the others — but the response
+// must still be non-2xx, or the cron shows a green run while the Live ledger silently
+// goes stale. The per-account errors ride along in `details` for the caller's log.
 app.post(
   "/jobs/sync-holdings",
-  route("holdings.sync.all", async () => {
+  route("holdings.sync.all", async (c) => {
     const res = await syncAllHoldings();
     log.info("holdings.sync.all.done", { synced: res.synced, failed: res.failed });
+    if (res.failed > 0) {
+      const msg = `${res.failed} of ${res.accounts.length} account(s) failed to sync`;
+      return c.json(fail("holdings_sync_incomplete", msg, { ...res }), 500);
+    }
     return res;
   }),
 );

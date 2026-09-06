@@ -25,8 +25,23 @@ export async function apiSend<T = unknown>(path: string, method: string, body?: 
       method,
       ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     });
-    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: T; error?: string };
-    if (!res.ok || !j.ok) return { ok: false, data: null, error: j.error ?? `HTTP ${res.status}` };
+    // The envelope's `error` is an OBJECT (`{ code, message }` — see
+    // `@qt/shared`'s ErrorDetail), not a string. Typing it as a string here used to
+    // hand callers an object through a `string | null` field, which TypeScript then
+    // could not catch: `setError(res.error)` followed by `{error}` in JSX threw
+    // "Objects are not valid as a React child" and blanked the whole page on any
+    // 4xx (e.g. an unknown ticker on the public backtest tool). Normalize to a
+    // string HERE so every call site keeps working unchanged.
+    const j = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      data?: T;
+      error?: { code?: string; message?: string } | string | null;
+    };
+    if (!res.ok || !j.ok) {
+      const e = j.error;
+      const msg = typeof e === "string" ? e : (e?.message ?? e?.code);
+      return { ok: false, data: null, error: msg ?? `HTTP ${res.status}` };
+    }
     return { ok: true, data: j.data ?? null, error: null };
   } catch (e) {
     return { ok: false, data: null, error: e instanceof Error ? e.message : String(e) };

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3001",
-    "build": "vite build",
+    "build": "vite build && vite build --ssr prerender/entry-server.tsx --outDir dist-ssr && node prerender/prerender.mjs",
     "preview": "vite preview --port 3001",
     "typecheck": "tsc --noEmit"
   },
