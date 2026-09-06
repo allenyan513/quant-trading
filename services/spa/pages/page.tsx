@@ -5,8 +5,15 @@ import { McpCopyButton } from "@/components/connect-claude";
 import { HeroIllustration } from "@/components/hero-illustration";
 import { applySeo, HOME_SEO } from "@/lib/seo";
 import { PublicFooter } from "@/components/public-chrome";
+import { TOOLS, TOOLS_PATH } from "@/lib/tools";
 
 const REPO_URL = "https://github.com/allenyan513/quant-trading";
+
+/** How many tools the homepage names before deferring to `/tools`. A front door
+ *  can hold a few doors; past that it stops being a front door. Below the cap the
+ *  "All tools" link is suppressed — with one tool it would point at a page listing
+ *  that same tool, and `/tools` is already linked from the footer on this page. */
+const HOME_TOOL_LIMIT = 3;
 
 /**
  * Public marketing homepage — served at `/` (the first thing any visitor sees).
@@ -121,29 +128,52 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Free tools — the homepage is the site's highest-authority page and until
-          now linked no tool at all. Static links, no request. */}
+      {/* Free tools. Generated from the SAME `TOOLS` registry as `/tools` and the
+          footer, so shipping a tool cannot leave the homepage behind — this block
+          used to name one tool in hardcoded markup.
+
+          The homepage links tools DIRECTLY while the footer links the hub, and the
+          difference is deliberate: this is the site's highest-authority page, so
+          its links are the most valuable ones a tool can receive, and routing them
+          through `/tools` would put a hop of dilution in front of every one. The
+          footer has the opposite problem — it renders on every page, so it must
+          link the one target that stays correct as tools are added.
+
+          Capped, because the homepage is a front door, not a directory; the rest
+          are one click away behind "All tools". Static links, no request. */}
       <section style={{ width: "100%", maxWidth: 960, margin: "0 auto", padding: "8px clamp(20px, 5vw, 40px) 40px", textAlign: "center" }}>
         <h2 style={{ fontSize: "clamp(20px, 3vw, 26px)", fontWeight: 800, letterSpacing: -0.3, margin: "0 0 6px" }}>
           Free tools, no account
         </h2>
         <p style={{ fontSize: 14, color: "var(--muted)", margin: "0 0 16px" }}>Open one and start typing — nothing is gated.</p>
-        <Link
-          href="/tools/portfolio-backtest"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            height: 42,
-            padding: "0 22px",
-            borderRadius: 999,
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
-          Portfolio backtest →
-        </Link>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", alignItems: "center" }}>
+          {TOOLS.slice(0, HOME_TOOL_LIMIT).map((tool) => (
+            <Link
+              key={tool.path}
+              href={tool.path}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                height: 42,
+                padding: "0 22px",
+                borderRadius: 999,
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              {tool.name} →
+            </Link>
+          ))}
+        </div>
+        {TOOLS.length > HOME_TOOL_LIMIT && (
+          <p style={{ margin: "16px 0 0" }}>
+            <Link href={TOOLS_PATH} style={{ fontSize: 14, color: "var(--muted)" }}>
+              All tools →
+            </Link>
+          </p>
+        )}
       </section>
 
       <PublicFooter />
