@@ -16,7 +16,7 @@
  * Theme colors are hardcoded hexes (CSS vars don't resolve inside the canvas).
  */
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { createChart, LineSeries, ColorType, type IChartApi, type ISeriesApi } from "lightweight-charts";
 
 export interface ChartPoint {
@@ -50,11 +50,68 @@ function colorAt(series: ChartSeries[], i: number): string {
   return LINE_COLORS[subjectIndex % LINE_COLORS.length] as string;
 }
 
+/**
+ * The bar spacing at which the whole window exactly fills the plot.
+ *
+ * This is the chart's zoom FLOOR, and setting it here rather than to a constant is
+ * what makes "zoomed all the way out" mean "the whole window" — you cannot shrink
+ * the series into a sliver, because there is nothing further out to see.
+ *
+ * The slack keeps the floor a hair below the true fit: `fitContent()` and this
+ * calculation round independently, and a floor even marginally too high is exactly
+ * the bug being fixed — it would clip the outermost bar.
+ */
+const FIT_SLACK = 0.97;
+
+export function fitBarSpacing(plotWidth: number, points: number): number | null {
+  if (!Number.isFinite(plotWidth) || !Number.isFinite(points)) return null;
+  if (plotWidth <= 0 || points < 2) return null;
+  return (plotWidth / points) * FIT_SLACK;
+}
+
 export function BacktestChart({ series, height = 340 }: { series: ChartSeries[]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<ISeriesApi<"Line">[]>([]);
   const count = series.length;
+  const points = useMemo(() => Math.max(0, ...series.map((s) => s.points.length)), [series]);
+  // Read through a ref, so `applyFit` can stay identity-stable and the long-lived
+  // ResizeObserver below cannot capture a stale count. Switching the tool's window
+  // from 10 to 20 years changes the point count WITHOUT changing the line count,
+  // so the observer's effect does not re-run and a closed-over `points` would be
+  // the old one — the floor would then be too high for the new data.
+  const pointsRef = useRef(points);
+  pointsRef.current = points;
+
+  /**
+   * Lower the zoom floor to whatever this chart's data and width actually need,
+   * and optionally snap to the full window.
+   *
+   * `minBarSpacing` defaults to 0.5px per bar and `fitContent()` cannot compress
+   * past it. A ten-year daily series is ~2,500 bars: it needs 0.32px per bar in an
+   * 800px plot and 0.12px on a phone, so the default silently clamped the zoom and
+   * pushed the earliest years off the left edge — where the reader had to drag to
+   * find them and could not zoom out to bring them back. Measured before this fix:
+   * a ten-year chart showed 2.4 years at 375px wide.
+   *
+   * The floor exists to stop bars becoming sub-pixel mush on a candlestick chart.
+   * This is a smooth line, so it has nothing to protect here.
+   */
+  const applyFit = useCallback(
+    (opts: { snap: boolean }) => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      const timeScale = chart.timeScale();
+      // The time scale spans the plot only — the price axis is not part of it.
+      // Fall back to the container minus the axis if it has not been laid out yet.
+      const plotWidth = timeScale.width() || (ref.current?.clientWidth ?? 0) - chart.priceScale("right").width();
+      const spacing = fitBarSpacing(plotWidth, pointsRef.current);
+      if (spacing == null) return;
+      timeScale.applyOptions({ minBarSpacing: spacing });
+      if (opts.snap) timeScale.fitContent();
+    },
+    [],
+  );
 
   useEffect(() => {
     const el = ref.current;
@@ -81,7 +138,24 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
       grid: { vertLines: { color: BORDER }, horzLines: { color: BORDER } },
       // Headroom so the end-of-line labels aren't pinned against the frame.
       rightPriceScale: { borderColor: BORDER, scaleMargins: { top: 0.12, bottom: 0.08 } },
-      timeScale: { borderColor: BORDER, timeVisible: false },
+      timeScale: {
+        borderColor: BORDER,
+        timeVisible: false,
+        // NOTE: `minBarSpacing` is deliberately absent here and set at runtime by
+        // `applyFit()` — it depends on how many points this particular chart got
+        // and how wide it ended up. The library's 0.5px default is far too coarse
+        // for a daily series (see the comment on `applyFit`).
+        //
+        // Nothing exists outside the window, so let neither edge scroll into blank
+        // space — the whole series is on screen and dragging past it is only ever
+        // an accident.
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        // Preserve the reader's own zoom across a container resize. `applyFit()`
+        // re-lowers the floor on resize, so a chart sitting at full extent stays at
+        // full extent, and one the reader zoomed in stays where they left it.
+        lockVisibleTimeRangeOnResize: true,
+      },
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
@@ -96,7 +170,12 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
 
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width;
-      if (w && w > 0) chart.applyOptions({ width: w });
+      if (!w || w <= 0) return;
+      chart.applyOptions({ width: w });
+      // Re-lower the floor for the new width, but do NOT snap: a reader who zoomed
+      // into 2020 should still be looking at 2020 after they resize the window.
+      // `lockVisibleTimeRangeOnResize` keeps their range; this keeps it reachable.
+      applyFit({ snap: false });
     });
     ro.observe(el);
 
@@ -117,8 +196,10 @@ export function BacktestChart({ series, height = 340 }: { series: ChartSeries[];
       s.applyOptions({ lastValueVisible: src.showLastValue ?? false });
       s.setData(src.points.map((p) => ({ time: p.date, value: p.value })));
     });
-    chartRef.current?.timeScale().fitContent();
-  }, [series]);
+    // New data means a new point count, so the floor has to be recomputed before
+    // fitting — otherwise `fitContent()` is clamped and drops the earliest years.
+    applyFit({ snap: true });
+  }, [series, applyFit]);
 
   return (
     <div>
