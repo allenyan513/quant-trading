@@ -4,7 +4,7 @@
  * this page is a public SEO landing surface, where that matters most).
  */
 import { lazy, Suspense, type ComponentProps } from "react";
-import type { BacktestPoint } from "./backtest-chart";
+import type { ChartSeries } from "./backtest-chart";
 
 const BacktestChart = lazy(() => import("./backtest-chart").then((m) => ({ default: m.BacktestChart })));
 
@@ -22,4 +22,4 @@ export function BacktestChartLazy(props: ComponentProps<typeof BacktestChart>) {
   );
 }
 
-export type { BacktestPoint };
+export type { ChartSeries };
