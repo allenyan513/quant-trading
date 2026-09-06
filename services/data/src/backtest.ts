@@ -18,9 +18,21 @@ import { log } from "./log.js";
 
 /** Bounds — a public, unauthenticated endpoint that spends FMP quota. */
 export const MAX_HOLDINGS = 10;
-export const MAX_YEARS = 10;
-/** Deep enough for MAX_YEARS; the price cache itself tops out around 11y. */
-const MAX_LOOKBACK_DAYS = 3800;
+/** Twenty, not ten. Ten was set when this was a dividend-only tool and covered the
+ *  history most dividend ETFs actually had; generalized to growth names, the windows
+ *  people search for ("$10,000 in Apple twenty years ago") sit past that line. */
+export const MAX_YEARS = 20;
+/**
+ * Deep enough for MAX_YEARS plus slack.
+ *
+ * FMP returns at most 5000 daily bars per request, which is ~19.9 years of trading
+ * days — so the very deepest windows can come back a few weeks short. That is safe
+ * rather than silent: the engine starts the window at the first date every holding
+ * has prices and pushes a "Window starts <date>" warning saying so. Going deeper
+ * than one request would mean paginating the shared price fetch, which the whole
+ * pipeline uses; not worth it for those few weeks.
+ */
+const MAX_LOOKBACK_DAYS = 7500;
 const DIVIDEND_ROWS = 400;
 const FETCH_CONCURRENCY = 3;
 
@@ -97,7 +109,9 @@ export function toDividend(row: { data: unknown }): BacktestDividend | null {
 async function loadHolding(h: BacktestRequestHolding, from: string) {
   const lookback = Math.min(MAX_LOOKBACK_DAYS, Math.ceil((Date.now() - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 10);
   const [prices, dividends] = await Promise.all([
-    marketdata.getDailyPrices(h.symbol, Math.max(30, lookback)),
+    // `fetchDays` opts this caller — and only this caller — into a deeper price
+    // cache than the news pipeline keeps; without it nothing can reach past ~11y.
+    marketdata.getDailyPrices(h.symbol, Math.max(30, lookback), { fetchDays: MAX_LOOKBACK_DAYS }),
     marketdata.getDividends(h.symbol, DIVIDEND_ROWS),
   ]);
   const bars: BacktestBar[] = [];

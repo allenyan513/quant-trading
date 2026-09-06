@@ -14,7 +14,21 @@ import type { DividendBacktestResult } from "@qt/shared/backtest";
 
 /** Mirrors the server's limits (`services/data/src/backtest.ts`). */
 export const MAX_HOLDINGS = 10;
-export const MAX_YEARS = 10;
+/** Mirrors the server's cap (`services/data/src/backtest.ts`) — keep them in step. */
+export const MAX_YEARS = 20;
+
+/**
+ * The window a visitor gets before choosing one — deliberately NOT `MAX_YEARS`.
+ * The deepest window is the slowest to fetch and, for a fund that listed in 2011,
+ * resolves to the same run as a ten-year one after the engine trims it. Ten is the
+ * span most of these funds actually have; twenty is there for the ones that go
+ * deeper, on request.
+ */
+export const DEFAULT_YEARS = 10;
+
+/** Trailing windows offered as one-click chips, shortest first. Every one is ≤
+ *  `MAX_YEARS`, and each is a span people search in ("10 years", "20 years"). */
+export const WINDOW_PRESETS = [5, 10, 20] as const;
 
 export const todayISO = (): string => new Date().toISOString().slice(0, 10);
 

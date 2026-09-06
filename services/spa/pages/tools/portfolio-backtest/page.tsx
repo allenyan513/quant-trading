@@ -25,6 +25,8 @@ import { moneyInputDigits, moneyInputDisplay } from "@/lib/format";
 import {
   MAX_HOLDINGS,
   MAX_YEARS,
+  DEFAULT_YEARS,
+  WINDOW_PRESETS,
   todayISO,
   yearsAgoISO,
   useDividendBacktest,
@@ -91,15 +93,31 @@ const serializeRows = (rows: Row[]): string =>
     .map((r) => `${r.symbol.trim().toUpperCase()}:${r.weight.trim() || "1"}`)
     .join(",");
 
+/**
+ * `?years=10` → a TRAILING window resolved at view time, which is what a shared
+ * link should carry. An absolute `from`/`to` pair silently goes stale: a link sent
+ * today saying `from=2016-09-06` is an eleven-year window next September. Same rule
+ * the preset pages already follow. Absolute dates stay supported for a custom
+ * window, and for every link handed out before this existed.
+ */
+function windowFromParams(params: URLSearchParams): { from: string; to: string } {
+  const years = Number(params.get("years"));
+  if (Number.isInteger(years) && years >= 1 && years <= MAX_YEARS) {
+    return { from: yearsAgoISO(years), to: todayISO() };
+  }
+  return { from: params.get("from") ?? yearsAgoISO(DEFAULT_YEARS), to: params.get("to") ?? todayISO() };
+}
+
 /** The query string IS the run. Null for a bare load, which the hook treats as
  *  "make no request" — that is what keeps an anonymous landing free of API calls. */
 function requestFromParams(params: URLSearchParams): DividendBacktestRequest | null {
   const parsed = parseRows(params.get("p"));
   if (!parsed) return null;
+  const window = windowFromParams(params);
   return {
     holdings: parsed.map((r) => ({ symbol: r.symbol, weight: Number(r.weight) || 0 })),
-    from: params.get("from") ?? yearsAgoISO(MAX_YEARS),
-    to: params.get("to") ?? todayISO(),
+    from: window.from,
+    to: window.to,
     initial: Number(params.get("initial") ?? 10000),
     // No form control drives this any more — see the note on the results panel.
     // Still PARSED, because `?drip=0` links were handed out (llms.txt documented
@@ -112,8 +130,17 @@ export default function DividendBacktestPage() {
   const [params, setParams] = useSearchParams();
 
   const [rows, setRows] = useState<Row[]>(() => parseRows(params.get("p")) ?? DEFAULT_ROWS);
-  const [from, setFrom] = useState(() => params.get("from") ?? yearsAgoISO(MAX_YEARS));
-  const [to, setTo] = useState(() => params.get("to") ?? todayISO());
+  const [from, setFrom] = useState(() => windowFromParams(params).from);
+  const [to, setTo] = useState(() => windowFromParams(params).to);
+  /** Which trailing-window chip is active, or null once the dates are hand-edited.
+   *  This is what decides whether a run is shared as `years=N` or as absolute dates
+   *  — an explicit choice rather than guessing from whether the dates happen to
+   *  line up with a preset. */
+  const [windowYears, setWindowYears] = useState<number | null>(() => {
+    const y = Number(params.get("years"));
+    if (Number.isInteger(y) && y >= 1 && y <= MAX_YEARS) return y;
+    return params.get("from") || params.get("to") ? null : DEFAULT_YEARS;
+  });
   const [initial, setInitial] = useState(() => moneyInputDigits(params.get("initial") ?? "10000"));
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -137,12 +164,30 @@ export default function DividendBacktestPage() {
       return;
     }
     setFormError(null);
-    setParams({ p, from, to, initial });
+    setParams({ p, ...windowParams(), initial });
+  }
+
+  /** A trailing window travels as `years`; a hand-picked one as the dates it is. */
+  function windowParams(): Record<string, string> {
+    return windowYears === null ? { from, to } : { years: String(windowYears) };
+  }
+
+  function applyWindow(years: number) {
+    setWindowYears(years);
+    setFrom(yearsAgoISO(years));
+    setTo(todayISO());
+  }
+
+  /** Editing either date by hand drops the chip: the window is no longer "the last
+   *  N years", so sharing it as one would be a lie a year from now. */
+  function editDate(which: "from" | "to", value: string) {
+    setWindowYears(null);
+    (which === "from" ? setFrom : setTo)(value);
   }
 
   function applyExample(ex: (typeof EXAMPLES)[number]) {
     setRows(ex.rows);
-    setParams({ p: serializeRows(ex.rows), from, to, initial });
+    setParams({ p: serializeRows(ex.rows), ...windowParams(), initial });
   }
 
   return (
@@ -212,11 +257,36 @@ export default function DividendBacktestPage() {
           )}
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 18, alignItems: "flex-end" }}>
+            {/* Trailing-window shortcuts. The date pickers stay — a chip covers the
+                common case, not every case — but a chip is what makes a shared link
+                survive the calendar, so it is the path most runs should take. */}
+            <div style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Window</span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {WINDOW_PRESETS.map((years) => (
+                  <button
+                    key={years}
+                    type="button"
+                    onClick={() => applyWindow(years)}
+                    aria-pressed={windowYears === years}
+                    style={{
+                      ...chip,
+                      height: 38,
+                      padding: "0 12px",
+                      borderColor: windowYears === years ? "var(--accent)" : "var(--border)",
+                      color: windowYears === years ? "var(--accent)" : "var(--text)",
+                    }}
+                  >
+                    {years}Y
+                  </button>
+                ))}
+              </div>
+            </div>
             <Field label="Start">
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={input} />
+              <input type="date" value={from} onChange={(e) => editDate("from", e.target.value)} style={input} />
             </Field>
             <Field label="End">
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={input} />
+              <input type="date" value={to} onChange={(e) => editDate("to", e.target.value)} style={input} />
             </Field>
             {/* Not a `Field`: the shortcut chips are buttons, and a button inside a
                 `<label>` fires the label's own focus behaviour when clicked. */}

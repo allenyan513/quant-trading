@@ -65,7 +65,7 @@ export function PresetSiblings({ current }: { current: string }) {
         <LinkCard
           href={TOOL_PATH}
           label="Build your own"
-          blurb="Any tickers, any weights, any window up to ten years."
+          blurb="Any tickers, any weights, any window up to twenty years."
         />
       </div>
     </section>
