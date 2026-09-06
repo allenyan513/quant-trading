@@ -16,6 +16,17 @@
 
 import { BACKTEST_PRESETS, presetPath, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";
 import { TOOLS, TOOLS_PATH } from "@/lib/tools";
+import {
+  alternatesOf,
+  BLOG_LANGS,
+  BLOG_POSTS,
+  hreflangOf,
+  htmlLangOf,
+  langPrefix,
+  postsFor,
+  type BlogLang,
+  type BlogPost,
+} from "@/lib/blog";
 
 export const SITE_URL = "https://sweetvaluelab.com";
 export const SITE_NAME = "SweetValueLab";
@@ -35,6 +46,23 @@ export interface PageSeo {
   /** Sitemap hints. Defaults suit a tool page. */
   priority?: string;
   changefreq?: string;
+  /** `<html lang>` and `og:locale`. Defaults to English — only the blog's Chinese
+   *  half sets this. Getting it wrong is not cosmetic: a page declared `en` while
+   *  serving Chinese invites a "wrong language" quality signal, and translation
+   *  prompts fire on the wrong pages. */
+  lang?: string;
+  /** Every language edition of THIS page, itself included — emitted as
+   *  `rel="alternate" hreflang` in the head and as `xhtml:link` in the sitemap.
+   *  Both directions must be present in each edition's list, or Google discards
+   *  the pairing (it verifies that the alternate points back). */
+  alternates?: readonly { hreflang: string; path: string }[];
+  /** `og:type`. Defaults to `website`; a post says `article`. */
+  ogType?: string;
+  /** `article:published_time` / `article:modified_time`, ISO dates. */
+  published?: string;
+  modified?: string;
+  /** RSS feed to advertise from this page's head, if any. */
+  feed?: { path: string; title: string };
 }
 
 /** Last substantive content revision. Feeds `dateModified`, which is how search
@@ -273,12 +301,194 @@ export const TOOLS_SEO: PageSeo = {
   ],
 };
 
+/* ── Blog ──────────────────────────────────────────────────────────────────
+ *
+ * Two language editions of one blog, each with its own index, its own RSS feed
+ * and its own `hreflang` set. The English index is `/blog`, the Chinese one
+ * `/blog/zh` — a subdirectory rather than a subdomain or a `?lang=` parameter,
+ * because a subdirectory inherits the domain's authority and is the only one of
+ * the three that needs no extra configuration to be crawled correctly.
+ *
+ * Everything below is derived from `BLOG_POSTS`, so a published file is a live
+ * URL in the sitemap, the feed, the index and the routes without a second edit.
+ */
+
+const blogUrl = (path: string) => `${SITE_URL}${path}`;
+
+/** The `Blog` node for one language edition — the parent every post declares
+ *  itself part of, so the posts read as a body of work rather than as loose
+ *  pages that happen to share a prefix. */
+const blogNode = (lang: BlogLang) => ({
+  "@type": "Blog",
+  "@id": `${blogUrl(langPrefix(lang))}#blog`,
+  url: blogUrl(langPrefix(lang)),
+  name: lang === "en" ? "SweetValueLab Blog" : "SweetValueLab 博客",
+  inLanguage: hreflangOf(lang),
+  publisher: { "@id": `${SITE_URL}/#organization` },
+  isPartOf: { "@id": `${SITE_URL}/#website` },
+});
+
+/** `hreflang` set shared by both editions of a page. Each edition lists ALL of
+ *  them, itself included — a one-way annotation is ignored. */
+const langAlternates = (paths: readonly { lang: BlogLang; path: string }[]) =>
+  paths.map(({ lang, path }) => ({ hreflang: hreflangOf(lang), path }));
+
+export const BLOG_INDEX_COPY: Record<BlogLang, { title: string; description: string; heading: string; intro: string }> = {
+  en: {
+    title: "Blog — SweetValueLab",
+    description:
+      "Plain-English writing on equity research: how returns are actually measured, what backtests can and cannot show, and how to read financial data without fooling yourself.",
+    heading: "Blog",
+    intro:
+      "Notes on measuring investments honestly — what the standard numbers include, what they leave out, and how to check a claim against primary data instead of taking it on trust.",
+  },
+  zh: {
+    title: "博客 — SweetValueLab",
+    description: "用大白话谈投资研究：收益到底怎么算、回测能说明什么又不能说明什么，以及怎么读财务数据才不至于骗到自己。",
+    heading: "博客",
+    intro: "一些关于「诚实地衡量投资」的笔记：常用数字算进了什么、漏掉了什么，以及怎么拿原始数据去核一个说法，而不是选择相信它。",
+  },
+};
+
+export const feedPath = (lang: BlogLang): string => `${langPrefix(lang)}/rss.xml`;
+
+const feedFor = (lang: BlogLang) => ({
+  path: feedPath(lang),
+  title: lang === "en" ? "SweetValueLab Blog (English)" : "SweetValueLab 博客（中文）",
+});
+
+/** The index of one language edition. */
+export function blogIndexSeo(lang: BlogLang): PageSeo {
+  const copy = BLOG_INDEX_COPY[lang];
+  const url = blogUrl(langPrefix(lang));
+  const posts = postsFor(lang);
+  return {
+    path: langPrefix(lang),
+    title: copy.title,
+    description: copy.description,
+    priority: "0.8",
+    // The index changes whenever a post ships; the posts themselves rarely do.
+    changefreq: "weekly",
+    lang: htmlLangOf(lang),
+    alternates: langAlternates(BLOG_LANGS.map((l) => ({ lang: l, path: langPrefix(l) }))),
+    feed: feedFor(lang),
+    jsonLd: [
+      ORGANIZATION,
+      blogNode(lang),
+      {
+        "@type": "CollectionPage",
+        "@id": `${url}#page`,
+        url,
+        name: copy.heading,
+        description: copy.description,
+        inLanguage: hreflangOf(lang),
+        isPartOf: { "@id": `${url}#blog` },
+        dateModified: posts[0]?.updated ?? CONTENT_UPDATED,
+      },
+      {
+        // Built from the SAME array the page renders, so the structured data and
+        // the visible links cannot disagree — Google drops ItemList entries it
+        // cannot find on the page.
+        "@type": "ItemList",
+        "@id": `${url}#list`,
+        itemListElement: posts.map((p, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          name: p.title,
+          description: p.description,
+          url: blogUrl(p.path),
+        })),
+      },
+    ],
+  };
+}
+
+/** One post. `BlogPosting` + a breadcrumb that states the hierarchy independently
+ *  of the URL shape, so the relationship survives if the paths ever move. */
+export function postSeo(post: BlogPost): PageSeo {
+  const url = blogUrl(post.path);
+  const indexUrl = blogUrl(langPrefix(post.lang));
+  const copy = BLOG_INDEX_COPY[post.lang];
+  return {
+    path: post.path,
+    title: post.title,
+    description: post.description,
+    priority: "0.7",
+    changefreq: "yearly",
+    lang: htmlLangOf(post.lang),
+    alternates: langAlternates(alternatesOf(post).map((p) => ({ lang: p.lang, path: p.path }))),
+    ogType: "article",
+    published: post.date,
+    modified: post.updated,
+    feed: feedFor(post.lang),
+    jsonLd: [
+      ORGANIZATION,
+      blogNode(post.lang),
+      {
+        "@type": "BlogPosting",
+        "@id": `${url}#post`,
+        headline: post.title,
+        description: post.description,
+        url,
+        mainEntityOfPage: url,
+        inLanguage: hreflangOf(post.lang),
+        datePublished: post.date,
+        dateModified: post.updated,
+        keywords: post.tags.join(", ") || undefined,
+        // No invented byline: the operator is a named organization on /about, and
+        // a fabricated author name is exactly the kind of trust signal that is
+        // worse than none.
+        author: { "@id": `${SITE_URL}/#organization` },
+        publisher: { "@id": `${SITE_URL}/#organization` },
+        isPartOf: { "@id": `${indexUrl}#blog` },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${url}#breadcrumbs`,
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+          { "@type": "ListItem", position: 2, name: copy.heading, item: indexUrl },
+          { "@type": "ListItem", position: 3, name: post.title, item: url },
+        ],
+      },
+    ],
+  };
+}
+
+/** RSS feeds the prerender writes out, one per language edition. Readers still
+ *  subscribe to feeds, and — increasingly — so do the crawlers that surface new
+ *  writing quickly. */
+export interface BlogFeed {
+  path: string;
+  title: string;
+  description: string;
+  lang: string;
+  link: string;
+  items: { title: string; description: string; url: string; date: string }[];
+}
+
+export const BLOG_FEEDS: BlogFeed[] = BLOG_LANGS.map((lang) => ({
+  path: feedPath(lang),
+  title: feedFor(lang).title,
+  description: BLOG_INDEX_COPY[lang].description,
+  lang: hreflangOf(lang),
+  link: blogUrl(langPrefix(lang)),
+  items: postsFor(lang).map((p) => ({
+    title: p.title,
+    description: p.description,
+    url: blogUrl(p.path),
+    date: p.date,
+  })),
+}));
+
 /** Every route the prerender emits and the sitemap lists. */
 export const PUBLIC_PAGES: PageSeo[] = [
   HOME_SEO,
   TOOLS_SEO,
   BACKTEST_TOOL_SEO,
   ...BACKTEST_PRESETS.map(presetSeo),
+  ...BLOG_LANGS.map(blogIndexSeo),
+  ...BLOG_POSTS.map(postSeo),
   ABOUT_SEO,
   PRIVACY_SEO,
   TERMS_SEO,
@@ -298,6 +508,20 @@ export function applySeo(seo: PageSeo): void {
   upsert("meta", 'meta[property="og:title"]', { property: "og:title" }, "content", seo.title);
   upsert("meta", 'meta[property="og:description"]', { property: "og:description" }, "content", seo.description);
   upsert("meta", 'meta[property="og:url"]', { property: "og:url" }, "content", url);
+  upsert("meta", 'meta[property="og:type"]', { property: "og:type" }, "content", seo.ogType ?? "website");
+  // Also the reader's own signal: a screen reader picks its voice from this, and
+  // the browser's translate prompt fires on it.
+  document.documentElement.lang = seo.lang ?? "en";
+  // Replaced wholesale rather than upserted — leaving the previous page's
+  // alternates behind would claim this URL is the translation of another one.
+  for (const el of document.head.querySelectorAll("link[rel='alternate'][hreflang]")) el.remove();
+  for (const alt of seo.alternates ?? []) {
+    const el = document.createElement("link");
+    el.setAttribute("rel", "alternate");
+    el.setAttribute("hreflang", alt.hreflang);
+    el.setAttribute("href", canonicalUrl(alt.path));
+    document.head.appendChild(el);
+  }
 }
 
 function upsert(

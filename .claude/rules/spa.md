@@ -42,6 +42,19 @@ paths:
 - JSON-LD 里的 FAQ 文案必须与页面上**可见**文案逐字一致(Google 的要求),改一处要同步另一处。
 - `index.html` 里的 `<!-- seo:start … seo:end -->` 区块是脚本的替换锚点,别删;它同时是 dev server 的默认 head。
 
+## 博客(`content/blog/` + `lib/blog.ts`)
+
+`/blog`(英文)与 `/blog/zh`(中文)两个语言版本,每版一个索引 + 一个 RSS;文章路径 `/blog/<slug>` 与 `/blog/zh/<slug>`。**文章是仓库里的 Markdown 文件**,不进 DB —— 公开面全靠构建期预渲染才可索引,DB 文章要么客户端渲染(爬虫又拿到空 `<div id="root">`,等于回到预渲染要解决的那个问题)、要么每次改文都要触发重建。**发文 = 提一个 PR**。
+
+- **真源 `content/blog/<lang>/<slug>.md`**,经 `lib/blog.ts` 的 `import.meta.glob(..., "?raw")` 在构建期内联,喂四个消费者:`pages/blog/`(索引与文章页)、`src/routes.tsx`(逐条枚举路由)、`lib/seo.ts` 的 `PUBLIC_PAGES`/sitemap/`BLOG_FEEDS`、footer 链接。**加一篇文章只需要加一个 `.md` 文件**,其余全部派生 —— 不要再去别处登记。
+- frontmatter 只认 `title` / `description` / `date` / `updated` / `tags`,写错 key 直接**构建失败**(拼错的 key = 静默丢失的元数据,比构建失败糟)。`assertBlogGraph()` 还会卡 slug 形态、日期格式、`updated < date`、正文为空、正文里的裸 HTML(渲染器不透传 HTML,写了只会显示成源码),以及**标题/描述长度按语言分档**(en 描述 80–180、zh 40–90 —— 搜索结果按渲染宽度截断,中文字符宽度和信息量都约为拉丁字符两倍,套英文字数会逼出注水句子)。
+- **`assertBlogLinks()` 校验文章里所有站内链接**(`](/...)`)必须命中 `PUBLIC_PAGES` 里真实产出的路径,否则构建失败 —— 长文是死链的主要来源,文章里的 404 和中心页上的一样贵。
+- **中英是两个独立可索引页面,不是客户端语言开关**:各有 canonical、各有 RSS,靠 `hreflang` 互指。`PageSeo` 的 `alternates` **必须包含自己**且双向对齐(Google 会校验对方是否指回来,单向标注直接丢弃);`lang` 同时写进 `<html lang>`(prerender 替换)与 `og:locale`。
+- **英文 slug 不能叫 `zh`** —— `/blog/zh` 是中文索引本身,`assertBlogGraph()` 直接拒。`dist/blog/zh.html` 与 `dist/blog/zh/` 目录共存已用 `npx wrangler pages dev services/spa/dist` 实测:`/blog/zh` 直接 200,不走 308。
+- **这是公开面唯一允许非英文文案的地方**(见 CLAUDE.md 的全英文铁律):`content/blog/zh/*` 与 `lib/seo.ts` 里 `BLOG_INDEX_COPY.zh`、`post-view.tsx` 的 `MORE_COPY.zh` 这几处 UI 串是中文版页面的正文/标签。**外围 chrome(header/footer/about/tools)一律保持英文**,不要跟着中文化。
+- 文章页与索引页 `lang` / `post` **一律走 prop,绝不读 `useParams()`**(同预设页:预渲染在无 `<Routes>` 的 StaticRouter 里直接渲染组件,params 是空的,会把每篇文章渲染成空白)。
+- 正文渲染用 `components/post-markdown.tsx`(阅读排版、站内链接走 `<Link>` 保持客户端跳转),**不要复用 `brief-markdown.tsx`** —— 那个是仪表盘密度、且把所有链接强制 `target="_blank"`,用在站内链接上对读者不友好。
+
 ## 预设回测落地页(`lib/backtest-presets.ts`)
 
 `/tools/portfolio-backtest/<slug>`(对比页在 `/compare/<slug>`) 每条是一个独立可索引页面(`?p=` 参数页永远排不上 —— 它们全部 canonical 回裸路径,在索引里不作为页面存在)。

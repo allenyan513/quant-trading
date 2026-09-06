@@ -55,6 +55,12 @@ export function PublicFooter() {
       <Link href="/tools" style={{ color: "var(--muted)" }}>
         Tools
       </Link>
+      {/* The English index only — same reasoning as `/tools`: the footer links the
+          hub, and the hub links onward (including to the Chinese edition). A footer
+          that grows a link per language is a footer that grows forever. */}
+      <Link href="/blog" style={{ color: "var(--muted)" }}>
+        Blog
+      </Link>
       <Link href="/about" style={{ color: "var(--muted)" }}>
         About
       </Link>

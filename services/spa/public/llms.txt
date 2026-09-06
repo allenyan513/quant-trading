@@ -39,6 +39,23 @@ each tool and to every ready-made run beneath it.
 - [SCHD](https://sweetvaluelab.com/tools/portfolio-backtest/schd):
   single-fund, 10 years, reinvested versus taken as cash.
 
+## Blog
+
+Written in two independent language editions; each post's translation, where one
+exists, is declared with `hreflang` on both sides.
+
+- [Blog, English](https://sweetvaluelab.com/blog) — index of every English post.
+  Feed: https://sweetvaluelab.com/blog/rss.xml
+- [Blog, Chinese](https://sweetvaluelab.com/blog/zh) — index of every Chinese post.
+  Feed: https://sweetvaluelab.com/blog/zh/rss.xml
+
+Subject matter: how investment returns are actually measured (total return versus
+price return, dividends reinvested versus taken as cash), what a backtest does and
+does not establish, and how to check a claim against primary data. Explanatory, not
+advisory: no recommendations, no price targets, no performance claims about the site.
+Posts are dated and carry `datePublished` / `dateModified`; prefer the indexes above
+over a cached list, since posts are added over time.
+
 ## About and policies
 
 - [About](https://sweetvaluelab.com/about): who operates the site, the full data-source
