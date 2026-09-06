@@ -21,6 +21,7 @@ import { BacktestResultsSection } from "@/components/backtest/results";
 import { BacktestMethodNotes } from "@/components/backtest/method";
 import { PresetHub } from "@/components/backtest/preset-links";
 import { panel, input, chip, primary, Field, FaqList } from "@/components/backtest/ui";
+import { moneyInputDigits, moneyInputDisplay } from "@/lib/format";
 import {
   MAX_HOLDINGS,
   MAX_YEARS,
@@ -60,6 +61,14 @@ const EXAMPLES: Array<{ label: string; rows: Row[] }> = [
   },
 ];
 
+/** Starting-stake shortcuts. Round numbers people actually think in — the point is
+ *  to skip the typing, so three is enough and a fourth would just be clutter. */
+const INITIAL_PRESETS = [
+  { value: 10_000, label: "$10K" },
+  { value: 100_000, label: "$100K" },
+  { value: 1_000_000, label: "$1M" },
+];
+
 /** "SCHD:60,VYM:40" ⇄ rows. Weight is optional (defaults to equal-ish 1). */
 function parseRows(p: string | null): Row[] | null {
   if (!p) return null;
@@ -92,6 +101,9 @@ function requestFromParams(params: URLSearchParams): DividendBacktestRequest | n
     from: params.get("from") ?? yearsAgoISO(MAX_YEARS),
     to: params.get("to") ?? todayISO(),
     initial: Number(params.get("initial") ?? 10000),
+    // No form control drives this any more — see the note on the results panel.
+    // Still PARSED, because `?drip=0` links were handed out (llms.txt documented
+    // the format) and a live URL is a promise; it just can't be produced now.
     reinvest: params.get("drip") !== "0",
   };
 }
@@ -102,8 +114,7 @@ export default function DividendBacktestPage() {
   const [rows, setRows] = useState<Row[]>(() => parseRows(params.get("p")) ?? DEFAULT_ROWS);
   const [from, setFrom] = useState(() => params.get("from") ?? yearsAgoISO(MAX_YEARS));
   const [to, setTo] = useState(() => params.get("to") ?? todayISO());
-  const [initial, setInitial] = useState(() => params.get("initial") ?? "10000");
-  const [reinvest, setReinvest] = useState(() => params.get("drip") !== "0");
+  const [initial, setInitial] = useState(() => moneyInputDigits(params.get("initial") ?? "10000"));
   const [formError, setFormError] = useState<string | null>(null);
 
   // A cold load already carries this route's head tags (the prerender wrote them
@@ -126,12 +137,12 @@ export default function DividendBacktestPage() {
       return;
     }
     setFormError(null);
-    setParams({ p, from, to, initial, drip: reinvest ? "1" : "0" });
+    setParams({ p, from, to, initial });
   }
 
   function applyExample(ex: (typeof EXAMPLES)[number]) {
     setRows(ex.rows);
-    setParams({ p: serializeRows(ex.rows), from, to, initial, drip: reinvest ? "1" : "0" });
+    setParams({ p: serializeRows(ex.rows), from, to, initial });
   }
 
   return (
@@ -207,13 +218,57 @@ export default function DividendBacktestPage() {
             <Field label="End">
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={input} />
             </Field>
-            <Field label="Initial investment">
-              <input value={initial} onChange={(e) => setInitial(e.target.value)} inputMode="decimal" style={{ ...input, width: 130 }} />
-            </Field>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, height: 38 }}>
-              <input type="checkbox" checked={reinvest} onChange={(e) => setReinvest(e.target.checked)} />
-              Reinvest dividends
-            </label>
+            {/* Not a `Field`: the shortcut chips are buttons, and a button inside a
+                `<label>` fires the label's own focus behaviour when clicked. */}
+            <div style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Initial investment</span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <div style={{ position: "relative" }}>
+                  {/* The "$" is an adornment, never part of the value — so the caret
+                      never has to step over it and a paste of "$10,000" still works. */}
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      left: 12,
+                      top: 0,
+                      height: 38,
+                      display: "flex",
+                      alignItems: "center",
+                      color: "var(--muted)",
+                      fontSize: 14,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    $
+                  </span>
+                  <input
+                    value={moneyInputDisplay(initial)}
+                    onChange={(e) => setInitial(moneyInputDigits(e.target.value))}
+                    inputMode="numeric"
+                    aria-label="Initial investment in US dollars"
+                    style={{ ...input, width: 132, paddingLeft: 24 }}
+                  />
+                </div>
+                {INITIAL_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => setInitial(String(preset.value))}
+                    aria-pressed={initial === String(preset.value)}
+                    style={{
+                      ...chip,
+                      height: 38,
+                      padding: "0 10px",
+                      fontSize: 12,
+                      borderColor: initial === String(preset.value) ? "var(--accent)" : "var(--border)",
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button type="submit" disabled={loading} style={{ ...primary, opacity: loading ? 0.6 : 1 }}>
               {loading ? "Running…" : "Run backtest"}
             </button>
