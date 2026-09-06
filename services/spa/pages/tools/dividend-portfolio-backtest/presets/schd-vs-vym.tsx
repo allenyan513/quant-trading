@@ -50,37 +50,7 @@ export default function SchdVsVymCopy() {
         </Ul>
       </Section>
 
-      <Section title="What to look at in the results above">
-        <P>
-          Total return is the headline, but it is the least stable number here: whichever fund&apos;s sectors happened to lead over the
-          window will look like the better fund. Change the start date by two years and the ranking can flip. Read it, then move on.
-        </P>
-        <P>
-          The income-by-year table is the more durable comparison. It shows what each basket actually paid, year after year, on the same
-          starting amount — and whether that payment grew. A dividend fund that pays more but grows the payment slowly ends up behind one
-          that starts lower and compounds, and ten years is long enough for that to show.
-        </P>
-        <P>
-          Then check yield on cost. With dividends reinvested it carries both the growth in the payout and the shares you accumulated,
-          which is the number an income investor is actually building toward — and it is usually far above either fund&apos;s quoted yield.
-        </P>
-      </Section>
 
-      <Section title="Holding both">
-        <P>
-          A 50/50 split is the default above because it is what people usually ask about, not because it is a recommendation. These two
-          funds overlap heavily on large US dividend payers, so owning both mostly dilutes whichever methodology you actually believe in.
-          Change the weights to 100/0 and 0/100 and compare — if the blend does not clearly beat both, you are paying for a decision you
-          have not made.
-        </P>
-        <P>
-          Want a different pairing?{" "}
-          <Link href="/tools/dividend-portfolio-backtest" style={{ color: "var(--accent)" }}>
-            The full tool
-          </Link>{" "}
-          takes any tickers, weights and window up to ten years.
-        </P>
-      </Section>
 
       <Section title="Sources">
         <P>

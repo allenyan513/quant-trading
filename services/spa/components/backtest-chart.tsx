@@ -1,12 +1,17 @@
 "use client";
 
 /**
- * Portfolio-value curve for the dividend backtest: reinvested vs not, on one
- * axis so the gap between them IS the answer the tool exists to give.
+ * Portfolio-value curve for the dividend backtest — N labelled lines on one axis.
  *
- * Like nav-chart/price-chart, this is the only module importing
- * lightweight-charts for this view and must be reached through
- * backtest-chart.lazy.tsx (the lib is heavy and touches the DOM).
+ * Two call sites, asking two different questions with the same component:
+ *  - the form tool and single-fund pages plot reinvested vs dividends-as-cash,
+ *    where the gap between the lines is the answer;
+ *  - comparison pages plot one line per fund, both reinvested, because "SCHD vs
+ *    VYM" is a question about the two funds, not about reinvestment.
+ *
+ * Like nav-chart/price-chart, this is the only module importing lightweight-charts
+ * for this view and must be reached through backtest-chart.lazy.tsx (the lib is
+ * heavy and touches the DOM).
  *
  * Theme colors are hardcoded hexes (CSS vars don't resolve inside the canvas).
  */
@@ -14,22 +19,30 @@
 import { useEffect, useRef } from "react";
 import { createChart, LineSeries, ColorType, type IChartApi, type ISeriesApi } from "lightweight-charts";
 
-export interface BacktestPoint {
+export interface ChartPoint {
   date: string; // YYYY-MM-DD
-  drip: number;
-  noDrip: number;
+  value: number;
 }
 
-const DRIP = "#58a6ff"; // accent — the reinvested path
-const PLAIN = "#8a97ab"; // muted — dividends taken as cash
+export interface ChartSeries {
+  label: string;
+  points: ChartPoint[];
+  /** Show this line's end-of-line price tag. Tags collide where curves converge,
+   *  so only the line the reader is anchoring on should carry one. */
+  showLastValue?: boolean;
+}
+
+/** Line colors in order. Stays inside the palette's meaning-free slots (accent,
+ *  muted, warn) rather than inventing a categorical scheme. */
+const LINE_COLORS = ["#58a6ff", "#8a97ab", "#d29922", "#3fb950"];
 const MUTED = "#8a97ab";
 const BORDER = "#232c3d";
 
-export function BacktestChart({ points, height = 340 }: { points: BacktestPoint[]; height?: number }) {
+export function BacktestChart({ series, height = 340 }: { series: ChartSeries[]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const dripRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const plainRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const seriesRefs = useRef<ISeriesApi<"Line">[]>([]);
+  const count = series.length;
 
   useEffect(() => {
     const el = ref.current;
@@ -54,23 +67,20 @@ export function BacktestChart({ points, height = 340 }: { points: BacktestPoint[
       // where the reader is judging shape, not cents.
       localization: { priceFormatter: (v: number) => `$${Math.round(v).toLocaleString("en-US")}` },
       grid: { vertLines: { color: BORDER }, horzLines: { color: BORDER } },
-      // Headroom so the two end-of-line labels aren't pinned against the frame.
+      // Headroom so the end-of-line labels aren't pinned against the frame.
       rightPriceScale: { borderColor: BORDER, scaleMargins: { top: 0.12, bottom: 0.08 } },
       timeScale: { borderColor: BORDER, timeVisible: false },
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
-    // Only the reinvested line keeps its end-of-line price tag. With both on, the
-    // two tags collide wherever the curves converge — which is most of the early
-    // years — and neither is readable. The gap between the lines is what matters
-    // and the panel above already states both end values exactly.
-    dripRef.current = chart.addSeries(LineSeries, { color: DRIP, lineWidth: 2, priceLineVisible: false });
-    plainRef.current = chart.addSeries(LineSeries, {
-      color: PLAIN,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    });
+    seriesRefs.current = Array.from({ length: count }, (_, i) =>
+      chart.addSeries(LineSeries, {
+        color: LINE_COLORS[i % LINE_COLORS.length],
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }),
+    );
 
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width;
@@ -82,30 +92,41 @@ export function BacktestChart({ points, height = 340 }: { points: BacktestPoint[
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
-      dripRef.current = null;
-      plainRef.current = null;
+      seriesRefs.current = [];
     };
-  }, [height]);
+    // Rebuild only when the number of lines changes; data updates go through the
+    // effect below without tearing down the chart.
+  }, [height, count]);
 
   useEffect(() => {
-    if (!dripRef.current || !plainRef.current) return;
-    dripRef.current.setData(points.map((p) => ({ time: p.date, value: p.drip })));
-    plainRef.current.setData(points.map((p) => ({ time: p.date, value: p.noDrip })));
+    seriesRefs.current.forEach((s, i) => {
+      const src = series[i];
+      if (!src) return;
+      s.applyOptions({ lastValueVisible: src.showLastValue ?? false });
+      s.setData(src.points.map((p) => ({ time: p.date, value: p.value })));
+    });
     chartRef.current?.timeScale().fitContent();
-  }, [points]);
+  }, [series]);
 
   return (
     <div>
       <div ref={ref} style={{ width: "100%" }} />
-      <div style={{ display: "flex", gap: 18, fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
-        <span>
-          <span style={{ display: "inline-block", width: 10, height: 2, background: DRIP, verticalAlign: "middle", marginRight: 6 }} />
-          Dividends reinvested
-        </span>
-        <span>
-          <span style={{ display: "inline-block", width: 10, height: 2, background: PLAIN, verticalAlign: "middle", marginRight: 6 }} />
-          Dividends taken as cash
-        </span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+        {series.map((s, i) => (
+          <span key={s.label}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 10,
+                height: 2,
+                background: LINE_COLORS[i % LINE_COLORS.length],
+                verticalAlign: "middle",
+                marginRight: 6,
+              }}
+            />
+            {s.label}
+          </span>
+        ))}
         {/* Attribution required by lightweight-charts' licence, in place of its
             injected logo — and unlike that logo, this one carries a `rel`. */}
         <a

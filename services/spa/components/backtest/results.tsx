@@ -21,7 +21,13 @@ export interface BacktestResultsProps {
 export function BacktestResults({ result, shareable = false }: BacktestResultsProps) {
   const stats = result.reinvest ? result.drip : result.noDrip;
   const dripEdge = result.drip.endValue - result.noDrip.endValue;
-  const points = result.series;
+  // Reinvested vs dividends-as-cash — the question the FORM tool and the
+  // single-fund pages ask. Comparison pages use `comparison.tsx` instead, which
+  // plots one line per fund.
+  const chartSeries = [
+    { label: "Dividends reinvested", points: result.series.map((p) => ({ date: p.date, value: p.drip })), showLastValue: true },
+    { label: "Dividends taken as cash", points: result.series.map((p) => ({ date: p.date, value: p.noDrip })) },
+  ];
 
   return (
       <>
@@ -50,7 +56,7 @@ export function BacktestResults({ result, shareable = false }: BacktestResultsPr
           </div>
 
           <div>
-            <BacktestChartLazy points={points} />
+            <BacktestChartLazy series={chartSeries} />
           </div>
 
           <div style={{ fontSize: 14, lineHeight: 1.6 }}>
