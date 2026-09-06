@@ -12,9 +12,9 @@
 import { useMemo, useRef, useState } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
-import { panel, table, h2Style, subStyle, ReplayButton, Th, Td } from "@/components/backtest/ui";
+import { panel, table, h2Style, subStyle, ReplayButton, SpeedToggle, Th, Td } from "@/components/backtest/ui";
 import { CutsPanel, ResultsGate, ScrollTable, WarningList } from "@/components/backtest/sections";
-import { dividendShare, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
+import { dividendShare, holdingsLabel, yearsAgoLabel, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
 import type { ReplayControls } from "@/components/backtest-chart";
 
@@ -81,6 +81,8 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
   // Above the early return below: hooks may not be skipped.
   const [replaying, setReplaying] = useState(false);
   const replay = useRef<ReplayControls | null>(null);
+  /** Remembered for the rest of the session: someone who wanted 2x once wants it again. */
+  const [speed, setSpeed] = useState<1 | 2>(1);
 
   const first = results[0];
   if (!first) return null;
@@ -100,18 +102,19 @@ export function ComparisonResults({ symbols, results, initial, benchmark = null 
       <div style={{ ...panel, display: "grid", gap: 18 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "baseline" }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>
-            {money(initial, "headline")} in each, {fmtNum(first.years, 1)} years ago
+            {money(initial, "headline", { decimals: 0 })} in each of {holdingsLabel(symbols)}, {yearsAgoLabel(first.years)}
           </div>
           <span style={{ fontSize: 13, color: "var(--muted)" }}>
             {first.start} → {first.end} · dividends reinvested
           </span>
           <div style={{ marginLeft: "auto" }}>
+            {replaying && <SpeedToggle speed={speed} onChange={setSpeed} />}
             <ReplayButton playing={replaying} onClick={() => (replaying ? replay.current?.skip() : replay.current?.play())} />
           </div>
         </div>
 
         <div>
-          <BacktestChartLazy series={chartSeries} controls={replay} onReplayFrame={(at) => setReplaying(at !== null)} />
+          <BacktestChartLazy speed={speed} series={chartSeries} controls={replay} onReplayFrame={(at) => setReplaying(at !== null)} />
         </div>
 
         <ScrollTable>

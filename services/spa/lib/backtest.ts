@@ -66,6 +66,36 @@ export function dividendShare(r: DividendBacktestResult): number {
 export const DIVIDEND_LEAD_THRESHOLD = 0.15;
 
 /**
+ * What the money went into, in words — "QQQ", "SCHD + VYM", "a 5-holding basket".
+ *
+ * The results headline used to read `$10,000.00 → $32,496.65`, which is the answer
+ * to a question it never asked. Naming the holdings turns it into a sentence
+ * someone can read out loud, and it is the one fact the panel was missing.
+ *
+ * Past three symbols the list stops being readable and starts being a wall, so it
+ * collapses to a count — the per-holding table below spells them out anyway.
+ */
+export function holdingsLabel(symbols: readonly string[]): string {
+  const list = symbols.filter(Boolean);
+  if (list.length === 0) return "this basket";
+  if (list.length <= 3) return list.join(" + ");
+  return `a ${list.length}-holding basket`;
+}
+
+/**
+ * "10 years ago" / "9.9 years ago".
+ *
+ * Deliberately NOT rounded to the requested window: a twenty-year run on a series
+ * that only reaches back 19.9 years is a nineteen-point-nine-year run, and the
+ * headline is the last place to round that away.
+ */
+export function yearsAgoLabel(years: number): string {
+  if (!Number.isFinite(years) || years <= 0) return "";
+  const rounded = Math.round(years * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} years ago`;
+}
+
+/**
  * The headline figures recomputed over a PREFIX of the value path — what the KPI
  * tiles show while the chart is replaying.
  *

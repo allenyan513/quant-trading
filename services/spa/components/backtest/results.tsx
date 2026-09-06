@@ -12,9 +12,9 @@ import { useMemo, useRef, useState } from "react";
 import { Check, Link2 } from "lucide-react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
-import { panel, h2Style, subStyle, Kpi, ReplayButton, Th, Td } from "@/components/backtest/ui";
+import { panel, h2Style, subStyle, Kpi, ReplayButton, SpeedToggle, Th, Td } from "@/components/backtest/ui";
 import { CutsPanel, IncomeSummaryLine, ResultsGate, ScrollTable, WarningList } from "@/components/backtest/sections";
-import { dividendShare, statsThrough, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
+import { dividendShare, holdingsLabel, statsThrough, yearsAgoLabel, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
 import type { DividendBacktestResult } from "@qt/shared/backtest";
 import type { ReplayControls } from "@/components/backtest-chart";
 
@@ -44,6 +44,8 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
   const [replayAt, setReplayAt] = useState<number | null>(null);
   /** The chart's own play/skip, so the button can live up in the headline row. */
   const replay = useRef<ReplayControls | null>(null);
+  /** Remembered for the rest of the session: someone who wanted 2x once wants it again. */
+  const [speed, setSpeed] = useState<1 | 2>(1);
   const replaying = replayAt !== null;
 
   // The four value-derived tiles, recomputed over the revealed prefix while the
@@ -86,13 +88,15 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
       <div style={{ ...panel, display: "grid", gap: 18 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "baseline" }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>
-            {money(result.initial, "headline")} → {money(stats.endValue, "headline")}
+            {money(result.initial, "headline", { decimals: 0 })} in {holdingsLabel(result.holdings.map((h) => h.symbol))},{" "}
+            {yearsAgoLabel(result.years)} → {money(stats.endValue, "headline")}
           </div>
           <span style={{ fontSize: 13, color: "var(--muted)" }}>
-            {result.start} → {result.end} · {fmtNum(result.years, 1)} years · {result.reinvest ? "reinvested" : "dividends as cash"}
+            {result.start} → {result.end} · {result.reinvest ? "dividends reinvested" : "dividends as cash"}
           </span>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
             {shareable && <CopyLinkButton />}
+            {replaying && <SpeedToggle speed={speed} onChange={setSpeed} />}
             <ReplayButton playing={replaying} onClick={() => (replaying ? replay.current?.skip() : replay.current?.play())} />
           </div>
         </div>
@@ -125,7 +129,7 @@ export function BacktestResults({ result, benchmark = null, shareable = false }:
         </div>
 
         <div>
-          <BacktestChartLazy series={chartSeries} onReplayFrame={setReplayAt} controls={replay} />
+          <BacktestChartLazy speed={speed} series={chartSeries} onReplayFrame={setReplayAt} controls={replay} />
         </div>
 
         <div style={{ fontSize: 14, lineHeight: 1.6 }}>

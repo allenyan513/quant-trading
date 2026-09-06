@@ -84,14 +84,19 @@ export function fitBarSpacing(plotWidth: number, points: number): number | null 
 // ============================================================
 
 /**
- * Thirty seconds, flat, whatever the window.
+ * A minute at 1x, flat, whatever the window.
  *
  * Long on purpose. This is not a loading flourish — it is the reader watching a
  * decade happen, and the numbers above the chart moving with it. Scaling it by
  * point count (an earlier attempt) only made a five-year run feel rushed and a
- * twenty-year one feel arbitrary; every window deserves the same half minute.
+ * twenty-year one feel arbitrary; every window deserves the same minute.
  */
-export const REPLAY_MS = 30_000;
+export const REPLAY_MS = 60_000;
+
+/** Playback speeds offered. 1x is the default because the point is to WATCH; 2x is
+ *  there for the second viewing, or for anyone who already knows the shape. */
+export const REPLAY_SPEEDS = [1, 2] as const;
+export type ReplaySpeed = (typeof REPLAY_SPEEDS)[number];
 
 export function replayDurationMs(points: number): number {
   return points >= 2 ? REPLAY_MS : 0;
@@ -145,6 +150,10 @@ export interface BacktestChartProps {
    * behaviour depends on anyone listening.
    */
   onReplayFrame?: (revealed: number | null) => void;
+  /** 1 or 2. Changing it MID-REPLAY is continuous — the loop accumulates scaled
+   *  elapsed time rather than measuring against a fixed start, so the picture
+   *  simply speeds up from where it is instead of jumping. */
+  speed?: ReplaySpeed;
   /**
    * Filled with `{ play, skip }` once the chart is live, so the button can sit
    * wherever the page wants it rather than under the chart.
@@ -162,7 +171,11 @@ export interface ReplayControls {
   skip: () => void;
 }
 
-export function BacktestChart({ series, height = 340, onReplayFrame, controls }: BacktestChartProps) {
+export function BacktestChart({ series, height = 340, onReplayFrame, controls, speed = 1 }: BacktestChartProps) {
+  // Through a ref: the running loop must see speed changes without `play` losing
+  // its identity and tearing the whole replay down to rebuild it.
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<ISeriesApi<"Line">[]>([]);
@@ -244,13 +257,18 @@ export function BacktestChart({ series, height = 340, onReplayFrame, controls }:
     // The reader's wheel and the replay would otherwise fight over the same range.
     chart.applyOptions({ handleScroll: false, handleScale: false });
 
-    let start = 0;
+    // Accumulated rather than measured from a start stamp: that is what lets the
+    // speed change mid-flight without the picture jumping. It also means a
+    // throttled tab cannot burn the replay before anyone sees it — no frames
+    // delivered, no elapsed time.
+    let elapsed = 0;
+    let last = 0;
     const tick = (now: number) => {
       try {
-        // Clock starts on the first frame actually delivered, so a throttled tab
-        // cannot burn the whole replay before anyone sees it.
-        if (!start) start = now;
-        const t = progressAt(now - start, duration);
+        if (!last) last = now;
+        elapsed += (now - last) * speedRef.current;
+        last = now;
+        const t = progressAt(elapsed, duration);
         const to = revealedIndex(t, total);
         timeScale.setVisibleLogicalRange({ from: 0, to });
         publish(to);
