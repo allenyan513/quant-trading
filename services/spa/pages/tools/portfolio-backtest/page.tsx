@@ -21,9 +21,12 @@ import { BacktestResultsSection } from "@/components/backtest/results";
 import { BacktestMethodNotes } from "@/components/backtest/method";
 import { PresetHub } from "@/components/backtest/preset-links";
 import { panel, input, chip, primary, Field, FaqList } from "@/components/backtest/ui";
+import { moneyInputDigits, moneyInputDisplay } from "@/lib/format";
 import {
   MAX_HOLDINGS,
   MAX_YEARS,
+  DEFAULT_YEARS,
+  WINDOW_PRESETS,
   todayISO,
   yearsAgoISO,
   useDividendBacktest,
@@ -60,6 +63,14 @@ const EXAMPLES: Array<{ label: string; rows: Row[] }> = [
   },
 ];
 
+/** Starting-stake shortcuts. Round numbers people actually think in — the point is
+ *  to skip the typing, so three is enough and a fourth would just be clutter. */
+const INITIAL_PRESETS = [
+  { value: 10_000, label: "$10K" },
+  { value: 100_000, label: "$100K" },
+  { value: 1_000_000, label: "$1M" },
+];
+
 /** "SCHD:60,VYM:40" ⇄ rows. Weight is optional (defaults to equal-ish 1). */
 function parseRows(p: string | null): Row[] | null {
   if (!p) return null;
@@ -82,16 +93,35 @@ const serializeRows = (rows: Row[]): string =>
     .map((r) => `${r.symbol.trim().toUpperCase()}:${r.weight.trim() || "1"}`)
     .join(",");
 
+/**
+ * `?years=10` → a TRAILING window resolved at view time, which is what a shared
+ * link should carry. An absolute `from`/`to` pair silently goes stale: a link sent
+ * today saying `from=2016-09-06` is an eleven-year window next September. Same rule
+ * the preset pages already follow. Absolute dates stay supported for a custom
+ * window, and for every link handed out before this existed.
+ */
+function windowFromParams(params: URLSearchParams): { from: string; to: string } {
+  const years = Number(params.get("years"));
+  if (Number.isInteger(years) && years >= 1 && years <= MAX_YEARS) {
+    return { from: yearsAgoISO(years), to: todayISO() };
+  }
+  return { from: params.get("from") ?? yearsAgoISO(DEFAULT_YEARS), to: params.get("to") ?? todayISO() };
+}
+
 /** The query string IS the run. Null for a bare load, which the hook treats as
  *  "make no request" — that is what keeps an anonymous landing free of API calls. */
 function requestFromParams(params: URLSearchParams): DividendBacktestRequest | null {
   const parsed = parseRows(params.get("p"));
   if (!parsed) return null;
+  const window = windowFromParams(params);
   return {
     holdings: parsed.map((r) => ({ symbol: r.symbol, weight: Number(r.weight) || 0 })),
-    from: params.get("from") ?? yearsAgoISO(MAX_YEARS),
-    to: params.get("to") ?? todayISO(),
+    from: window.from,
+    to: window.to,
     initial: Number(params.get("initial") ?? 10000),
+    // No form control drives this any more — see the note on the results panel.
+    // Still PARSED, because `?drip=0` links were handed out (llms.txt documented
+    // the format) and a live URL is a promise; it just can't be produced now.
     reinvest: params.get("drip") !== "0",
   };
 }
@@ -100,10 +130,18 @@ export default function DividendBacktestPage() {
   const [params, setParams] = useSearchParams();
 
   const [rows, setRows] = useState<Row[]>(() => parseRows(params.get("p")) ?? DEFAULT_ROWS);
-  const [from, setFrom] = useState(() => params.get("from") ?? yearsAgoISO(MAX_YEARS));
-  const [to, setTo] = useState(() => params.get("to") ?? todayISO());
-  const [initial, setInitial] = useState(() => params.get("initial") ?? "10000");
-  const [reinvest, setReinvest] = useState(() => params.get("drip") !== "0");
+  const [from, setFrom] = useState(() => windowFromParams(params).from);
+  const [to, setTo] = useState(() => windowFromParams(params).to);
+  /** Which trailing-window chip is active, or null once the dates are hand-edited.
+   *  This is what decides whether a run is shared as `years=N` or as absolute dates
+   *  — an explicit choice rather than guessing from whether the dates happen to
+   *  line up with a preset. */
+  const [windowYears, setWindowYears] = useState<number | null>(() => {
+    const y = Number(params.get("years"));
+    if (Number.isInteger(y) && y >= 1 && y <= MAX_YEARS) return y;
+    return params.get("from") || params.get("to") ? null : DEFAULT_YEARS;
+  });
+  const [initial, setInitial] = useState(() => moneyInputDigits(params.get("initial") ?? "10000"));
   const [formError, setFormError] = useState<string | null>(null);
 
   // A cold load already carries this route's head tags (the prerender wrote them
@@ -126,12 +164,30 @@ export default function DividendBacktestPage() {
       return;
     }
     setFormError(null);
-    setParams({ p, from, to, initial, drip: reinvest ? "1" : "0" });
+    setParams({ p, ...windowParams(), initial });
+  }
+
+  /** A trailing window travels as `years`; a hand-picked one as the dates it is. */
+  function windowParams(): Record<string, string> {
+    return windowYears === null ? { from, to } : { years: String(windowYears) };
+  }
+
+  function applyWindow(years: number) {
+    setWindowYears(years);
+    setFrom(yearsAgoISO(years));
+    setTo(todayISO());
+  }
+
+  /** Editing either date by hand drops the chip: the window is no longer "the last
+   *  N years", so sharing it as one would be a lie a year from now. */
+  function editDate(which: "from" | "to", value: string) {
+    setWindowYears(null);
+    (which === "from" ? setFrom : setTo)(value);
   }
 
   function applyExample(ex: (typeof EXAMPLES)[number]) {
     setRows(ex.rows);
-    setParams({ p: serializeRows(ex.rows), from, to, initial, drip: reinvest ? "1" : "0" });
+    setParams({ p: serializeRows(ex.rows), ...windowParams(), initial });
   }
 
   return (
@@ -201,19 +257,88 @@ export default function DividendBacktestPage() {
           )}
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 18, alignItems: "flex-end" }}>
+            {/* Trailing-window shortcuts. The date pickers stay — a chip covers the
+                common case, not every case — but a chip is what makes a shared link
+                survive the calendar, so it is the path most runs should take. */}
+            <div style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Window</span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {WINDOW_PRESETS.map((years) => (
+                  <button
+                    key={years}
+                    type="button"
+                    onClick={() => applyWindow(years)}
+                    aria-pressed={windowYears === years}
+                    style={{
+                      ...chip,
+                      height: 38,
+                      padding: "0 12px",
+                      borderColor: windowYears === years ? "var(--accent)" : "var(--border)",
+                      color: windowYears === years ? "var(--accent)" : "var(--text)",
+                    }}
+                  >
+                    {years}Y
+                  </button>
+                ))}
+              </div>
+            </div>
             <Field label="Start">
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={input} />
+              <input type="date" value={from} onChange={(e) => editDate("from", e.target.value)} style={input} />
             </Field>
             <Field label="End">
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={input} />
+              <input type="date" value={to} onChange={(e) => editDate("to", e.target.value)} style={input} />
             </Field>
-            <Field label="Initial investment">
-              <input value={initial} onChange={(e) => setInitial(e.target.value)} inputMode="decimal" style={{ ...input, width: 130 }} />
-            </Field>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, height: 38 }}>
-              <input type="checkbox" checked={reinvest} onChange={(e) => setReinvest(e.target.checked)} />
-              Reinvest dividends
-            </label>
+            {/* Not a `Field`: the shortcut chips are buttons, and a button inside a
+                `<label>` fires the label's own focus behaviour when clicked. */}
+            <div style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Initial investment</span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <div style={{ position: "relative" }}>
+                  {/* The "$" is an adornment, never part of the value — so the caret
+                      never has to step over it and a paste of "$10,000" still works. */}
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      left: 12,
+                      top: 0,
+                      height: 38,
+                      display: "flex",
+                      alignItems: "center",
+                      color: "var(--muted)",
+                      fontSize: 14,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    $
+                  </span>
+                  <input
+                    value={moneyInputDisplay(initial)}
+                    onChange={(e) => setInitial(moneyInputDigits(e.target.value))}
+                    inputMode="numeric"
+                    aria-label="Initial investment in US dollars"
+                    style={{ ...input, width: 132, paddingLeft: 24 }}
+                  />
+                </div>
+                {INITIAL_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => setInitial(String(preset.value))}
+                    aria-pressed={initial === String(preset.value)}
+                    style={{
+                      ...chip,
+                      height: 38,
+                      padding: "0 10px",
+                      fontSize: 12,
+                      borderColor: initial === String(preset.value) ? "var(--accent)" : "var(--border)",
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button type="submit" disabled={loading} style={{ ...primary, opacity: loading ? 0.6 : 1 }}>
               {loading ? "Running…" : "Run backtest"}
             </button>

@@ -44,7 +44,7 @@ export const TOOLS: readonly Tool[] = [
     path: TOOL_PATH,
     name: "Portfolio Backtest",
     blurb:
-      "Put a basket of stocks or ETFs through the last ten years of daily prices: total return, CAGR, drawdown, and what the dividends did — reinvested or taken as cash.",
+      "Put a basket of stocks or ETFs through up to twenty years of daily prices: total return, CAGR, drawdown, and what the dividends did — reinvested or taken as cash.",
     // Derived, not restated: the preset registry already IS the list, and copying
     // it here is the drift this file exists to prevent.
     pages: BACKTEST_PRESETS.map((p) => ({ path: presetPath(p), label: p.linkLabel })),

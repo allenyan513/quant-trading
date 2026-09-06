@@ -13,8 +13,9 @@ each tool and to every ready-made run beneath it.
   Compares dividend reinvestment against taking the cash, and reports total return,
   CAGR, max drawdown, annualized volatility, dividend income by calendar year,
   income growth rate, yield on cost, per-holding results, and dividend cuts.
-  Inputs are encoded in the URL (`?p=SCHD:60,VYM:40&from=…&to=…&initial=…&drip=1`),
-  so any run is reproducible from its link.
+  Inputs are encoded in the URL (`?p=SCHD:60,VYM:40&from=…&to=…&initial=…`), so any
+  run is reproducible from its link. Every run reports the reinvested AND the
+  dividends-as-cash path side by side; there is no setting to choose between them.
 
   Method: prices are split-adjusted daily closes; each dividend is applied as cash
   on its ex-date using the matching split-adjusted per-share amount, never a
@@ -24,7 +25,9 @@ each tool and to every ready-made run beneath it.
   when both the annual total per share and the average payment per ex-date fell,
   which avoids the two common false positives: a monthly payer with 13 ex-dates in
   one calendar year, and a BDC paying more in total across extra supplementals.
-  Limits: up to 10 holdings, up to 10 years.
+  Limits: up to 10 holdings, up to 20 years. A window deeper than the data goes
+  back is trimmed to the earliest date every holding has prices, and the result
+  says so.
 
 ### Ready-made backtests (same tool, fixed baskets, own URLs)
 

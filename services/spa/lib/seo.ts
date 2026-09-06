@@ -105,7 +105,10 @@ export const BACKTEST_FAQ: readonly FaqEntry[] = [
     "Are taxes and fees included?",
     "No. Returns are gross: no withholding on dividends, no commissions, no fund fees beyond those already inside an ETF's price.",
   ],
-  ["How far back can I go?", "Ten years, which covers the history most dividend ETFs actually have."],
+  [
+    "How far back can I go?",
+    "Twenty years. If a holding is younger than the window, the test starts where its prices start and tells you the date it used.",
+  ],
 ];
 
 export const BACKTEST_TOOL_SEO: PageSeo = {
@@ -241,7 +244,7 @@ export const TOOLS_SEO: PageSeo = {
   path: TOOLS_PATH,
   title: "Free Investing Tools — No Sign-Up",
   description:
-    "Every free SweetValueLab tool in one place: backtest a portfolio of stocks or ETFs on ten years of daily prices, with dividends reinvested or taken as cash.",
+    "Every free SweetValueLab tool in one place: backtest a portfolio of stocks or ETFs on up to 20 years of daily prices, with dividends reinvested or as cash.",
   priority: "0.8",
   changefreq: "weekly",
   jsonLd: [

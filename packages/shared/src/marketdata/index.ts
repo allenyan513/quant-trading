@@ -290,10 +290,32 @@ export const getEstimates = (s: string, p: StatementPeriod = "annual", n?: numbe
 // see #33) — a deep request on a shallow cache backfills, then short-circuits.
 const PRICE_FETCH_DAYS = 4000;
 
-/** Daily OHLCV with read-through caching into daily_prices. */
-export async function getDailyPrices(symbol: string, lookbackDays = 400): Promise<PriceRowInput[]> {
+/**
+ * FMP returns at most this many daily bars per request (~19.9 years of trading
+ * days), whatever `from` we ask for. A cache already holding this many therefore
+ * contains everything one fetch can add — which is what stops a request for a
+ * window OLDER than the data goes back from re-fetching on every single call.
+ * Without that, asking for 20y of a symbol listed in 2010 is an infinite refetch.
+ */
+const FMP_MAX_PRICE_ROWS = 5000;
+
+/**
+ * Daily OHLCV with read-through caching into daily_prices.
+ *
+ * `opts.fetchDays` raises how deep this symbol's cache is filled, for the callers
+ * that need real history — today only the public backtester, whose 20-year window
+ * needs roughly twice the pipeline's default. It is opt-in precisely BECAUSE it is
+ * shared: raising the default would enlarge every cache warm-up in the news
+ * pipeline, for symbols nobody is going to backtest.
+ */
+export async function getDailyPrices(
+  symbol: string,
+  lookbackDays = 400,
+  opts?: { fetchDays?: number },
+): Promise<PriceRowInput[]> {
   const sym = symbol.toUpperCase();
   const { dailyPrices } = schema;
+  const depth = Math.max(PRICE_FETCH_DAYS, Math.trunc(opts?.fetchDays ?? 0));
 
   const read = (n: number) =>
     db()
@@ -303,18 +325,22 @@ export async function getDailyPrices(symbol: string, lookbackDays = 400): Promis
       .orderBy(desc(dailyPrices.tradeDate))
       .limit(n);
 
-  const cached = await read(PRICE_FETCH_DAYS);
+  const cached = await read(depth);
   const fresh = cached.length > 0 && isPriceFresh(cached[0]?.tradeDate ?? null, new Date());
   // Deep enough? Compare by date span: the oldest cached bar must reach the start
   // of the requested window. A deep request (e.g. 10Y) on a shallow cache fails
   // this and refetches the full window; afterwards it short-circuits.
+  //
+  // The row-count clause is the other way to be satisfied: when the window reaches
+  // further back than the symbol's data (or than one FMP response can carry), the
+  // date test can NEVER pass, and without this it would refetch on every call.
   const wantFrom = new Date(Date.now() - lookbackDays * 86_400_000).toISOString().slice(0, 10);
   const oldest = cached.at(-1)?.tradeDate ?? null;
-  if (fresh && oldest != null && oldest <= wantFrom) {
+  if (fresh && oldest != null && (oldest <= wantFrom || cached.length >= FMP_MAX_PRICE_ROWS)) {
     return cached.slice(0, lookbackDays) as PriceRowInput[];
   }
 
-  const from = new Date(Date.now() - PRICE_FETCH_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const from = new Date(Date.now() - depth * 86_400_000).toISOString().slice(0, 10);
   const to = new Date().toISOString().slice(0, 10);
   const fmp = await fmpGet<FmpPrice[]>("historical-price-eod/full", { symbol: sym, from, to }, { softFail402: true });
   if (!fmp?.length) return cached.slice(0, lookbackDays) as PriceRowInput[];
