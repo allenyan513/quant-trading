@@ -44,22 +44,6 @@ export default function JepiVsSchdCopy() {
         </P>
       </Section>
 
-      <Section title="What to look at in the results above">
-        <Ul>
-          <li>
-            <strong style={{ color: "var(--text)" }}>Income by year.</strong> This is the point of the comparison. One of these funds
-            front-loads income; the other grows it. Ten years would show that clearly — five is enough to see the shape.
-          </li>
-          <li>
-            <strong style={{ color: "var(--text)" }}>Total return with dividends reinvested.</strong> A high distribution is not a
-            return. If a fund pays 8% and the price drifts down, you funded your own income. The reinvested line settles that.
-          </li>
-          <li>
-            <strong style={{ color: "var(--text)" }}>Max drawdown.</strong> Selling calls dampens the downside a little, because the
-            premium keeps coming in. Whether it dampened it enough to matter is in the number.
-          </li>
-        </Ul>
-      </Section>
 
       <Section title="Why this window starts in 2020">
         <P>

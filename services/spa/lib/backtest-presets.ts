@@ -105,10 +105,6 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
         "Should I hold both SCHD and VYM?",
         "They overlap on large-cap US dividend payers, so holding both mostly dilutes whichever one you believe in rather than diversifying you. The backtest above defaults to a 50/50 split so you can see what the blend would have done; change the weights to compare against either fund on its own.",
       ],
-      [
-        "Does this backtest include dividend reinvestment?",
-        "Yes. Each dividend buys more shares at that day's close, and the chart also plots what would have happened if you had taken the cash instead — the gap between the two lines is what reinvestment was worth.",
-      ],
     ],
     facts: [
       { label: "Index tracked", values: ["Dow Jones U.S. Dividend 100", "FTSE Custom High Dividend Yield"] },
@@ -236,6 +232,13 @@ export const BACKTEST_PRESETS: readonly BacktestPreset[] = [
 export const PRESET_BY_SLUG: Record<string, BacktestPreset> = Object.fromEntries(
   BACKTEST_PRESETS.map((p) => [p.slug, p]),
 );
+
+/** One request per holding, each at 100% weight — what a comparison page needs:
+ *  a curve for EACH fund, not one curve for a blend of them. */
+export function presetRequestPerHolding(p: BacktestPreset): DividendBacktestRequest[] {
+  const base = presetRequest(p);
+  return p.holdings.map((h) => ({ ...base, holdings: [{ symbol: h.symbol, weight: 100 }] }));
+}
 
 /** Preset → API request. The ONE place this conversion happens. */
 export function presetRequest(p: BacktestPreset): DividendBacktestRequest {

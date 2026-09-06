@@ -39,28 +39,6 @@ export default function SchdCopy() {
         </P>
       </Section>
 
-      <Section title="The numbers worth your attention">
-        <Ul>
-          <li>
-            <strong style={{ color: "var(--text)" }}>Income by year.</strong> The most useful table on the page if you hold this fund for
-            income. It shows the actual dollars paid each calendar year on your starting amount, and the year-over-year change.
-          </li>
-          <li>
-            <strong style={{ color: "var(--text)" }}>Yield on cost.</strong> Last twelve months of income over what you originally
-            invested. After ten years of reinvestment it runs far above the fund&apos;s quoted yield — that spread is the compounding,
-            made visible.
-          </li>
-          <li>
-            <strong style={{ color: "var(--text)" }}>Max drawdown.</strong> Measured on daily closes, so it is the real peak-to-trough
-            you would have lived through, not the tidier number you get from month-end data.
-          </li>
-          <li>
-            <strong style={{ color: "var(--text)" }}>Dividend cuts.</strong> An ETF&apos;s payout is the sum of what its holdings paid,
-            so it moves around quarter to quarter even when nothing was cut. This tool only flags a year where both the annual total per
-            share and the average payment fell, which filters out that noise.
-          </li>
-        </Ul>
-      </Section>
 
       <Section title="What this backtest does not tell you">
         <P>
