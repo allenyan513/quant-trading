@@ -94,6 +94,45 @@ export function ReplayButton({ playing, onClick }: { playing: boolean; onClick: 
   );
 }
 
+/**
+ * Playback speed, shown ONLY while a replay is running.
+ *
+ * Deliberately not a permanent control: at rest it would be furniture for a
+ * setting nobody has an opinion about yet. It appears at the exact moment someone
+ * can form one — "this is slower than I want" — which is also how video players
+ * do it. One pill that states the current speed and swaps on click, rather than a
+ * segmented control that spends half its width on the option you are already on.
+ *
+ * Not a long-press menu: hiding a control behind a hold gesture on a primary
+ * action is undiscoverable on desktop and fights text selection on touch.
+ */
+export function SpeedToggle({ speed, onChange }: { speed: number; onChange: (next: 1 | 2) => void }) {
+  const next = speed === 1 ? 2 : 1;
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(next)}
+      aria-label={`Playback speed ${speed}x. Switch to ${next}x.`}
+      title={`${speed}x — click for ${next}x`}
+      style={{
+        height: 32,
+        minWidth: 36,
+        padding: "0 10px",
+        borderRadius: 999,
+        border: "1px solid var(--border)",
+        background: "transparent",
+        color: "var(--muted)",
+        fontSize: 12,
+        fontWeight: 600,
+        fontVariantNumeric: "tabular-nums",
+        cursor: "pointer",
+      }}
+    >
+      {speed}x
+    </button>
+  );
+}
+
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label style={{ display: "grid", gap: 6, fontSize: 12, color: "var(--muted)" }}>
