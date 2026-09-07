@@ -12,7 +12,8 @@
 import { useMemo, useRef, useState } from "react";
 import { BacktestChartLazy } from "@/components/backtest-chart.lazy";
 import { money, fmtPct, fmtNum } from "@/lib/format";
-import { panel, table, h2Style, subStyle, ReplayButton, SpeedToggle, Th, Td } from "@/components/backtest/ui";
+import { panel, table, h2Style, subStyle, Th, Td } from "@/components/tool-ui";
+import { ReplayButton, SpeedToggle } from "@/components/backtest/replay-controls";
 import { CutsPanel, ResultsGate, ScrollTable, WarningList } from "@/components/backtest/sections";
 import { dividendShare, holdingsLabel, yearsAgoLabel, DIVIDEND_LEAD_THRESHOLD } from "@/lib/backtest";
 import type { DividendBacktestResult } from "@qt/shared/backtest";

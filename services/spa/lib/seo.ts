@@ -15,7 +15,7 @@
  */
 
 import { BACKTEST_PRESETS, presetPath, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";
-import { TOOLS, TOOLS_PATH } from "@/lib/tools";
+import { FIRE_TOOL_PATH, TOOLS, TOOLS_PATH } from "@/lib/tools";
 import {
   alternatesOf,
   BLOG_LANGS,
@@ -171,6 +171,68 @@ export const BACKTEST_TOOL_SEO: PageSeo = {
       isAccessibleForFree: true,
     },
     faqJsonLd(`${SITE_URL}${TOOL_PATH}#faq`, BACKTEST_FAQ),
+  ],
+};
+
+export const FIRE_FAQ: readonly FaqEntry[] = [
+  [
+    "What is a FIRE number?",
+    "The portfolio that covers your spending indefinitely: a year of expenses divided by your withdrawal rate. At the 4% rule that is 25 times a year of spending — $60,000 a year means $1.5 million.",
+  ],
+  [
+    "Why show a range instead of one number?",
+    "Because a single average hides the thing that decides your plan. Compounding at a fixed return says one number; sampling real-looking volatility says the answer is a spread, and that spread is often fifteen years wide on the same inputs.",
+  ],
+  [
+    "Is the 4% rule still safe?",
+    "It was derived from US history over 30-year retirements, and it is a starting point rather than a law. Lower the withdrawal rate here and watch the target and the survival rate move — a longer retirement or a worse decade both argue for something below 4%.",
+  ],
+  [
+    "What is sequence-of-returns risk?",
+    "The order returns arrive in. A bad first few years of retirement forces you to sell while prices are down, and the portfolio may never recover even if the average return over the whole period was fine. It is why this page tests the withdrawal phase separately.",
+  ],
+  [
+    "Does it account for taxes, fees or Social Security?",
+    "No. Returns are gross and no pension, benefit or salary growth is modelled. Treat the output as the shape of the problem, not a financial plan.",
+  ],
+  [
+    "Do I need an account, and where does my data go?",
+    "No account, and nowhere. The whole simulation runs in your browser; the only thing that leaves it is the URL, if you choose to share it.",
+  ],
+];
+
+export const FIRE_TOOL_SEO: PageSeo = {
+  path: FIRE_TOOL_PATH,
+  title: "FIRE Calculator — Monte Carlo, Free & No Sign-Up",
+  description:
+    "Find your FIRE number and how long it takes to get there. 1,000 Monte Carlo paths show the full range of outcomes, plus whether the money survives 30 years of withdrawals.",
+  jsonLd: [
+    ORGANIZATION,
+    {
+      "@type": "WebApplication",
+      "@id": `${SITE_URL}${FIRE_TOOL_PATH}#app`,
+      name: "FIRE Calculator",
+      url: `${SITE_URL}${FIRE_TOOL_PATH}`,
+      applicationCategory: "FinanceApplication",
+      operatingSystem: "Any (web browser)",
+      browserRequirements: "Requires JavaScript",
+      publisher: { "@id": `${SITE_URL}/#organization` },
+      description:
+        "Monte Carlo financial-independence calculator: years to FIRE as a distribution rather than an average, with a sequence-of-returns test on the withdrawal phase.",
+      featureList: [
+        "Your FIRE number from target spend and withdrawal rate",
+        "Years to financial independence as a P10 / P50 / P90 distribution",
+        "1,000 Monte Carlo paths with adjustable return and volatility",
+        "Portfolio balance fan chart across every simulated path",
+        "30-year withdrawal survival rate (sequence-of-returns risk)",
+        "Adjustable safe withdrawal rate and inflation",
+        "Shareable result URLs",
+      ],
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      dateModified: CONTENT_UPDATED,
+      isAccessibleForFree: true,
+    },
+    faqJsonLd(`${SITE_URL}${FIRE_TOOL_PATH}#faq`, FIRE_FAQ),
   ],
 };
 
@@ -486,6 +548,7 @@ export const PUBLIC_PAGES: PageSeo[] = [
   HOME_SEO,
   TOOLS_SEO,
   BACKTEST_TOOL_SEO,
+  FIRE_TOOL_SEO,
   ...BACKTEST_PRESETS.map(presetSeo),
   ...BLOG_LANGS.map(blogIndexSeo),
   ...BLOG_POSTS.map(postSeo),

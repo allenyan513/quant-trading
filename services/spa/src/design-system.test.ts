@@ -41,6 +41,7 @@ const PUBLIC_FILES = [
   "pages/page.tsx",
   "pages/tools/page.tsx",
   "pages/tools/portfolio-backtest/page.tsx",
+  "pages/tools/fire-calculator/page.tsx",
   "pages/tools/portfolio-backtest/preset-view.tsx",
   "pages/blog/page.tsx",
   "pages/blog/post-view.tsx",

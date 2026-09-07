@@ -18,7 +18,7 @@ import { PublicPage, PageSection } from "@/components/public-chrome";
 import { BacktestResultsSection } from "@/components/backtest/results";
 import { BacktestMethodNotes } from "@/components/backtest/method";
 import { PresetSiblings } from "@/components/backtest/preset-links";
-import { FaqList, panel, table, Th, Td } from "@/components/backtest/ui";
+import { FaqList, panel, table, Th, Td } from "@/components/tool-ui";
 import { ComparisonResultsSection } from "@/components/backtest/comparison";
 import { useDividendBacktest, useDividendBacktests } from "@/lib/backtest";
 import { presetRequest, presetRequestPerHolding, presetBenchmarkRequest, TOOL_PATH, type BacktestPreset } from "@/lib/backtest-presets";

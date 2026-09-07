@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from "react";
 import { money, fmtPct } from "@/lib/format";
-import { panel, table, h2Style, subStyle, Th, Td } from "@/components/backtest/ui";
+import { panel, table, h2Style, subStyle, Th, Td } from "@/components/tool-ui";
 import type { DividendCut } from "@qt/shared/backtest";
 
 export function WarningList({ warnings }: { warnings: readonly string[] }) {

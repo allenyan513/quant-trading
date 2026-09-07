@@ -21,6 +21,11 @@ import { BACKTEST_PRESETS, presetPath, TOOL_PATH } from "@/lib/backtest-presets"
 
 export const TOOLS_PATH = "/tools";
 
+/** Canonical path for the FIRE calculator. Lives here rather than beside the page
+ *  so `lib/seo.ts` can reach it without importing a component (the prerender and
+ *  the sitemap read this module in Node). */
+export const FIRE_TOOL_PATH = "/tools/fire-calculator";
+
 /** A ready-made page belonging to a tool — its own crawlable URL. */
 export interface ToolLink {
   readonly path: string;
@@ -48,6 +53,12 @@ export const TOOLS: readonly Tool[] = [
     // Derived, not restated: the preset registry already IS the list, and copying
     // it here is the drift this file exists to prevent.
     pages: BACKTEST_PRESETS.map((p) => ({ path: presetPath(p), label: p.linkLabel })),
+  },
+  {
+    path: FIRE_TOOL_PATH,
+    name: "FIRE Calculator",
+    blurb:
+      "How long until work is optional? A thousand Monte Carlo paths turn the single average every other calculator prints into the range it actually is — then test whether the money survives thirty years of withdrawals.",
   },
 ];
 
