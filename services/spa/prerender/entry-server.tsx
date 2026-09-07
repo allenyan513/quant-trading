@@ -23,7 +23,8 @@ import { PUBLIC_PAGES } from "@/lib/seo";
 import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
 import { BACKTEST_PRESETS, presetPath, assertPresetGraph, TOOL_PATH } from "@/lib/backtest-presets";
 import ToolsIndexPage from "@/pages/tools/page";
-import { assertToolGraph, TOOLS_PATH } from "@/lib/tools";
+import FireCalculatorPage from "@/pages/tools/fire-calculator/page";
+import { assertToolGraph, FIRE_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
 import BlogIndexPage from "@/pages/blog/page";
 import { BlogPostView } from "@/pages/blog/post-view";
 import { assertBlogGraph, assertBlogLinks, BLOG_LANGS, BLOG_POSTS, langPrefix } from "@/lib/blog";
@@ -46,6 +47,7 @@ const COMPONENTS: Record<string, ComponentType> = {
   "/": HomePage,
   [TOOLS_PATH]: ToolsIndexPage,
   [TOOL_PATH]: DividendBacktestPage,
+  [FIRE_TOOL_PATH]: FireCalculatorPage,
   "/about": AboutPage,
   "/privacy": PrivacyPage,
   "/terms": TermsPage,

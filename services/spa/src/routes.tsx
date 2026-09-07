@@ -10,7 +10,8 @@ import ToolsIndexPage from "@/pages/tools/page";
 import DividendBacktestPage from "@/pages/tools/portfolio-backtest/page";
 import { PresetBacktestView } from "@/pages/tools/portfolio-backtest/preset-view";
 import { BACKTEST_PRESETS, presetPath, TOOL_PATH } from "@/lib/backtest-presets";
-import { TOOLS_PATH } from "@/lib/tools";
+import FireCalculatorPage from "@/pages/tools/fire-calculator/page";
+import { FIRE_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
 import BlogIndexPage from "@/pages/blog/page";
 import { BlogPostView } from "@/pages/blog/post-view";
 import { BLOG_LANGS, BLOG_POSTS, langPrefix } from "@/lib/blog";
@@ -95,6 +96,7 @@ export function AppRoutes() {
       {/* Public no-login tools (SEO landing surfaces) */}
       <Route path={TOOLS_PATH} element={<ToolsIndexPage />} />
       <Route path={TOOL_PATH} element={<DividendBacktestPage />} />
+      <Route path={FIRE_TOOL_PATH} element={<FireCalculatorPage />} />
       {/* Ready-made backtests. Enumerated from the registry rather than a `:slug`
           param: an unrecognized child then falls to the `*` catch-all like any other
           bad URL, instead of rendering an empty page across an infinite URL space. */}
