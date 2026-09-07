@@ -20,7 +20,7 @@ import { PublicPage, PageSection } from "@/components/public-chrome";
 import { BacktestResultsSection } from "@/components/backtest/results";
 import { BacktestMethodNotes } from "@/components/backtest/method";
 import { PresetHub } from "@/components/backtest/preset-links";
-import { panel, input, chip, primary, Field, FaqList } from "@/components/backtest/ui";
+import { panel, input, chip, primary, Field, FaqList } from "@/components/tool-ui";
 import { moneyInputDigits, moneyInputDisplay } from "@/lib/format";
 import {
   MAX_HOLDINGS,

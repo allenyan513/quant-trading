@@ -12,7 +12,7 @@
  * the canonical explanation.
  */
 import Link from "@/components/link";
-import { Note } from "@/components/backtest/ui";
+import { Note } from "@/components/tool-ui";
 import { TOOL_PATH } from "@/lib/backtest-presets";
 
 export function BacktestMethodNotes({ variant }: { variant: "full" | "brief" }) {

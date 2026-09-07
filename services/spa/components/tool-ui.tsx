@@ -1,13 +1,21 @@
 /**
- * Shared presentation primitives for the dividend-backtest surface — the form
- * tool and the preset landing pages render from the same styles and the same
- * table/KPI parts, so the two can't drift into lookalikes.
+ * Presentation atoms shared by every public `/tools/*` page.
  *
- * Moved verbatim out of the tool page; `input`/`primary`/`Field` are only used by
- * the form, but splitting a 90-line style module in two buys nothing.
+ * These started life inside the backtest tool and lived for a while under
+ * `components/backtest/ui.tsx` — a name that only ever described where they came
+ * from. Nothing in this file knows what a backtest is: they are the panel, the
+ * form controls, the KPI, the table cells and the FAQ list that any tool surface
+ * on this site is built from. The FIRE calculator is the second consumer, which
+ * is the moment the old name stopped being harmless.
+ *
+ * Chart-replay controls did NOT move here — they are genuinely backtest-specific
+ * and stayed behind in `components/backtest/replay-controls.tsx`.
+ *
+ * Deliberately NOT listed in `src/design-system.test.ts`'s `PUBLIC_FILES`: that
+ * check is scoped to page files, and `panel`'s `clamp()` padding is a component's
+ * own responsive inset, not the page gutter the rule is there to protect.
  */
 import type { CSSProperties, ReactNode } from "react";
-import { Play, SkipForward } from "lucide-react";
 import type { FaqEntry } from "@/lib/seo";
 
 export const panel: CSSProperties = {
@@ -57,81 +65,6 @@ export const table: CSSProperties = { width: "100%", borderCollapse: "collapse",
  *  the level changed for the document outline, not the visual weight. */
 export const h2Style: CSSProperties = { fontSize: 15, fontWeight: 700, margin: "0 0 6px" };
 export const subStyle: CSSProperties = { fontSize: 13, color: "var(--muted)", margin: "0 0 12px" };
-
-/**
- * The replay control, shared by the single-basket and comparison result panels.
- *
- * Solid rather than an outline chip: the replay is the thing worth doing on this
- * panel, and the first version — a small pill under the chart legend — was missed
- * entirely. One word plus a play glyph; the surrounding panel already says what is
- * being replayed, so "Replay this backtest" only made the button wide.
- */
-export function ReplayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={playing ? "Skip the replay" : "Replay this backtest from the start"}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        height: 32,
-        padding: "0 14px",
-        borderRadius: 999,
-        border: "none",
-        background: "var(--accent)",
-        color: "#06223f",
-        fontSize: 13,
-        fontWeight: 700,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {playing ? <SkipForward size={14} strokeWidth={2.5} /> : <Play size={14} strokeWidth={2.5} fill="currentColor" />}
-      {playing ? "Skip" : "Replay"}
-    </button>
-  );
-}
-
-/**
- * Playback speed, shown ONLY while a replay is running.
- *
- * Deliberately not a permanent control: at rest it would be furniture for a
- * setting nobody has an opinion about yet. It appears at the exact moment someone
- * can form one — "this is slower than I want" — which is also how video players
- * do it. One pill that states the current speed and swaps on click, rather than a
- * segmented control that spends half its width on the option you are already on.
- *
- * Not a long-press menu: hiding a control behind a hold gesture on a primary
- * action is undiscoverable on desktop and fights text selection on touch.
- */
-export function SpeedToggle({ speed, onChange }: { speed: number; onChange: (next: 1 | 2) => void }) {
-  const next = speed === 1 ? 2 : 1;
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(next)}
-      aria-label={`Playback speed ${speed}x. Switch to ${next}x.`}
-      title={`${speed}x — click for ${next}x`}
-      style={{
-        height: 32,
-        minWidth: 36,
-        padding: "0 10px",
-        borderRadius: 999,
-        border: "1px solid var(--border)",
-        background: "transparent",
-        color: "var(--muted)",
-        fontSize: 12,
-        fontWeight: 600,
-        fontVariantNumeric: "tabular-nums",
-        cursor: "pointer",
-      }}
-    >
-      {speed}x
-    </button>
-  );
-}
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
